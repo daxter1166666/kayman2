@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+  <!-- Core Static Pages -->
+  <url>
+    <loc>https://aymankinani.com/</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?view=novels</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?view=about</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?view=donate</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?legal=contact</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?legal=terms</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?legal=privacy</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?legal=dmca</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.4</priority>
+  </url>
+
+  <!-- Canonical Novel Entries for Ayman Kinani -->
+  <url>
+    <loc>https://aymankinani.com/?novel=novel-1</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
+      <image:title>أطياف الذاكرة المنسية</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?novel=novel-2</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
+      <image:title>صدى الصمت الأخير</image:title>
+    </image:image>
+  </url>
+  <url>
+    <loc>https://aymankinani.com/?novel=novel-3</loc>
+    <lastmod>2026-09-03</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1476275466078-4007374efbbe?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
+      <image:title>مفترق الأقدار</image:title>
+    </image:image>
+  </url>
+</urlset>

@@ -1,0 +1,65 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-canvas: #FDFCF8;
+    --text-main: #2C2C2C;
+    --text-muted: #6E6A64;
+    --accent-sage: #4A5D4E;
+    --accent-sage-hover: #3C4C3F;
+    --border-parchment: #E5E2D9;
+    --card-parchment: #FFFFFF;
+    --card-surface-soft: #F7F5EE;
+    --accent-terracotta: #8C5E45;
+    --accent-gold: #C88A3B;
+  }
+
+  html {
+    direction: rtl;
+    font-family: 'Cairo', 'Readex Pro', 'Plus Jakarta Sans', system-ui, sans-serif;
+  }
+
+  body {
+    background-color: #FDFCF8;
+    color: #2C2C2C;
+    font-family: 'Cairo', 'Readex Pro', 'Plus Jakarta Sans', system-ui, sans-serif;
+    letter-spacing: -0.01em;
+  }
+
+  .font-amiri {
+    font-family: 'Amiri', 'Lora', serif;
+  }
+
+  .font-cairo {
+    font-family: 'Cairo', system-ui, sans-serif;
+  }
+
+  .font-tajawal {
+    font-family: 'Tajawal', system-ui, sans-serif;
+  }
+
+  .font-readex {
+    font-family: 'Readex Pro', system-ui, sans-serif;
+  }
+
+  .font-scheherazade {
+    font-family: 'Scheherazade New', serif;
+  }
+}
+
+/* Custom subtle scrollbars for artistic reading */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #F4F1EA;
+}
+::-webkit-scrollbar-thumb {
+  background: #D1CDC4;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #4A5D4E;
+}
+

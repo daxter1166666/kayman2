@@ -1,0 +1,24 @@
+{
+  "short_name": "نوفيليا",
+  "name": "نوفيليا | منصة نشر وقراءة الكتب والروايات",
+  "description": "منصة رقمية حديثة لنشر وقراءة الكتب، الروايات، المقالات الفكرية، والمؤلفات الأدبية المتنوعة",
+  "icons": [
+    {
+      "src": "/pwa-192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "/pwa-512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "background_color": "#FDFCF8",
+  "theme_color": "#4A5D4E",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar"
+}

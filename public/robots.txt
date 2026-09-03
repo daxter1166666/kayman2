@@ -1,0 +1,22 @@
+# Robots.txt for Ayman Kinani Official Platform
+# المنصة الرسمية لنشر مؤلفات وكتب الكاتب أيمن كناني
+
+User-agent: *
+Allow: /
+Allow: /novels
+Allow: /chapters
+Allow: /about
+Allow: /donate
+Allow: /manifest.json
+
+# Disallow admin control panel and private management endpoints
+Disallow: /admin
+Disallow: /*?admin=*
+Disallow: /*&admin=*
+Disallow: /api/admin/
+
+# Disallow common bot scrapers if needed or set crawl-delay
+Crawl-delay: 1
+
+# Sitemap reference
+Sitemap: https://aymankinani.com/sitemap.xml
