@@ -59,33 +59,14 @@
     <link rel="manifest" href="/manifest.json" />
     
     <script>
-      // Self-healing: if an old cached index.html tries to load a non-existent Vite JS chunk, bust cache and reload
-      window.addEventListener('error', function(e) {
-        if (e.target && (e.target.tagName === 'SCRIPT' || e.target.tagName === 'LINK')) {
-          var src = e.target.src || e.target.href || '';
-          if (src.indexOf('/assets/') !== -1) {
-            var retryKey = 'chunk_reload_' + src;
-            if (!sessionStorage.getItem(retryKey)) {
-              sessionStorage.setItem(retryKey, '1');
-              if ('serviceWorker' in navigator) {
-                navigator.serviceWorker.getRegistrations().then(function(regs) {
-                  for (var r of regs) { r.unregister(); }
-                  if ('caches' in window) {
-                    caches.keys().then(function(names) {
-                      for (var n of names) { caches.delete(n); }
-                      window.location.reload();
-                    });
-                  } else {
-                    window.location.reload();
-                  }
-                });
-              } else {
-                window.location.reload();
-              }
-            }
+      // Automatically clear old Service Worker and any stale cache that holds old index-*.js hashes
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.getRegistrations().then(function(registrations) {
+          for (var reg of registrations) {
+            reg.unregister();
           }
-        }
-      }, true);
+        });
+      }
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
