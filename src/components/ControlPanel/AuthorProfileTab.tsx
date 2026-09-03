@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { AuthorProfile, AuthorSocialLinks } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 import {
   User,
   Upload,
@@ -83,6 +84,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     storageService.saveAuthorProfile(profile);
+    supabaseService.saveAuthorProfileToSupabase(profile);
     setSavedSuccess(true);
     onRefreshData();
     setTimeout(() => setSavedSuccess(false), 4000);

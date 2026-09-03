@@ -18,6 +18,7 @@ import {
   Link as LinkIcon
 } from 'lucide-react';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 import { SiteBranding } from '../../types';
 
 interface SettingsTabProps {
@@ -91,6 +92,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const handleSaveBranding = (e: React.FormEvent) => {
     e.preventDefault();
     storageService.saveSiteBranding(branding);
+    supabaseService.saveSiteBrandingToSupabase(branding);
     showToast('تم حفظ وتحديث هوية الموقع وشعار المنصة وأيقونة المتصفح بنجاح!');
     onRefreshData();
   };

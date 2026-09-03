@@ -68,9 +68,12 @@ class SupabaseService {
     }
     if (this.client) return this.client;
 
-    // Check environment variables first (available to all browsers when deployed with env vars)
-    const envUrl = import.meta.env.VITE_SUPABASE_URL;
-    const envKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+    const defaultUrl = 'https://kepuolqhropozwfwwwbb.supabase.co';
+    const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw';
+
+    // Check environment variables first, then default to the project credentials
+    const envUrl = (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL.trim()) ? import.meta.env.VITE_SUPABASE_URL.trim() : defaultUrl;
+    const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY && import.meta.env.VITE_SUPABASE_ANON_KEY.trim()) ? import.meta.env.VITE_SUPABASE_ANON_KEY.trim() : defaultKey;
     if (envUrl && envKey) {
       return this.initClient({
         url: envUrl,
@@ -207,13 +210,43 @@ class SupabaseService {
         if (donateRow?.data) donationSettings = donateRow.data;
       }
 
-      // Update local storage cache so offline & instant loads work
-      storageService.saveNovels(novels);
-      storageService.saveChapters(chapters);
-      storageService.saveComments(comments);
+      // Update local storage cache only when items exist so empty cloud doesn't wipe local works
+      if (novels.length > 0) {
+        storageService.saveNovels(novels);
+      }
+      if (chapters.length > 0) {
+        storageService.saveChapters(chapters);
+      }
+      if (comments.length > 0) {
+        storageService.saveComments(comments);
+      }
       if (authorProfile) storageService.saveAuthorProfile(authorProfile);
       if (siteBranding) storageService.saveSiteBranding(siteBranding);
       if (donationSettings) storageService.saveDonationSettings(donationSettings);
+
+      // If Supabase is currently empty, but this device already has local novels/chapters,
+      // automatically push them up to Supabase so other browsers can immediately access them!
+      if (novels.length === 0 && chapters.length === 0) {
+        const localNovels = storageService.getNovels();
+        const localChapters = storageService.getChapters();
+        if (localNovels.length > 0 || localChapters.length > 0) {
+          console.log('Supabase tables are empty. Auto-syncing existing local novels to cloud...');
+          this.syncAllToSupabase(this.currentConfig || {
+            url: 'https://kepuolqhropozwfwwwbb.supabase.co',
+            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw',
+            enabled: true,
+            autoSync: true,
+            connected: true
+          }, {
+            novels: localNovels,
+            chapters: localChapters,
+            comments: storageService.getComments(),
+            authorProfile: storageService.getAuthorProfile(),
+            siteBranding: storageService.getSiteBranding(),
+            donationSettings: storageService.getDonationSettings(),
+          }).catch(e => console.warn('Auto-sync to Supabase notice:', e));
+        }
+      }
 
       return {
         novels,
@@ -344,6 +377,21 @@ class SupabaseService {
       const { error } = await client.from('site_settings').upsert({
         id: 'site_branding',
         data: branding,
+        updated_at: new Date().toISOString(),
+      });
+      return !error;
+    } catch {
+      return false;
+    }
+  }
+
+  public async saveDonationSettingsToSupabase(donations: DonationSettings): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'donation_settings',
+        data: donations,
         updated_at: new Date().toISOString(),
       });
       return !error;

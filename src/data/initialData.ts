@@ -64,11 +64,11 @@ export const INITIAL_DONATION_SETTINGS: DonationSettings = {
 };
 
 export const INITIAL_SUPABASE_CONFIG: SupabaseConfig = {
-  enabled: false,
-  url: '',
-  anonKey: '',
-  autoSync: false,
-  connected: false,
+  enabled: true,
+  url: 'https://kepuolqhropozwfwwwbb.supabase.co',
+  anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw',
+  autoSync: true,
+  connected: true,
 };
 
 export const INITIAL_READER_SETTINGS: ReaderSettings = {

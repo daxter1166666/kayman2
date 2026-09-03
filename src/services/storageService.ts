@@ -541,7 +541,11 @@ export const storageService = {
 
   // --- Supabase Integration Config ---
   getSupabaseConfig(): SupabaseConfig {
-    return getStored<SupabaseConfig>(KEYS.SUPABASE_CONFIG, INITIAL_SUPABASE_CONFIG);
+    const config = getStored<SupabaseConfig>(KEYS.SUPABASE_CONFIG, INITIAL_SUPABASE_CONFIG);
+    if (!config || !config.url || !config.anonKey) {
+      return INITIAL_SUPABASE_CONFIG;
+    }
+    return config;
   },
 
   saveSupabaseConfig(config: Partial<SupabaseConfig>): SupabaseConfig {

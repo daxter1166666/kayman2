@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { DonationSettings } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 import {
   Heart,
   DollarSign,
@@ -29,6 +30,7 @@ export const DonationsTab: React.FC<DonationsTabProps> = ({ onRefreshData }) => 
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     storageService.saveDonationSettings(settings);
+    supabaseService.saveDonationSettingsToSupabase(settings);
     setSavedSuccess(true);
     onRefreshData();
     setTimeout(() => setSavedSuccess(false), 3500);
