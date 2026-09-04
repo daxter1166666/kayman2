@@ -38,7 +38,9 @@ import {
   Feather,
   HelpCircle,
   X,
-  Plus
+  Plus,
+  ChevronDown,
+  Eraser
 } from 'lucide-react';
 
 export interface RichTextEditorProps {
@@ -73,13 +75,75 @@ const HIGHLIGHT_COLORS = [
   { label: 'ماركر وردي', color: '#FBCFE8', bg: 'bg-pink-200' },
 ];
 
-// Preset Fonts
-const FONTS = [
-  { id: 'Amiri', name: 'خط أميري كلاسيكي (الأدب والشعر)', family: "'Amiri', 'Lora', serif" },
-  { id: 'Scheherazade New', name: 'خط شهرزاد (نسخ تراثي فاخر)', family: "'Scheherazade New', serif" },
-  { id: 'Cairo', name: 'خط القاهرة (عصري متوازن)', family: "'Cairo', system-ui, sans-serif" },
-  { id: 'Tajawal', name: 'خط تجوال (أنيق وسلس)', family: "'Tajawal', system-ui, sans-serif" },
-  { id: 'Readex Pro', name: 'خط ريديكس (واضح ومريح)', family: "'Readex Pro', system-ui, sans-serif" },
+// Preset Arabic Literary Fonts
+export interface FontOption {
+  id: string;
+  name: string;
+  shortName: string;
+  cleanName: string;
+  family: string;
+  cssClass: string;
+  sample: string;
+  badge: string;
+  category: string;
+}
+
+export const FONTS: FontOption[] = [
+  {
+    id: 'Amiri',
+    name: 'خط أميري كلاسيكي (الأدب والشعر)',
+    shortName: 'أميري كلاسيكي',
+    cleanName: 'Amiri',
+    family: "'Amiri', 'Lora', serif",
+    cssClass: 'font-amiri',
+    sample: 'سكن الليل والأماني غِرارُ، وفؤادي بذكركم سهّارُ',
+    badge: 'أدبي وشعري',
+    category: 'كلاسيكي'
+  },
+  {
+    id: 'Scheherazade New',
+    name: 'خط شهرزاد (نسخ وتراث أندلسي فاخر)',
+    shortName: 'شهرزاد التراثي',
+    cleanName: 'Scheherazade New',
+    family: "'Scheherazade New', serif",
+    cssClass: 'font-scheherazade',
+    sample: 'حكايات الأدب العتيق وروائع السرد التاريخي',
+    badge: 'نسخ أندلسي',
+    category: 'تراثي'
+  },
+  {
+    id: 'Cairo',
+    name: 'خط القاهرة (عصري متوازن وواضح)',
+    shortName: 'القاهرة المعاصر',
+    cleanName: 'Cairo',
+    family: "'Cairo', system-ui, sans-serif",
+    cssClass: 'font-cairo',
+    sample: 'خط متوازن وأنيق ومريح جداً للقراءة المتواصلة',
+    badge: 'عصري متوازن',
+    category: 'عصري'
+  },
+  {
+    id: 'Tajawal',
+    name: 'خط تجوال (أنيق وسلس وانسيابي)',
+    shortName: 'تجوال الأنيق',
+    cleanName: 'Tajawal',
+    family: "'Tajawal', system-ui, sans-serif",
+    cssClass: 'font-tajawal',
+    sample: 'جمال الحرف وسلاسة العبارات في المشاهد الروائية',
+    badge: 'سلس وانسيابي',
+    category: 'انسيابي'
+  },
+  {
+    id: 'Readex Pro',
+    name: 'خط ريديكس (حديث وهندسي رائق)',
+    shortName: 'ريديكس الحديث',
+    cleanName: 'Readex Pro',
+    family: "'Readex Pro', system-ui, sans-serif",
+    cssClass: 'font-readex',
+    sample: 'أعلى درجات الوضوح البصري والراحة البصرية للعين',
+    badge: 'حديث وهندسي',
+    category: 'حديث'
+  },
 ];
 
 // Preset Dividers
@@ -142,6 +206,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showColorPicker, setShowColorPicker] = useState<boolean>(false);
   const [showHighlightPicker, setShowHighlightPicker] = useState<boolean>(false);
   const [showDividerPicker, setShowDividerPicker] = useState<boolean>(false);
+  const [showFontMenu, setShowFontMenu] = useState<boolean>(false);
   const [showTemplatesModal, setShowTemplatesModal] = useState<boolean>(false);
   const [showPoetryModal, setShowPoetryModal] = useState<boolean>(false);
   const [showImageModal, setShowImageModal] = useState<boolean>(false);
@@ -182,6 +247,37 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // Close toolbar popups when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.toolbar-popup-container')) {
+        setShowFontMenu(false);
+        setShowColorPicker(false);
+        setShowHighlightPicker(false);
+        setShowDividerPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  // Detect font from initial or loaded chapter content if present
+  useEffect(() => {
+    if (!value) return;
+    for (const f of FONTS) {
+      if (
+        value.includes(`data-font="${f.id}"`) ||
+        value.includes(f.cssClass) ||
+        value.includes(f.cleanName) ||
+        value.includes(f.id)
+      ) {
+        setCurrentFont(f.id);
+        break;
+      }
+    }
+  }, [value]);
 
   // Convert plain text newlines into HTML paragraphs if initial value doesn't have tags
   const normalizeInitialHtml = useCallback((raw: string): string => {
@@ -255,7 +351,263 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     if (!editorRef.current) return;
     editorRef.current.focus();
     restoreSelection();
+    try {
+      document.execCommand('styleWithCSS', false, 'true');
+    } catch {
+      // ignore
+    }
     document.execCommand(command, false, arg);
+    handleContentChange();
+  };
+
+  // Apply Font to Selection or Entire Chapter
+  const applyFont = (fontId: string, forceWholeChapter: boolean = false) => {
+    const selected = FONTS.find(f => f.id === fontId);
+    if (!selected || !editorRef.current) return;
+
+    setCurrentFont(selected.id);
+    editorRef.current.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    const hasActiveSelection = Boolean(
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      editorRef.current.contains(sel.anchorNode)
+    );
+
+    if (hasActiveSelection && !forceWholeChapter && sel) {
+      // Apply to selected text range
+      const range = sel.getRangeAt(0);
+      try {
+        const span = document.createElement('span');
+        span.style.fontFamily = selected.family;
+        span.className = selected.cssClass;
+        span.setAttribute('data-font', selected.id);
+
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+
+        // Keep selection active around the formatted span
+        range.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        saveSelection();
+
+        showToast(`تم تطبيق خط "${selected.shortName}" على النص المحدد`);
+      } catch {
+        try {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('fontName', false, selected.cleanName);
+          const fontElements = editorRef.current.querySelectorAll(`font[face="${selected.cleanName}"]`);
+          fontElements.forEach(fe => {
+            const sp = document.createElement('span');
+            sp.style.fontFamily = selected.family;
+            sp.className = selected.cssClass;
+            sp.innerHTML = fe.innerHTML;
+            fe.parentNode?.replaceChild(sp, fe);
+          });
+          showToast(`تم تطبيق خط "${selected.shortName}" على النص المحدد`);
+        } catch {
+          // ignore
+        }
+      }
+    } else {
+      // Apply to the ENTIRE editor / chapter
+      editorRef.current.style.fontFamily = selected.family;
+      editorRef.current.setAttribute('data-font', selected.id);
+
+      const blocks = editorRef.current.querySelectorAll('p, h1, h2, h3, h4, blockquote');
+      if (blocks.length > 0) {
+        blocks.forEach(b => {
+          (b as HTMLElement).style.fontFamily = selected.family;
+        });
+      } else if (editorRef.current.innerHTML.trim()) {
+        editorRef.current.innerHTML = `<p style="font-family: ${selected.family}">${editorRef.current.innerHTML}</p>`;
+      }
+
+      showToast(`تم تطبيق خط "${selected.shortName}" على كامل نص الفصل`);
+    }
+
+    setShowFontMenu(false);
+    handleContentChange();
+  };
+
+  // Apply Font Size to Selection or Entire Chapter
+  const applyFontSize = (size: string, forceWholeChapter: boolean = false) => {
+    if (!editorRef.current) return;
+    setCurrentFontSize(size);
+
+    editorRef.current.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    const hasActiveSelection = Boolean(
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      editorRef.current.contains(sel.anchorNode)
+    );
+
+    if (hasActiveSelection && !forceWholeChapter && sel) {
+      const range = sel.getRangeAt(0);
+      try {
+        const span = document.createElement('span');
+        span.style.fontSize = size;
+
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+
+        range.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        saveSelection();
+
+        showToast(`تم تغيير حجم النص المحدد إلى ${size}`);
+      } catch {
+        // fallback
+      }
+    } else {
+      editorRef.current.style.fontSize = size;
+      const blocks = editorRef.current.querySelectorAll('p, blockquote, div:not(.book-divider)');
+      blocks.forEach(b => {
+        (b as HTMLElement).style.fontSize = size;
+      });
+      showToast(`تم تعيين حجم الخط ${size} لكامل الفصل`);
+    }
+
+    handleContentChange();
+  };
+
+  // Apply Line Height
+  const applyLineHeight = (lh: string) => {
+    if (!editorRef.current) return;
+    setCurrentLineHeight(lh);
+    editorRef.current.style.lineHeight = lh;
+
+    const blocks = editorRef.current.querySelectorAll('p, blockquote, div:not(.book-divider)');
+    blocks.forEach(b => {
+      (b as HTMLElement).style.lineHeight = lh;
+    });
+
+    handleContentChange();
+    showToast(`تم تعديل تباعد الأسطر إلى ${lh}`);
+  };
+
+  // Apply Text Color
+  const applyTextColor = (color: string) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    const hasActiveSelection = Boolean(
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      editorRef.current.contains(sel.anchorNode)
+    );
+
+    if (hasActiveSelection) {
+      try {
+        document.execCommand('styleWithCSS', false, 'true');
+        document.execCommand('foreColor', false, color);
+      } catch {
+        // fallback
+      }
+      showToast('تم تطبيق لون الحبر على النص المحدد');
+    } else {
+      const blocks = editorRef.current.querySelectorAll('p, blockquote');
+      if (blocks.length > 0) {
+        blocks.forEach(b => {
+          (b as HTMLElement).style.color = color;
+        });
+      } else {
+        editorRef.current.style.color = color;
+      }
+      showToast('تم تطبيق لون الحبر على كامل الفصل');
+    }
+
+    setShowColorPicker(false);
+    handleContentChange();
+  };
+
+  // Apply Highlight / Marker
+  const applyHighlight = (color: string) => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    try {
+      document.execCommand('styleWithCSS', false, 'true');
+      if (color === 'transparent') {
+        document.execCommand('removeFormat', false, undefined);
+      } else {
+        if (!document.execCommand('hiliteColor', false, color)) {
+          document.execCommand('backColor', false, color);
+        }
+      }
+    } catch {
+      // fallback
+    }
+
+    setShowHighlightPicker(false);
+    handleContentChange();
+    showToast(color === 'transparent' ? 'تمت إزالة التظليل' : 'تم تظليل النص بالماركر');
+  };
+
+  // Clear Formatting (Reset to standard literary style)
+  const handleClearFormat = () => {
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const sel = window.getSelection();
+    const hasActiveSelection = Boolean(
+      sel &&
+      sel.rangeCount > 0 &&
+      !sel.isCollapsed &&
+      sel.toString().trim().length > 0 &&
+      editorRef.current.contains(sel.anchorNode)
+    );
+
+    if (hasActiveSelection && sel) {
+      try {
+        document.execCommand('removeFormat', false, undefined);
+        const range = sel.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const el = container.nodeType === Node.ELEMENT_NODE ? (container as HTMLElement) : container.parentElement;
+        if (el && el !== editorRef.current) {
+          el.removeAttribute('style');
+        }
+      } catch {
+        // fallback
+      }
+      showToast('تمت إزالة تنسيق النص المحدد');
+    } else {
+      setCurrentFont('Amiri');
+      setCurrentFontSize('18px');
+      setCurrentLineHeight('1.8');
+      editorRef.current.style.fontFamily = "'Amiri', 'Lora', serif";
+      editorRef.current.style.fontSize = '18px';
+      editorRef.current.style.lineHeight = '1.8';
+      editorRef.current.style.color = '#2C2C2C';
+
+      const allElements = editorRef.current.querySelectorAll('*');
+      allElements.forEach(el => {
+        if (!el.classList.contains('book-divider') && !el.classList.contains('book-poetry-couplet')) {
+          el.removeAttribute('style');
+        }
+      });
+      showToast('تمت إعادة ضبط التنسيق للنمط الأدبي القياسي');
+    }
+
     handleContentChange();
   };
 
@@ -312,7 +664,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   // Block format (Heading, Paragraph)
   const handleFormatBlock = (tag: string) => {
-    executeCommand('formatBlock', tag);
+    if (!editorRef.current) return;
+    editorRef.current.focus();
+    restoreSelection();
+
+    const formattedTag = tag.startsWith('<') ? tag : `<${tag}>`;
+    try {
+      document.execCommand('formatBlock', false, formattedTag);
+    } catch {
+      document.execCommand('formatBlock', false, tag);
+    }
+    handleContentChange();
+    showToast(`تم تطبيق تنسيق ${tag.toUpperCase()}`);
   };
 
   // Insert Poetry Couplet (شطر وعجز)
@@ -711,6 +1074,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="flex items-center gap-0.5 pl-1.5 border-l border-[#E5E2D9]">
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+              }}
               onClick={() => executeCommand('undo')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#6E6A64] hover:text-[#2C2C2C] cursor-pointer transition-colors"
               title="تراجع (Ctrl+Z)"
@@ -719,6 +1085,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+              }}
               onClick={() => executeCommand('redo')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#6E6A64] hover:text-[#2C2C2C] cursor-pointer transition-colors"
               title="إعادة (Ctrl+Y)"
@@ -727,34 +1096,147 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
           </div>
 
-          {/* Font Family Selector */}
-          <div className="flex items-center">
-            <select
-              value={currentFont}
-              onChange={e => {
-                const selected = FONTS.find(f => f.id === e.target.value);
-                if (selected) {
-                  setCurrentFont(selected.id);
-                  if (editorRef.current) {
-                    editorRef.current.style.fontFamily = selected.family;
-                  }
-                  executeCommand('fontName', selected.family);
-                }
+          {/* Font Family Menu & Live Selector */}
+          <div className="relative toolbar-popup-container flex items-center">
+            {/* Primary Font Menu Trigger Button */}
+            <button
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
               }}
-              className="px-2 py-1.5 text-xs font-bold rounded-lg border border-[#E5E2D9] bg-[#FDFCF8] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] cursor-pointer"
-              title="نوع الخط العربي"
+              onClick={() => {
+                saveSelection();
+                setShowFontMenu(!showFontMenu);
+                setShowColorPicker(false);
+                setShowHighlightPicker(false);
+                setShowDividerPicker(false);
+              }}
+              className="px-2.5 py-1.5 text-xs font-bold rounded-lg border border-[#E5E2D9] bg-[#FDFCF8] hover:bg-[#F7F5EE] text-[#2C2C2C] flex items-center gap-1.5 cursor-pointer transition-colors shadow-2xs"
+              title="تغيير نوع الخط العربي الأدبي"
             >
-              {FONTS.map(f => (
-                <option key={f.id} value={f.id}>
-                  {f.name}
-                </option>
-              ))}
-            </select>
+              <Type className="w-3.5 h-3.5 text-[#4A5D4E]" />
+              <span
+                className="max-w-[130px] truncate"
+                style={{ fontFamily: FONTS.find(f => f.id === currentFont)?.family }}
+              >
+                {FONTS.find(f => f.id === currentFont)?.shortName || 'نوع الخط'}
+              </span>
+              <ChevronDown className="w-3 h-3 text-[#6E6A64]" />
+            </button>
+
+            {/* Quick Button to Apply Current Font to Entire Chapter */}
+            <button
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+              }}
+              onClick={() => applyFont(currentFont, true)}
+              className="hidden lg:flex px-2 py-1.5 mr-1 text-[11px] font-bold rounded-lg bg-[#4A5D4E]/10 hover:bg-[#4A5D4E] text-[#4A5D4E] hover:text-white transition-all cursor-pointer items-center gap-1"
+              title="تطبيق الخط الحالي على كامل نص الفصل بنقرة واحدة"
+            >
+              <Check className="w-3 h-3" />
+              <span>تطبيق على الفصل</span>
+            </button>
+
+            {/* Rich Font Selection Floating Popover */}
+            {showFontMenu && (
+              <div className="absolute top-full mt-1.5 right-0 z-50 p-3 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-2xl w-80 sm:w-96 space-y-2.5 text-right">
+                <div className="flex items-center justify-between pb-2 border-b border-[#E5E2D9]">
+                  <div className="flex items-center gap-1.5 font-bold text-xs text-[#2C2C2C]">
+                    <Type className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>أنواع الخطوط العربية الأدبية</span>
+                  </div>
+                  <span className="text-[10px] text-[#6E6A64] bg-[#F7F5EE] px-2 py-0.5 rounded-full border border-[#E5E2D9]">
+                    معاينة حية فورية
+                  </span>
+                </div>
+
+                <div className="text-[11px] text-[#6E6A64] leading-relaxed">
+                  حدد نصاً لتطبيق الخط عليه بمفرده، أو انقر على أي خط لتطبيقه على كامل نص الفصل.
+                </div>
+
+                <div className="space-y-1.5 max-h-72 overflow-y-auto pr-0.5">
+                  {FONTS.map(f => {
+                    const isCurrent = currentFont === f.id;
+                    return (
+                      <div
+                        key={f.id}
+                        className={`p-2.5 rounded-xl border transition-all ${
+                          isCurrent
+                            ? 'bg-[#4A5D4E]/8 border-[#4A5D4E] shadow-xs'
+                            : 'bg-[#FDFCF8] hover:bg-[#F7F5EE] border-[#E5E2D9]'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between gap-2 mb-1">
+                          <button
+                            type="button"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              saveSelection();
+                            }}
+                            onClick={() => applyFont(f.id, false)}
+                            className="flex-1 text-right font-bold text-xs text-[#2C2C2C] hover:text-[#4A5D4E] cursor-pointer flex items-center gap-1.5"
+                          >
+                            <span style={{ fontFamily: f.family }} className="text-sm">
+                              {f.name}
+                            </span>
+                            <span className="text-[10px] font-normal px-1.5 py-0.5 rounded-md bg-[#E5E2D9]/60 text-[#6E6A64]">
+                              {f.badge}
+                            </span>
+                          </button>
+
+                          {isCurrent && (
+                            <span className="w-5 h-5 rounded-full bg-[#4A5D4E] text-white flex items-center justify-center shrink-0">
+                              <Check className="w-3 h-3" />
+                            </span>
+                          )}
+                        </div>
+
+                        {/* Visual Live Sample */}
+                        <div
+                          style={{ fontFamily: f.family }}
+                          className="text-sm text-[#4A5D4E] py-1 select-none font-normal leading-relaxed opacity-90 border-t border-[#E5E2D9]/40 mt-1"
+                        >
+                          "{f.sample}"
+                        </div>
+
+                        {/* Action buttons */}
+                        <div className="flex items-center justify-end gap-1.5 mt-1 pt-1 border-t border-[#E5E2D9]/40 text-[10px]">
+                          <button
+                            type="button"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                              saveSelection();
+                            }}
+                            onClick={() => applyFont(f.id, false)}
+                            className="px-2 py-1 rounded-md bg-[#FFFFFF] hover:bg-[#4A5D4E] hover:text-white border border-[#E5E2D9] text-[#2C2C2C] font-bold cursor-pointer transition-colors"
+                          >
+                            تطبيق (على التحديد أو النص)
+                          </button>
+                          <button
+                            type="button"
+                            onMouseDown={e => {
+                              e.preventDefault();
+                            }}
+                            onClick={() => applyFont(f.id, true)}
+                            className="px-2 py-1 rounded-md bg-[#4A5D4E] text-white hover:bg-[#3C4C3F] font-bold cursor-pointer transition-colors"
+                          >
+                            تطبيق على كامل الفصل
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Heading Levels */}
           <div className="flex items-center">
             <select
+              onMouseDown={() => saveSelection()}
               onChange={e => handleFormatBlock(e.target.value)}
               defaultValue="p"
               className="px-2 py-1.5 text-xs font-bold rounded-lg border border-[#E5E2D9] bg-[#FDFCF8] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] cursor-pointer"
@@ -772,23 +1254,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="flex items-center border border-[#E5E2D9] rounded-lg bg-[#FDFCF8] overflow-hidden">
             <select
               value={currentFontSize}
-              onChange={e => {
-                const size = e.target.value;
-                setCurrentFontSize(size);
-                if (editorRef.current) {
-                  editorRef.current.style.fontSize = size;
-                }
-              }}
-              className="px-2 py-1 text-xs font-bold bg-transparent text-[#2C2C2C] focus:outline-none cursor-pointer"
+              onMouseDown={() => saveSelection()}
+              onChange={e => applyFontSize(e.target.value)}
+              className="px-2 py-1.5 text-xs font-bold bg-transparent text-[#2C2C2C] focus:outline-none cursor-pointer"
               title="حجم الخط الأساسي"
             >
-              <option value="14px">14px</option>
-              <option value="16px">16px</option>
-              <option value="18px">18px (مثالي)</option>
-              <option value="20px">20px (كبير)</option>
+              <option value="14px">14px (صغير)</option>
+              <option value="16px">16px (متوسط)</option>
+              <option value="18px">18px (مثالي قياسي)</option>
+              <option value="20px">20px (كبير مريح)</option>
               <option value="24px">24px (عريض)</option>
-              <option value="28px">28px</option>
-              <option value="32px">32px</option>
+              <option value="28px">28px (عنوان بارز)</option>
+              <option value="32px">32px (ضخم)</option>
             </select>
           </div>
 
@@ -796,26 +1273,26 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="flex items-center">
             <select
               value={currentLineHeight}
-              onChange={e => {
-                const lh = e.target.value;
-                setCurrentLineHeight(lh);
-                if (editorRef.current) {
-                  editorRef.current.style.lineHeight = lh;
-                }
-              }}
+              onMouseDown={() => saveSelection()}
+              onChange={e => applyLineHeight(e.target.value)}
               className="px-2 py-1.5 text-xs font-bold rounded-lg border border-[#E5E2D9] bg-[#FDFCF8] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] cursor-pointer"
               title="تباعد الأسطر"
             >
               <option value="1.5">أسطر مضغوطة (1.5)</option>
-              <option value="1.8">تباعد متوازن (1.8)</option>
+              <option value="1.8">تباعد متوازن (1.8 - قياسي)</option>
+              <option value="2.0">تباعد رحب (2.0)</option>
               <option value="2.2">تباعد رائق ومريح (2.2)</option>
             </select>
           </div>
 
-          {/* Basic Text Formatting Group */}
+          {/* Basic Text Formatting Group with Eraser */}
           <div className="flex items-center gap-0.5 px-1 border-x border-[#E5E2D9]">
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('bold')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] font-bold cursor-pointer transition-colors"
               title="غامق (Ctrl+B)"
@@ -824,6 +1301,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('italic')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] italic cursor-pointer transition-colors"
               title="مائل (Ctrl+I)"
@@ -832,6 +1313,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('underline')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] underline cursor-pointer transition-colors"
               title="تسطير (Ctrl+U)"
@@ -840,24 +1325,46 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('strikeThrough')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#6E6A64] hover:text-[#2C2C2C] line-through cursor-pointer transition-colors"
               title="شطب"
             >
               <Strikethrough className="w-3.5 h-3.5" />
             </button>
+            <button
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
+              onClick={handleClearFormat}
+              className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#8C5E45] hover:text-[#704632] cursor-pointer transition-colors"
+              title="إزالة التنسيقات واستعادة النمط القياسي"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+            </button>
           </div>
 
           {/* Colors & Highlighters */}
-          <div className="flex items-center gap-1 relative">
+          <div className="flex items-center gap-1 relative toolbar-popup-container">
             {/* Text Color Button */}
             <div className="relative">
               <button
                 type="button"
+                onMouseDown={e => {
+                  e.preventDefault();
+                  saveSelection();
+                }}
                 onClick={() => {
                   saveSelection();
                   setShowColorPicker(!showColorPicker);
                   setShowHighlightPicker(false);
+                  setShowFontMenu(false);
+                  setShowDividerPicker(false);
                 }}
                 className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#4A5D4E] flex items-center gap-1 cursor-pointer transition-colors"
                 title="لون الحبر والخط"
@@ -866,7 +1373,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </button>
 
               {showColorPicker && (
-                <div className="absolute top-full mt-1.5 right-0 z-30 p-2.5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xl w-48 space-y-1.5">
+                <div className="absolute top-full mt-1.5 right-0 z-40 p-2.5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xl w-48 space-y-1.5 text-right">
                   <span className="text-[11px] font-bold text-[#6E6A64] block px-1">
                     اختر لون الحبر الأدبي:
                   </span>
@@ -875,10 +1382,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                       <button
                         key={c.color}
                         type="button"
-                        onClick={() => {
-                          executeCommand('foreColor', c.color);
-                          setShowColorPicker(false);
+                        onMouseDown={e => {
+                          e.preventDefault();
                         }}
+                        onClick={() => applyTextColor(c.color)}
                         className={`w-7 h-7 rounded-lg ${c.bg} hover:scale-110 transition-transform cursor-pointer shadow-xs`}
                         title={c.label}
                       />
@@ -892,10 +1399,16 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             <div className="relative">
               <button
                 type="button"
+                onMouseDown={e => {
+                  e.preventDefault();
+                  saveSelection();
+                }}
                 onClick={() => {
                   saveSelection();
                   setShowHighlightPicker(!showHighlightPicker);
                   setShowColorPicker(false);
+                  setShowFontMenu(false);
+                  setShowDividerPicker(false);
                 }}
                 className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#C88A3B] flex items-center gap-1 cursor-pointer transition-colors"
                 title="تظليل النص بالماركر"
@@ -904,7 +1417,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
               </button>
 
               {showHighlightPicker && (
-                <div className="absolute top-full mt-1.5 right-0 z-30 p-2.5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xl w-48 space-y-1.5">
+                <div className="absolute top-full mt-1.5 right-0 z-40 p-2.5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xl w-48 space-y-1.5 text-right">
                   <span className="text-[11px] font-bold text-[#6E6A64] block px-1">
                     اختر لون الماركر:
                   </span>
@@ -913,10 +1426,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                       <button
                         key={c.color}
                         type="button"
-                        onClick={() => {
-                          executeCommand('hiliteColor', c.color);
-                          setShowHighlightPicker(false);
+                        onMouseDown={e => {
+                          e.preventDefault();
                         }}
+                        onClick={() => applyHighlight(c.color)}
                         className={`h-7 rounded-lg ${c.bg} text-[10px] font-bold text-[#2C2C2C] flex items-center justify-center cursor-pointer`}
                         title={c.label}
                       >
@@ -933,6 +1446,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="flex items-center gap-0.5 px-1 border-x border-[#E5E2D9]">
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => handleAlign('right')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="محاذاة لليمين"
@@ -941,6 +1458,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => handleAlign('center')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="توسيط"
@@ -949,6 +1470,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => handleAlign('left')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="محاذاة لليسار"
@@ -957,6 +1482,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => handleAlign('justify')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="ضبط كشيدة (Justify)"
@@ -969,6 +1498,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="flex items-center gap-0.5 pl-1 border-l border-[#E5E2D9]">
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('insertUnorderedList')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="قائمة نقطية"
@@ -977,6 +1510,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
             <button
               type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                saveSelection();
+              }}
               onClick={() => executeCommand('insertOrderedList')}
               className="p-1.5 rounded-lg hover:bg-[#F7F5EE] text-[#2C2C2C] cursor-pointer transition-colors"
               title="قائمة مرقمة"
@@ -1013,12 +1550,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </button>
 
             {/* Ornamental Dividers Menu */}
-            <div className="relative">
+            <div className="relative toolbar-popup-container">
               <button
                 type="button"
+                onMouseDown={e => {
+                  e.preventDefault();
+                  saveSelection();
+                }}
                 onClick={() => {
                   saveSelection();
                   setShowDividerPicker(!showDividerPicker);
+                  setShowColorPicker(false);
+                  setShowHighlightPicker(false);
+                  setShowFontMenu(false);
                 }}
                 className="px-2 py-1 rounded-lg bg-[#FFFFFF] hover:bg-[#4A5D4E] hover:text-white text-[#C88A3B] border border-[#E5E2D9] font-bold text-xs flex items-center gap-1 cursor-pointer transition-all shadow-2xs"
                 title="إدراج فاصل فصول مزخرف"
@@ -1249,7 +1793,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 </div>
 
                 <div
-                  className="book-reader-content space-y-6 leading-relaxed font-amiri select-text text-base sm:text-lg"
+                  style={{
+                    fontFamily: FONTS.find(f => f.id === currentFont)?.family || "'Amiri', serif"
+                  }}
+                  className="book-reader-content space-y-6 leading-relaxed select-text text-base sm:text-lg"
                   dangerouslySetInnerHTML={{ __html: sourceCode || '<p class="opacity-50 italic text-center py-10 font-cairo">ابدأ بكتابة النص لتراه يظهر هنا فوراً بكل تنسيقاته وأبياته وزخارفه...</p>' }}
                 />
               </div>

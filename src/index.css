@@ -178,4 +178,50 @@
   margin: 0 auto;
 }
 
+/* Ensure rich editor & reader respect custom literary fonts and selections */
+.rich-editor-canvas [data-font="Amiri"],
+.book-reader-content [data-font="Amiri"] {
+  font-family: 'Amiri', 'Lora', serif !important;
+}
+
+.rich-editor-canvas [data-font="Scheherazade New"],
+.book-reader-content [data-font="Scheherazade New"] {
+  font-family: 'Scheherazade New', serif !important;
+}
+
+.rich-editor-canvas [data-font="Cairo"],
+.book-reader-content [data-font="Cairo"] {
+  font-family: 'Cairo', system-ui, sans-serif !important;
+}
+
+.rich-editor-canvas [data-font="Tajawal"],
+.book-reader-content [data-font="Tajawal"] {
+  font-family: 'Tajawal', system-ui, sans-serif !important;
+}
+
+.rich-editor-canvas [data-font="Readex Pro"],
+.book-reader-content [data-font="Readex Pro"] {
+  font-family: 'Readex Pro', system-ui, sans-serif !important;
+}
+
+.book-reader-content .font-amiri {
+  font-family: 'Amiri', 'Lora', serif !important;
+}
+
+.book-reader-content .font-cairo {
+  font-family: 'Cairo', system-ui, sans-serif !important;
+}
+
+.book-reader-content .font-tajawal {
+  font-family: 'Tajawal', system-ui, sans-serif !important;
+}
+
+.book-reader-content .font-readex {
+  font-family: 'Readex Pro', system-ui, sans-serif !important;
+}
+
+.book-reader-content .font-scheherazade {
+  font-family: 'Scheherazade New', serif !important;
+}
+
 
