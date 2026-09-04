@@ -10,6 +10,13 @@ import {
   fetchNovelFromSupabaseForSSR,
   fetchAllForSitemap,
   getServerSupabase,
+  serverSaveNovel,
+  serverDeleteNovel,
+  serverFetchAllNovels,
+  serverSaveChapter,
+  serverDeleteChapter,
+  serverFetchAllChapters,
+  serverFetchAllSyncData,
 } from './src/server/supabaseServer';
 
 import {
@@ -116,6 +123,143 @@ async function startServer() {
         'Dynamic robots.txt',
       ],
     });
+  });
+
+  // ==========================================
+  // 1.5. Full-Stack Data & Supabase Sync APIs
+  // ==========================================
+  app.get('/api/novels', async (_req, res) => {
+    try {
+      const novels = await serverFetchAllNovels();
+      res.json({ success: true, novels });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/novels', async (req, res) => {
+    try {
+      const result = await serverSaveNovel(req.body);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.put('/api/novels/:id', async (req, res) => {
+    try {
+      const result = await serverSaveNovel({ ...req.body, id: req.params.id });
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.delete('/api/novels/:id', async (req, res) => {
+    try {
+      const result = await serverDeleteNovel(req.params.id);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.get('/api/chapters', async (_req, res) => {
+    try {
+      const chapters = await serverFetchAllChapters();
+      res.json({ success: true, chapters });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/chapters', async (req, res) => {
+    try {
+      const result = await serverSaveChapter(req.body);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.put('/api/chapters/:id', async (req, res) => {
+    try {
+      const result = await serverSaveChapter({ ...req.body, id: req.params.id });
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.delete('/api/chapters/:id', async (req, res) => {
+    try {
+      const result = await serverDeleteChapter(req.params.id);
+      if (result.success) {
+        res.json(result);
+      } else {
+        res.status(400).json(result);
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.get('/api/sync', async (_req, res) => {
+    try {
+      const data = await serverFetchAllSyncData();
+      if (data) {
+        res.json({ success: true, ...data });
+      } else {
+        res.status(500).json({ success: false, error: 'Failed to fetch sync bundle from Supabase' });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/sync/push', async (req, res) => {
+    try {
+      const { novels, chapters } = req.body || {};
+      const results: { novels: any[]; chapters: any[] } = { novels: [], chapters: [] };
+
+      if (Array.isArray(novels)) {
+        for (const n of novels) {
+          const r = await serverSaveNovel(n);
+          results.novels.push({ id: n.id, success: r.success, error: r.error });
+        }
+      }
+
+      if (Array.isArray(chapters)) {
+        for (const c of chapters) {
+          const r = await serverSaveChapter(c);
+          results.chapters.push({ id: c.id, success: r.success, error: r.error });
+        }
+      }
+
+      res.json({ success: true, results });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
   });
 
   // ==========================================

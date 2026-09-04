@@ -168,6 +168,100 @@ class SupabaseService {
     adSettings?: AdSettings;
     seoSettings?: SeoSettings;
   } | null> {
+    // 0. Primary High-Speed Path: Full-Stack Server Sync API (Runs in Node.js, zero CORS, completely unblocked)
+    try {
+      if (typeof window !== 'undefined') {
+        const resp = await fetch('/api/sync');
+        if (resp.ok) {
+          const syncData = await resp.json();
+          if (syncData.success) {
+            // Merge with local novels to ensure newly added novels are NEVER dropped
+            const localNovels = storageService.getNovels();
+            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
+            const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
+
+            const novelsMap = new Map<string, Novel>();
+            remoteNovels.forEach((rn: Novel) => {
+              if (!deletedNovelIds.has(rn.id)) {
+                novelsMap.set(rn.id, rn);
+              }
+            });
+
+            const unsyncedNovels: Novel[] = [];
+            localNovels.forEach(ln => {
+              if (!deletedNovelIds.has(ln.id)) {
+                if (!novelsMap.has(ln.id)) {
+                  novelsMap.set(ln.id, ln);
+                  unsyncedNovels.push(ln);
+                }
+              }
+            });
+
+            const mergedNovels = Array.from(novelsMap.values());
+            storageService.saveNovels(mergedNovels);
+
+            // Chapters merge
+            const localChapters = storageService.getChapters();
+            const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
+            const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
+
+            const chaptersMap = new Map<string, Chapter>();
+            remoteChapters.forEach((rc: Chapter) => {
+              if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
+                chaptersMap.set(rc.id, rc);
+              }
+            });
+
+            const unsyncedChapters: Chapter[] = [];
+            localChapters.forEach(lc => {
+              if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
+                if (!chaptersMap.has(lc.id)) {
+                  chaptersMap.set(lc.id, lc);
+                  unsyncedChapters.push(lc);
+                }
+              }
+            });
+
+            const mergedChapters = Array.from(chaptersMap.values());
+            storageService.saveChapters(mergedChapters);
+
+            // If any unsynced items were found locally, push them to server!
+            if (unsyncedNovels.length > 0 || unsyncedChapters.length > 0) {
+              fetch('/api/sync/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ novels: unsyncedNovels, chapters: unsyncedChapters }),
+              }).catch(e => console.warn('Background sync push warning:', e));
+            }
+
+            if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
+            if (syncData.authorProfile) storageService.saveAuthorProfile(syncData.authorProfile);
+            if (syncData.siteBranding) storageService.saveSiteBranding(syncData.siteBranding);
+            if (syncData.donationSettings) storageService.saveDonationSettings(syncData.donationSettings);
+            if (Array.isArray(syncData.categories)) storageService.saveCategories(syncData.categories);
+            if (syncData.legalDocuments) storageService.saveLegalDocuments(syncData.legalDocuments);
+            if (syncData.adSettings) storageService.saveAdSettings(syncData.adSettings);
+            if (syncData.seoSettings) storageService.saveSeoSettings(syncData.seoSettings);
+
+            return {
+              novels: mergedNovels,
+              chapters: mergedChapters,
+              comments: syncData.comments || [],
+              authorProfile: syncData.authorProfile,
+              siteBranding: syncData.siteBranding,
+              donationSettings: syncData.donationSettings,
+              categories: syncData.categories,
+              legalDocuments: syncData.legalDocuments,
+              adSettings: syncData.adSettings,
+              seoSettings: syncData.seoSettings,
+            };
+          }
+        }
+      }
+    } catch (serverSyncErr) {
+      console.warn('Server sync API fallback to direct Supabase client:', serverSyncErr);
+    }
+
     const client = this.getClient();
     if (!client) return null;
 
@@ -611,11 +705,31 @@ class SupabaseService {
   // --- Granular Real-time Cloud Helpers ---
 
   public async saveNovelToSupabase(novel: Novel): Promise<boolean> {
+    storageService.unmarkNovelDeleted(novel.id);
+
+    // 1. Primary Full-Stack Path: Call server API (Express + Node.js - 100% reliable, zero CORS, no browser blocking)
+    try {
+      if (typeof window !== 'undefined') {
+        const resp = await fetch('/api/novels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(novel),
+        });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body.success) {
+            return true;
+          }
+        }
+      }
+    } catch (apiErr) {
+      console.warn('/api/novels server save failed, trying direct Supabase client fallback:', apiErr);
+    }
+
     const client = this.getClient();
     if (!client) return false;
     try {
       // 1. Unmark from local and remote deleted blacklist
-      storageService.unmarkNovelDeleted(novel.id);
       try {
         const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
         if (currentDel?.data?.novels && Array.isArray(currentDel.data.novels) && currentDel.data.novels.includes(novel.id)) {
@@ -710,6 +824,23 @@ class SupabaseService {
   }
 
   public async deleteNovelFromSupabase(novelId: string): Promise<boolean> {
+    storageService.markNovelDeleted(novelId);
+
+    // 1. Primary Full-Stack Path: Server API
+    try {
+      if (typeof window !== 'undefined') {
+        const resp = await fetch(`/api/novels/${encodeURIComponent(novelId)}`, {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body.success) return true;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('/api/novels DELETE failed, trying direct Supabase client fallback:', apiErr);
+    }
+
     const client = this.getClient();
     if (!client) return false;
     try {
@@ -766,11 +897,29 @@ class SupabaseService {
   }
 
   public async saveChapterToSupabase(chapter: Chapter): Promise<boolean> {
+    storageService.unmarkChapterDeleted(chapter.id);
+
+    // 1. Primary Full-Stack Path: Server API
+    try {
+      if (typeof window !== 'undefined') {
+        const resp = await fetch('/api/chapters', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(chapter),
+        });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body.success) return true;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('/api/chapters POST failed, trying direct Supabase client fallback:', apiErr);
+    }
+
     const client = this.getClient();
     if (!client) return false;
     try {
       // 1. Unmark from local and remote deleted blacklist
-      storageService.unmarkChapterDeleted(chapter.id);
       try {
         const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
         if (currentDel?.data?.chapters && Array.isArray(currentDel.data.chapters) && currentDel.data.chapters.includes(chapter.id)) {
@@ -853,6 +1002,23 @@ class SupabaseService {
   }
 
   public async deleteChapterFromSupabase(chapterId: string): Promise<boolean> {
+    storageService.markChapterDeleted(chapterId);
+
+    // 1. Primary Full-Stack Path: Server API
+    try {
+      if (typeof window !== 'undefined') {
+        const resp = await fetch(`/api/chapters/${encodeURIComponent(chapterId)}`, {
+          method: 'DELETE',
+        });
+        if (resp.ok) {
+          const body = await resp.json();
+          if (body.success) return true;
+        }
+      }
+    } catch (apiErr) {
+      console.warn('/api/chapters DELETE failed, trying direct Supabase fallback:', apiErr);
+    }
+
     const client = this.getClient();
     if (!client) return false;
     try {
