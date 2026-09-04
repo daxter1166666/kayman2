@@ -41,7 +41,9 @@ import {
   Compass,
   Smartphone,
   Check,
-  Heart
+  Heart,
+  Lock,
+  User
 } from 'lucide-react';
 
 export default function App() {
@@ -70,6 +72,7 @@ export default function App() {
   const [showBookmarksDrawer, setShowBookmarksDrawer] = useState<boolean>(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
 
   // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -124,8 +127,10 @@ export default function App() {
 
     if (isQueryAdmin || isPathAdmin || isHashAdmin) {
       if (storageService.isAdminLoggedIn()) {
+        setIsAdminLoggedIn(true);
         setCurrentView('control_panel');
       } else {
+        setIsAdminLoggedIn(false);
         setShowAdminLoginModal(true);
       }
     } else {
@@ -318,14 +323,17 @@ export default function App() {
   // Admin Control Panel Handlers
   const handleOpenControlPanel = () => {
     if (storageService.isAdminLoggedIn()) {
+      setIsAdminLoggedIn(true);
       setCurrentView('control_panel');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      setIsAdminLoggedIn(false);
       setShowAdminLoginModal(true);
     }
   };
 
   const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
     setShowAdminLoginModal(false);
     setCurrentView('control_panel');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -333,6 +341,7 @@ export default function App() {
 
   const handleAdminLogout = () => {
     storageService.logoutAdmin();
+    setIsAdminLoggedIn(false);
     setCurrentView('catalog');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -439,7 +448,7 @@ export default function App() {
   const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C]">
+    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">
       {/* PWA Mobile Installation Prompt Banner */}
       {showPwaBanner && (
         <div className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
@@ -478,7 +487,7 @@ export default function App() {
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         isControlPanelOpen={currentView === 'control_panel'}
-        isAdminLoggedIn={storageService.isAdminLoggedIn()}
+        isAdminLoggedIn={isAdminLoggedIn && storageService.isAdminLoggedIn()}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
         onInstallPwa={handleInstallPwa}
         canInstallPwa={canInstallPwa}
@@ -533,18 +542,49 @@ export default function App() {
           />
         )}
 
-        {/* 3. AUTHOR & ADMIN CONTROL PANEL */}
+        {/* 3. AUTHOR & ADMIN CONTROL PANEL (Strictly Protected) */}
         {currentView === 'control_panel' && (
-          <ControlPanel
-            novels={novels}
-            chapters={chapters}
-            comments={comments}
-            adSettings={adSettings}
-            onRefreshData={refreshData}
-            onExitControlPanel={handleNavigateHome}
-            onAdminLogout={handleAdminLogout}
-            onOpenLegalPage={handleOpenLegalPage}
-          />
+          isAdminLoggedIn && storageService.isAdminLoggedIn() ? (
+            <ControlPanel
+              novels={novels}
+              chapters={chapters}
+              comments={comments}
+              adSettings={adSettings}
+              onRefreshData={refreshData}
+              onExitControlPanel={handleNavigateHome}
+              onAdminLogout={handleAdminLogout}
+              onOpenLegalPage={handleOpenLegalPage}
+            />
+          ) : (
+            <div className="max-w-md mx-auto px-4 py-20 text-center font-cairo">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center mb-4 shadow-sm">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] mb-2">
+                منطقة محمية - تسجيل دخول الإدارة مطلوب
+              </h2>
+              <p className="text-xs text-[#6E6A64] mb-6 leading-relaxed">
+                لوحة التحكم الإدارية مخصصة للكاتب والناشر فقط لإدارة الأعمال الأدبية والفصول وإعدادات الموقع.
+              </p>
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  type="button"
+                  id="protected-admin-login-btn"
+                  onClick={() => setShowAdminLoginModal(true)}
+                  className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
+                >
+                  تسجيل الدخول كمدير
+                </button>
+                <button
+                  type="button"
+                  onClick={handleNavigateHome}
+                  className="px-4 py-2.5 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] font-semibold text-xs hover:bg-[#F7F5EE] transition-all cursor-pointer"
+                >
+                  العودة للرئيسية
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {/* 4. LEGAL & COMPLIANCE PAGES */}
@@ -843,6 +883,90 @@ export default function App() {
         siteBranding={siteBranding}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
       />
+
+      {/* Mobile Sticky Bottom App Bar (Only when not reading a chapter) */}
+      {currentView !== 'reader' && (
+        <nav
+          id="mobile-bottom-app-bar"
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#FDFCF8]/95 backdrop-blur-md border-t border-[#E5E2D9] shadow-lg px-2 py-1 pb-safe"
+        >
+          <div className="grid grid-cols-5 items-center max-w-md mx-auto text-[10px] font-cairo">
+            {/* 1. Home */}
+            <button
+              type="button"
+              id="mobile-nav-home"
+              onClick={handleNavigateHome}
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+                currentView === 'catalog' && !selectedGenre && !searchQuery
+                  ? 'text-[#4A5D4E] font-bold'
+                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 mb-0.5" />
+              <span>الرئيسية</span>
+            </button>
+
+            {/* 2. Catalog Books */}
+            <button
+              type="button"
+              id="mobile-nav-catalog"
+              onClick={() => {
+                if (currentView !== 'catalog') {
+                  handleNavigateHome();
+                }
+                setTimeout(() => {
+                  const el = document.getElementById('catalog-books-section');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }, 100);
+              }}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <Layers className="w-4 h-4 mb-0.5" />
+              <span>المكتبة</span>
+            </button>
+
+            {/* 3. Bookmarks with live badge */}
+            <button
+              type="button"
+              id="mobile-nav-bookmarks"
+              onClick={() => setShowBookmarksDrawer(true)}
+              className="relative flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <BookmarkIcon className="w-4 h-4 mb-0.5 text-[#4A5D4E]" />
+              <span>المحفوظات</span>
+              {bookmarks.length > 0 && (
+                <span className="absolute top-0.5 right-2 min-w-[15px] h-[15px] px-1 bg-[#C88A3B] text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-xs">
+                  {bookmarks.length}
+                </span>
+              )}
+            </button>
+
+            {/* 4. Author Bio */}
+            <button
+              type="button"
+              id="mobile-nav-author"
+              onClick={handleScrollToAuthorBio}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <User className="w-4 h-4 mb-0.5" />
+              <span>الكاتب</span>
+            </button>
+
+            {/* 5. Support / Donation */}
+            <button
+              type="button"
+              id="mobile-nav-support"
+              onClick={() => setShowDonationModal(true)}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-rose-600 font-semibold transition-all cursor-pointer"
+            >
+              <Heart className="w-4 h-4 mb-0.5 fill-rose-600/20" />
+              <span>دعم</span>
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

@@ -171,81 +171,80 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 <span>بقلم المؤلف: <strong className="text-[#2C2C2C] font-semibold">{novel.author}</strong></span>
               </p>
 
-              {/* Stats Bar */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 sm:gap-6 py-3 px-4 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs text-[#2C2C2C] mb-6">
-                <div className="flex items-center gap-1.5">
-                  <Star className="w-4 h-4 text-[#C88A3B] fill-[#C88A3B]" />
+              {/* Stats Bar (Responsive grid on mobile, clean flex on desktop) */}
+              <div className="grid grid-cols-2 sm:flex sm:flex-wrap items-center justify-center md:justify-start gap-2 sm:gap-4 py-3 px-3 rounded-2xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs text-[#2C2C2C] mb-6">
+                <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
+                  <Star className="w-4 h-4 text-[#C88A3B] fill-[#C88A3B] shrink-0" />
                   <span className="font-bold text-[#2C2C2C]">{currentRating.toFixed(1)}</span>
-                  <span className="text-[#6E6A64]">({ratingCount} تقييم)</span>
+                  <span className="text-[#6E6A64] text-[11px]">({ratingCount})</span>
                 </div>
-                <span className="text-[#E5E2D9]">|</span>
-                <div className="flex items-center gap-1.5">
-                  <Eye className="w-4 h-4 text-[#4A5D4E]" />
-                  <span>{novel.totalViews.toLocaleString()} مشاهدة وقراءة</span>
+                <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
+                  <Eye className="w-4 h-4 text-[#4A5D4E] shrink-0" />
+                  <span className="truncate">{novel.totalViews.toLocaleString()} قراءة</span>
                 </div>
-                <span className="text-[#E5E2D9]">|</span>
-                <div className="flex items-center gap-1.5">
-                  <Heart className="w-4 h-4 text-[#8C5E45]" />
-                  <span>{novel.totalLikes.toLocaleString()} إعجاب</span>
+                <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
+                  <Heart className="w-4 h-4 text-[#8C5E45] shrink-0" />
+                  <span className="truncate">{novel.totalLikes.toLocaleString()} إعجاب</span>
                 </div>
-                <span className="text-[#E5E2D9]">|</span>
-                <div className="flex items-center gap-1.5">
-                  <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
-                  <span>{chapters.length} فصول ({totalWords.toLocaleString()} كلمة)</span>
+                <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
+                  <BookOpen className="w-4 h-4 text-[#4A5D4E] shrink-0" />
+                  <span className="truncate">{chapters.length} فصول ({totalWords.toLocaleString()} كلمة)</span>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 mb-6">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-center md:justify-start gap-2.5 sm:gap-3 mb-6">
                 {chapters.length > 0 && (
                   <button
                     type="button"
                     id="start-reading-novel-btn"
                     onClick={() => onSelectChapter(sortedChapters[0].id)}
-                    className="px-6 py-3 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-sm rounded-xl shadow-md transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    className="w-full sm:w-auto px-6 py-3.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-sm rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
                   >
                     <BookOpen className="w-4 h-4" />
                     <span>ابدأ قراءة الفصل الأول</span>
                   </button>
                 )}
 
-                <button
-                  type="button"
-                  id="bookmark-novel-btn"
-                  onClick={handleBookmarkToggle}
-                  className={`px-5 py-3 rounded-xl border ${
-                    isNovelBookmarked
-                      ? 'bg-[#4A5D4E]/15 text-[#2D4532] border-[#4A5D4E]/40 font-bold'
-                      : 'border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] font-semibold'
-                  } text-sm transition-all flex items-center gap-2 cursor-pointer shadow-xs`}
-                >
-                  {isNovelBookmarked ? (
-                    <>
-                      <BookmarkCheck className="w-4 h-4 text-[#4A5D4E]" />
-                      <span>في مكتبتك المحفوظة</span>
-                    </>
-                  ) : (
-                    <>
-                      <Bookmark className="w-4 h-4 text-[#6E6A64]" />
-                      <span>حفظ في مكتبتي</span>
-                    </>
-                  )}
-                </button>
-
-                {novel.pdfDownloadUrl && (
-                  <a
-                    href={novel.pdfDownloadUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download
-                    id="download-novel-pdf-btn"
-                    className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#C88A3B] to-[#B3782E] hover:from-[#B3782E] hover:to-[#9E6523] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2.5 cursor-pointer active:scale-95 group"
-                    title="تحميل نسخة إلكترونية كاملة"
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    id="bookmark-novel-btn"
+                    onClick={handleBookmarkToggle}
+                    className={`flex-1 sm:flex-initial px-5 py-3 rounded-xl border ${
+                      isNovelBookmarked
+                        ? 'bg-[#4A5D4E]/15 text-[#2D4532] border-[#4A5D4E]/40 font-bold'
+                        : 'border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] font-semibold'
+                    } text-xs sm:text-sm transition-all flex items-center justify-center gap-2 cursor-pointer shadow-xs`}
                   >
-                    <Download className="w-4 h-4 transition-transform group-hover:-translate-y-0.5" />
-                    <span>{novel.downloadButtonText || 'تحميل الكتاب PDF'} {novel.pdfFileSize ? `(${novel.pdfFileSize})` : ''}</span>
-                  </a>
-                )}
+                    {isNovelBookmarked ? (
+                      <>
+                        <BookmarkCheck className="w-4 h-4 text-[#4A5D4E]" />
+                        <span>في مكتبتك المحفوظة</span>
+                      </>
+                    ) : (
+                      <>
+                        <Bookmark className="w-4 h-4 text-[#6E6A64]" />
+                        <span>حفظ في مكتبتي</span>
+                      </>
+                    )}
+                  </button>
+
+                  {novel.pdfDownloadUrl && (
+                    <a
+                      href={novel.pdfDownloadUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      download
+                      id="download-novel-pdf-btn"
+                      className="flex-1 sm:flex-initial px-4 py-3 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-[#FDFCF8] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                      title={`تحميل الكتاب (${novel.pdfFileSize || 'نسخة إلكترونية'})`}
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>تحميل PDF</span>
+                    </a>
+                  )}
+                </div>
               </div>
 
               {/* Reader Star Rating Box */}

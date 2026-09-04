@@ -12,7 +12,7 @@ const KEYS = {
   USER_LIKED_CHAPTERS: 'ayman_user_liked_chapters_v2',
   USER_LIKED_COMMENTS: 'ayman_user_liked_comments_v2',
   USER_RATINGS: 'ayman_user_ratings_v2',
-  ADMIN_AUTH: 'ayman_admin_auth_v2',
+  ADMIN_AUTH: 'ayman_admin_session_v4',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
   CATEGORIES: 'ayman_categories_v2',
   LEGAL_DOCS: 'ayman_legal_docs_v2',
@@ -38,6 +38,8 @@ try {
     'novelia_user_liked_comments_v1',
     'novelia_user_ratings_v1',
     'novelia_contact_messages_v1',
+    'ayman_admin_auth_v2',
+    'ayman_admin_auth',
   ];
   legacyKeys.forEach(k => localStorage.removeItem(k));
 } catch {
@@ -515,7 +517,7 @@ export const storageService = {
   },
 
   isAdminLoggedIn(): boolean {
-    return getStored<boolean>(KEYS.ADMIN_AUTH, true);
+    return getStored<boolean>(KEYS.ADMIN_AUTH, false);
   },
 
   loginAdmin(usernameInput: string, passwordInput: string): boolean {
@@ -523,8 +525,8 @@ export const storageService = {
     const cleanUser = usernameInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
 
-    // Match either stored credentials or default aymankinani / admin fallback
-    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani' || cleanUser === 'admin';
+    // Match either stored credentials or default aymankinani
+    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani';
     const matchesPass = cleanPass === creds.passwordHash || (cleanPass === 'aymanpassword2026');
 
     if (matchesUser && matchesPass) {

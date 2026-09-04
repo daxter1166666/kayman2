@@ -406,11 +406,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 rel="noopener noreferrer"
                 download
                 id="reader-download-book-btn"
-                className="px-2.5 py-1.5 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs"
+                className="hidden sm:inline-flex px-2.5 py-1.5 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer shadow-xs"
                 title={`تحميل الكتاب (${novel.pdfFileSize || 'نسخة إلكترونية'})`}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">تحميل الكتاب</span>
+                <span>تحميل الكتاب</span>
               </a>
             )}
 
@@ -433,12 +433,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
-            {/* Share button */}
+            {/* Share button (desktop only in header) */}
             <button
               type="button"
               id="reader-share-btn"
               onClick={handleShare}
-              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all relative cursor-pointer`}
+              className={`hidden sm:flex p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all relative cursor-pointer`}
               title="مشاركة رابط الفصل"
             >
               <Share2 className="w-4 h-4" />
@@ -713,7 +713,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       </header>
 
       {/* Main Chapter Content Container */}
-      <main className={`mx-auto px-4 sm:px-6 py-8 sm:py-12 ${widthClass}`}>
+      <main className={`mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-28 sm:pb-16 ${widthClass}`}>
         {/* Top Header Ad Placement */}
         <AdSlot location="header" adSettings={adSettings} className="mb-8" />
 
@@ -1210,6 +1210,74 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
         </section>
       </main>
+
+      {/* Mobile Floating Bottom Reading Controller (Thumb friendly for mobile readers) */}
+      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-2.5 pb-safe bg-[#1C1B19]/95 backdrop-blur-md border-t border-white/10 text-white shadow-2xl">
+        <div className="flex items-center justify-between gap-1.5 max-w-lg mx-auto font-cairo">
+          {prevChapter ? (
+            <button
+              type="button"
+              id="mobile-float-prev-chapter-btn"
+              onClick={() => {
+                onSelectChapter(prevChapter.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex-1 py-2 px-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
+              title="الفصل السابق"
+            >
+              <ChevronRight className="w-4 h-4 shrink-0" />
+              <span className="truncate">السابق</span>
+            </button>
+          ) : (
+            <div className="flex-1" />
+          )}
+
+          {/* Center: Chapter Index Quick Dropdown */}
+          <button
+            type="button"
+            onClick={() => setShowChapterMenu(!showChapterMenu)}
+            className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
+            title="فهرس الفصول"
+          >
+            <List className="w-4 h-4 text-emerald-400" />
+            <span>فصل {chapter.chapterNumber}</span>
+          </button>
+
+          {/* Quick Settings Icon */}
+          <button
+            type="button"
+            onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title="تخصيص الخط"
+          >
+            <Settings2 className="w-4 h-4 text-amber-300" />
+          </button>
+
+          {nextChapter ? (
+            <button
+              type="button"
+              id="mobile-float-next-chapter-btn"
+              onClick={() => {
+                onSelectChapter(nextChapter.id);
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="flex-1 py-2 px-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md truncate"
+              title="الفصل التالي"
+            >
+              <span className="truncate">التالي</span>
+              <ChevronLeft className="w-4 h-4 shrink-0" />
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={onBackToNovel}
+              className="flex-1 py-2 px-2 rounded-xl bg-amber-700/80 text-white text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
+            >
+              <span>نهاية العمل</span>
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 };
