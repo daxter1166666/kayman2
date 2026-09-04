@@ -40,8 +40,10 @@ import {
   X,
   Plus,
   ChevronDown,
-  Eraser
+  Eraser,
+  Wand2
 } from 'lucide-react';
+import { sanitizePastedHtml, cleanPlainTextToHtml, sanitizeEditorDom } from './pasteSanitizer';
 
 export interface RichTextEditorProps {
   value: string;
@@ -279,18 +281,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   }, [value]);
 
-  // Convert plain text newlines into HTML paragraphs if initial value doesn't have tags
+  // Convert plain text newlines into HTML paragraphs and sanitize any dirty pasted HTML
   const normalizeInitialHtml = useCallback((raw: string): string => {
     if (!raw) return '';
-    if (/<[a-z][\s\S]*>/i.test(raw)) {
-      return raw;
+    let processed = raw;
+    // If it contains Word artifacts or pasted external styles, sanitize it
+    if (processed.includes('MsoNormal') || processed.includes('mso-') || processed.includes('<o:p>') || processed.includes('font-family:')) {
+      processed = sanitizePastedHtml(processed);
     }
-    // Plain text: convert paragraphs
-    return raw
-      .split('\n\n')
-      .filter(p => p.trim())
-      .map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`)
-      .join('');
+    if (/<[a-z][\s\S]*>/i.test(processed)) {
+      return processed;
+    }
+    // Plain text: convert to standard paragraphs
+    return cleanPlainTextToHtml(processed);
   }, []);
 
   // Sync incoming value to editor contentEditable
@@ -360,7 +363,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     handleContentChange();
   };
 
-  // Apply Font to Selection or Entire Chapter
+  // Apply Font to Selection or Entire Chapter (works seamlessly on typed & pasted content)
   const applyFont = (fontId: string, forceWholeChapter: boolean = false) => {
     const selected = FONTS.find(f => f.id === fontId);
     if (!selected || !editorRef.current) return;
@@ -379,7 +382,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     );
 
     if (hasActiveSelection && !forceWholeChapter && sel) {
-      // Apply to selected text range
+      // Apply to selected text range (even if pasted or nested)
       const range = sel.getRangeAt(0);
       try {
         const span = document.createElement('span');
@@ -388,7 +391,23 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         span.setAttribute('data-font', selected.id);
 
         const fragment = range.extractContents();
-        span.appendChild(fragment);
+
+        // Strip any inner conflicting font-family, font tags, or data-font from pasted nodes inside selection
+        const temp = document.createElement('div');
+        temp.appendChild(fragment);
+        temp.querySelectorAll('*').forEach(child => {
+          const hc = child as HTMLElement;
+          hc.style.removeProperty('font-family');
+          hc.removeAttribute('data-font');
+          if (hc.tagName.toLowerCase() === 'font') {
+            hc.removeAttribute('face');
+          }
+        });
+
+        while (temp.firstChild) {
+          span.appendChild(temp.firstChild);
+        }
+
         range.insertNode(span);
 
         // Keep selection active around the formatted span
@@ -402,7 +421,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         try {
           document.execCommand('styleWithCSS', false, 'true');
           document.execCommand('fontName', false, selected.cleanName);
-          const fontElements = editorRef.current.querySelectorAll(`font[face="${selected.cleanName}"]`);
+          const fontElements = editorRef.current.querySelectorAll(`font[face="${selected.cleanName}"], span[style*="${selected.cleanName}"]`);
           fontElements.forEach(fe => {
             const sp = document.createElement('span');
             sp.style.fontFamily = selected.family;
@@ -416,17 +435,25 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }
       }
     } else {
-      // Apply to the ENTIRE editor / chapter
+      // Apply to the ENTIRE editor / chapter (including all pasted and imported text)
       editorRef.current.style.fontFamily = selected.family;
       editorRef.current.setAttribute('data-font', selected.id);
 
-      const blocks = editorRef.current.querySelectorAll('p, h1, h2, h3, h4, blockquote');
-      if (blocks.length > 0) {
-        blocks.forEach(b => {
-          (b as HTMLElement).style.fontFamily = selected.family;
-        });
-      } else if (editorRef.current.innerHTML.trim()) {
-        editorRef.current.innerHTML = `<p style="font-family: ${selected.family}">${editorRef.current.innerHTML}</p>`;
+      // Strip foreign inline font-family from ALL child elements so chapter font applies everywhere
+      editorRef.current.querySelectorAll('*').forEach(el => {
+        const hel = el as HTMLElement;
+        hel.style.removeProperty('font-family');
+        hel.removeAttribute('data-font');
+        if (hel.tagName.toLowerCase() === 'font') {
+          hel.removeAttribute('face');
+        }
+        if (['P', 'H1', 'H2', 'H3', 'H4', 'BLOCKQUOTE', 'LI'].includes(hel.tagName)) {
+          hel.style.fontFamily = selected.family;
+        }
+      });
+
+      if (!editorRef.current.innerHTML.trim()) {
+        editorRef.current.innerHTML = `<p style="font-family: ${selected.family}"><br></p>`;
       }
 
       showToast(`تم تطبيق خط "${selected.shortName}" على كامل نص الفصل`);
@@ -460,9 +487,23 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         span.style.fontSize = size;
 
         const fragment = range.extractContents();
-        span.appendChild(fragment);
-        range.insertNode(span);
+        const temp = document.createElement('div');
+        temp.appendChild(fragment);
 
+        // Strip child font-size so it does not override
+        temp.querySelectorAll('*').forEach(c => {
+          const hc = c as HTMLElement;
+          hc.style.removeProperty('font-size');
+          if (hc.tagName.toLowerCase() === 'font') {
+            hc.removeAttribute('size');
+          }
+        });
+
+        while (temp.firstChild) {
+          span.appendChild(temp.firstChild);
+        }
+
+        range.insertNode(span);
         range.selectNodeContents(span);
         sel.removeAllRanges();
         sel.addRange(range);
@@ -473,10 +514,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         // fallback
       }
     } else {
+      // Entire chapter
       editorRef.current.style.fontSize = size;
-      const blocks = editorRef.current.querySelectorAll('p, blockquote, div:not(.book-divider)');
-      blocks.forEach(b => {
-        (b as HTMLElement).style.fontSize = size;
+      editorRef.current.querySelectorAll('*').forEach(el => {
+        const hel = el as HTMLElement;
+        hel.style.removeProperty('font-size');
+        if (hel.tagName.toLowerCase() === 'font') {
+          hel.removeAttribute('size');
+        }
+        if (['P', 'BLOCKQUOTE', 'LI'].includes(hel.tagName)) {
+          hel.style.fontSize = size;
+        }
       });
       showToast(`تم تعيين حجم الخط ${size} لكامل الفصل`);
     }
@@ -490,9 +538,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setCurrentLineHeight(lh);
     editorRef.current.style.lineHeight = lh;
 
-    const blocks = editorRef.current.querySelectorAll('p, blockquote, div:not(.book-divider)');
-    blocks.forEach(b => {
-      (b as HTMLElement).style.lineHeight = lh;
+    editorRef.current.querySelectorAll('*').forEach(el => {
+      const hel = el as HTMLElement;
+      hel.style.removeProperty('line-height');
+      if (['P', 'BLOCKQUOTE', 'DIV', 'LI'].includes(hel.tagName)) {
+        hel.style.lineHeight = lh;
+      }
     });
 
     handleContentChange();
@@ -514,23 +565,53 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       editorRef.current.contains(sel.anchorNode)
     );
 
-    if (hasActiveSelection) {
+    if (hasActiveSelection && sel) {
+      const range = sel.getRangeAt(0);
       try {
-        document.execCommand('styleWithCSS', false, 'true');
-        document.execCommand('foreColor', false, color);
-      } catch {
-        // fallback
-      }
-      showToast('تم تطبيق لون الحبر على النص المحدد');
-    } else {
-      const blocks = editorRef.current.querySelectorAll('p, blockquote');
-      if (blocks.length > 0) {
-        blocks.forEach(b => {
-          (b as HTMLElement).style.color = color;
+        const span = document.createElement('span');
+        span.style.color = color;
+
+        const fragment = range.extractContents();
+        const temp = document.createElement('div');
+        temp.appendChild(fragment);
+
+        // Strip child colors so they don't override the chosen ink color
+        temp.querySelectorAll('*').forEach(c => {
+          const hc = c as HTMLElement;
+          hc.style.removeProperty('color');
+          if (hc.tagName.toLowerCase() === 'font') hc.removeAttribute('color');
         });
-      } else {
-        editorRef.current.style.color = color;
+
+        while (temp.firstChild) {
+          span.appendChild(temp.firstChild);
+        }
+
+        range.insertNode(span);
+        range.selectNodeContents(span);
+        sel.removeAllRanges();
+        sel.addRange(range);
+        saveSelection();
+
+        showToast('تم تطبيق لون الحبر على النص المحدد');
+      } catch {
+        try {
+          document.execCommand('styleWithCSS', false, 'true');
+          document.execCommand('foreColor', false, color);
+          showToast('تم تطبيق لون الحبر على النص المحدد');
+        } catch {
+          // fallback
+        }
       }
+    } else {
+      editorRef.current.style.color = color;
+      editorRef.current.querySelectorAll('*').forEach(el => {
+        const hel = el as HTMLElement;
+        hel.style.removeProperty('color');
+        if (hel.tagName.toLowerCase() === 'font') hel.removeAttribute('color');
+        if (['P', 'BLOCKQUOTE', 'LI'].includes(hel.tagName)) {
+          hel.style.color = color;
+        }
+      });
       showToast('تم تطبيق لون الحبر على كامل الفصل');
     }
 
@@ -585,6 +666,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         const el = container.nodeType === Node.ELEMENT_NODE ? (container as HTMLElement) : container.parentElement;
         if (el && el !== editorRef.current) {
           el.removeAttribute('style');
+          el.removeAttribute('data-font');
         }
       } catch {
         // fallback
@@ -599,16 +681,52 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       editorRef.current.style.lineHeight = '1.8';
       editorRef.current.style.color = '#2C2C2C';
 
-      const allElements = editorRef.current.querySelectorAll('*');
-      allElements.forEach(el => {
-        if (!el.classList.contains('book-divider') && !el.classList.contains('book-poetry-couplet')) {
-          el.removeAttribute('style');
-        }
-      });
+      sanitizeEditorDom(editorRef.current, "'Amiri', 'Lora', serif", '18px', '1.8');
       showToast('تمت إعادة ضبط التنسيق للنمط الأدبي القياسي');
     }
 
     handleContentChange();
+  };
+
+  // Handle paste events to strip MS Word / foreign website styles and ensure pasted text is 100% editable
+  const handlePaste = (e: React.ClipboardEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    saveSelection();
+
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    const htmlData = clipboardData.getData('text/html');
+    const textData = clipboardData.getData('text/plain');
+
+    let cleanResult = '';
+    if (htmlData && htmlData.trim().length > 0) {
+      cleanResult = sanitizePastedHtml(htmlData);
+    } else if (textData && textData.trim().length > 0) {
+      cleanResult = cleanPlainTextToHtml(textData);
+    }
+
+    if (!cleanResult) return;
+
+    insertHtmlAtCaret(cleanResult);
+    showToast('تم لصق النص وتنظيفه ليتوافق تماماً مع خطوط وتنسيقات المحرر');
+  };
+
+  // One-click action to clean & harmonize any pasted or imported content in the chapter
+  const handleCleanPastedText = () => {
+    if (!editorRef.current) return;
+    const selected = FONTS.find(f => f.id === currentFont);
+    const targetFamily = selected?.family || "'Amiri', 'Lora', serif";
+
+    const count = sanitizeEditorDom(
+      editorRef.current,
+      targetFamily,
+      currentFontSize,
+      currentLineHeight
+    );
+
+    handleContentChange();
+    showToast(`تم تنظيف ${count > 0 ? count + ' عنصر وتنسيق دخيل' : 'النص'} بنجاح، وأصبح جاهزاً للتعديل بحرية!`);
   };
 
   // Insert custom HTML fragment at caret position
@@ -672,10 +790,37 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     try {
       document.execCommand('formatBlock', false, formattedTag);
     } catch {
-      document.execCommand('formatBlock', false, tag);
+      try {
+        document.execCommand('formatBlock', false, tag);
+      } catch {
+        // fallback
+      }
     }
+
+    // Ensure child elements inside the formatted block don't lock font-size from pasted sources
+    const sel = window.getSelection();
+    if (sel && sel.anchorNode) {
+      let curr: HTMLElement | null =
+        sel.anchorNode.nodeType === Node.ELEMENT_NODE
+          ? (sel.anchorNode as HTMLElement)
+          : sel.anchorNode.parentElement;
+
+      while (curr && curr !== editorRef.current && !['H1', 'H2', 'H3', 'H4', 'P', 'BLOCKQUOTE'].includes(curr.tagName)) {
+        curr = curr.parentElement;
+      }
+
+      if (curr && curr !== editorRef.current) {
+        curr.querySelectorAll('span, font').forEach(child => {
+          (child as HTMLElement).style.removeProperty('font-size');
+          if ((child as HTMLElement).tagName.toLowerCase() === 'font') {
+            (child as HTMLElement).removeAttribute('size');
+          }
+        });
+      }
+    }
+
     handleContentChange();
-    showToast(`تم تطبيق تنسيق ${tag.toUpperCase()}`);
+    showToast(`تم تطبيق تنسيق ${tag.replace(/[<>]/g, '').toUpperCase()}`);
   };
 
   // Insert Poetry Couplet (شطر وعجز)
@@ -1347,6 +1492,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             >
               <Eraser className="w-3.5 h-3.5" />
             </button>
+            <button
+              type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+              }}
+              onClick={handleCleanPastedText}
+              className="px-2 py-1 rounded-lg bg-[#4A5D4E]/10 hover:bg-[#4A5D4E] text-[#4A5D4E] hover:text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-all border border-[#4A5D4E]/20"
+              title="معالجة وتوحيد النص المنسوخ (إزالة خطوط Word والأنماط الخارجية لتصبح قابلة للتعديل والتنسيق بحرية)"
+            >
+              <Wand2 className="w-3.5 h-3.5 text-[#C88A3B]" />
+              <span className="hidden sm:inline">معالجة النص المنسوخ</span>
+            </button>
           </div>
 
           {/* Colors & Highlighters */}
@@ -1720,6 +1877,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 onBlur={handleContentChange}
                 onKeyUp={saveSelection}
                 onMouseUp={saveSelection}
+                onPaste={handlePaste}
                 data-placeholder={placeholder}
                 style={{
                   minHeight,
