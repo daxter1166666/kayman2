@@ -47,9 +47,30 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  // Global Data State
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  // Read SSR Initial Payload if delivered by Server-Side Rendering
+  const initialSSR = typeof window !== 'undefined' ? (window as any).__INITIAL_DATA__ : null;
+
+  // Global Data State seeded with SSR data if available
+  const [novels, setNovels] = useState<Novel[]>(() => {
+    const local = storageService.getNovels();
+    if (initialSSR?.novel) {
+      const merged = [initialSSR.novel, ...local.filter(n => n.id !== initialSSR.novel.id)];
+      storageService.saveNovels(merged);
+      return merged;
+    }
+    return local;
+  });
+
+  const [chapters, setChapters] = useState<Chapter[]>(() => {
+    const local = storageService.getChapters();
+    if (initialSSR?.chapter) {
+      const merged = [initialSSR.chapter, ...local.filter(c => c.id !== initialSSR.chapter.id)];
+      storageService.saveChapters(merged);
+      return merged;
+    }
+    return local;
+  });
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [adSettings, setAdSettings] = useState<AdSettings>(() => storageService.getAdSettings());
@@ -59,10 +80,28 @@ export default function App() {
   const [siteBranding, setSiteBranding] = useState<SiteBranding>(() => storageService.getSiteBranding());
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
-  // Navigation View State
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  // Navigation View State initialized with SSR state or pathname
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(() => {
+    if (initialSSR?.currentView) return initialSSR.currentView;
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p.includes('/chapter') || p.match(/\/novel\/chapter-\d+/)) return 'reader';
+      if (p.startsWith('/novel/') && !p.endsWith('/novel/')) return 'novel_detail';
+    }
+    return 'catalog';
+  });
+
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(() => {
+    if (initialSSR?.novel?.id) return initialSSR.novel.id;
+    if (initialSSR?.chapter?.novelId) return initialSSR.chapter.novelId;
+    return null;
+  });
+
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(() => {
+    if (initialSSR?.chapter?.id) return initialSSR.chapter.id;
+    return null;
+  });
+
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
   
   // Modals & Drawers
@@ -96,7 +135,6 @@ export default function App() {
     refreshData();
 
     // Cross-browser cloud synchronization with Supabase
-    // When deployed or when Supabase credentials exist, fetch latest books and chapters for all readers
     const doPull = () => {
       supabaseService.pullAllFromSupabase().then(res => {
         if (res) {
@@ -133,17 +171,43 @@ export default function App() {
         setIsAdminLoggedIn(false);
         setShowAdminLoginModal(true);
       }
+    } else if (initialSSR?.currentView === 'reader' && initialSSR.chapter) {
+      setSelectedNovelId(initialSSR.novel?.id || initialSSR.chapter.novelId);
+      setSelectedChapterId(initialSSR.chapter.id);
+      setCurrentView('reader');
+    } else if (initialSSR?.currentView === 'novel_detail' && initialSSR.novel) {
+      setSelectedNovelId(initialSSR.novel.id);
+      setCurrentView('novel_detail');
     } else {
+      const pathname = window.location.pathname;
+      const chapterMatch = pathname.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || pathname.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = pathname.match(/\/novel\/([^/]+)$/i) || pathname.match(/\/book\/([^/]+)$/i);
+
       const novelParam = urlParams.get('novel');
       const chapterParam = urlParams.get('chapter');
       const legalParam = urlParams.get('legal');
 
-      if (chapterParam) {
+      if (chapterMatch) {
+        const chIdent = decodeURIComponent(chapterMatch[1]);
+        const ch = storageService.getChapters().find(c => c.slug === chIdent || c.id === chIdent || `chapter-${c.chapterNumber}` === chIdent || String(c.chapterNumber) === chIdent);
+        if (ch) {
+          setSelectedNovelId(ch.novelId);
+          setSelectedChapterId(ch.id);
+          setCurrentView('reader');
+        }
+      } else if (chapterParam) {
         const chapter = storageService.getChapterById(chapterParam);
         if (chapter) {
           setSelectedNovelId(chapter.novelId);
           setSelectedChapterId(chapterParam);
           setCurrentView('reader');
+        }
+      } else if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        const novIdent = decodeURIComponent(novelMatch[1]);
+        const nov = storageService.getNovels().find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          setSelectedNovelId(nov.id);
+          setCurrentView('novel_detail');
         }
       } else if (novelParam) {
         setSelectedNovelId(novelParam);
@@ -156,7 +220,7 @@ export default function App() {
 
     // Dynamic document title & favicon
     const currentBranding = storageService.getSiteBranding();
-    if (currentBranding.siteName) {
+    if (currentBranding.siteName && !initialSSR) {
       document.title = `${currentBranding.siteName} - ${currentBranding.siteSubtitle}`;
     }
     if (currentBranding.faviconUrl) {
@@ -352,21 +416,36 @@ export default function App() {
     setCurrentView('catalog');
     setSelectedNovelId(null);
     setSelectedChapterId(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectNovel = (novelId: string) => {
     setSelectedNovelId(novelId);
     setCurrentView('novel_detail');
+    const novel = novels.find(n => n.id === novelId) || storageService.getNovelById(novelId);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/novel/${novel?.slug || novelId}`);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectChapter = (chapterId: string) => {
-    const chapter = storageService.getChapterById(chapterId);
+    const chapter = chapters.find(c => c.id === chapterId) || storageService.getChapterById(chapterId);
     if (chapter) {
       setSelectedNovelId(chapter.novelId);
       setSelectedChapterId(chapterId);
       setCurrentView('reader');
+      const novel = novels.find(n => n.id === chapter.novelId) || storageService.getNovelById(chapter.novelId);
+      if (typeof window !== 'undefined') {
+        window.history.pushState(
+          {},
+          '',
+          `/novel/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
+        );
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
