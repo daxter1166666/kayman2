@@ -388,7 +388,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
               type="text"
               value={branding.footerText}
               onChange={e => setBranding(prev => ({ ...prev, footerText: e.target.value }))}
-              placeholder="جميع الحقوق محفوظة للكاتب أيمن كناني © 2026"
+              placeholder="الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026"
               className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:border-[#4A5D4E] focus:outline-none"
             />
           </div>

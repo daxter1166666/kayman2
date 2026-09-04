@@ -181,7 +181,8 @@ export const storageService = {
       ? Math.max(...novelChapters.map(c => c.chapterNumber)) + 1 
       : 1;
 
-    const words = data.content.trim().split(/\s+/).filter(Boolean).length;
+    const plainText = data.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
@@ -212,7 +213,8 @@ export const storageService = {
     if (index === -1) return undefined;
     
     if (updates.content) {
-      updates.wordCount = updates.content.trim().split(/\s+/).filter(Boolean).length;
+      const plainText = updates.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      updates.wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
     }
     chapters[index] = { ...chapters[index], ...updates };
     this.saveChapters(chapters);
@@ -649,7 +651,27 @@ export const storageService = {
 
   // --- Legal Documents & Publisher Information ---
   getLegalDocuments(): LegalDocuments {
-    return getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
+    const docs = getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
+    let modified = false;
+
+    if (docs.licensesPolicy && docs.licensesPolicy.includes('أضع هذا العمل ابتغاء وجه الله، وأسمح')) {
+      docs.licensesPolicy = docs.licensesPolicy.replace(
+        'أضع هذا العمل ابتغاء وجه الله، وأسمح',
+        'أسمح'
+      );
+      modified = true;
+    }
+
+    const authorRightsStatement = 'بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء';
+    if (docs.licensesPolicy && !docs.licensesPolicy.includes(authorRightsStatement)) {
+      docs.licensesPolicy = `${docs.licensesPolicy}\n\nبيان الترخيص وحق المؤلف:\nهذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.`;
+      modified = true;
+    }
+
+    if (modified) {
+      setStored(KEYS.LEGAL_DOCS, docs);
+    }
+    return docs;
   },
 
   saveLegalDocuments(docs: Partial<LegalDocuments>): LegalDocuments {

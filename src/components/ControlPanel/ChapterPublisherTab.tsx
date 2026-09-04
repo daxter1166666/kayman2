@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Novel, Chapter, ChapterStatus } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
+import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
 import {
   FilePlus,
   Edit3,
@@ -61,9 +62,10 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     : 1;
 
   // Live metrics
-  const wordCount = content.trim() ? content.trim().split(/\s+/).filter(Boolean).length : 0;
+  const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+  const wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
   const readingTime = Math.max(1, Math.ceil(wordCount / 200));
-  const paragraphCount = content.split('\n\n').filter(p => p.trim()).length;
+  const paragraphCount = plainText ? plainText.split(/\n+/).filter(Boolean).length : 0;
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -359,11 +361,11 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
               />
             </div>
 
-            {/* Chapter Body Composer */}
+            {/* Chapter Body Visual Rich WYSIWYG Composer */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <label className="text-xs font-bold text-[#2C2C2C]">
-                  نص ومحتوى الفصل *
+                  نص ومحتوى الفصل (محرر مرئي متكامل يطبق التنسيقات فورياً) *
                 </label>
                 <button
                   type="button"
@@ -376,38 +378,20 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                 </button>
               </div>
 
-              <textarea
-                id="chapter-content-textarea"
-                rows={14}
-                placeholder="ابدأ بكتابة أحداث الفصل هنا... افصل بين الفقرات بسطر فارغ لضمان أفضل تجربة قراءة ومطالعة مريحة..."
+              {/* Real-time WYSIWYG Rich Editor */}
+              <RichTextEditor
                 value={content}
-                onChange={e => setContent(e.target.value)}
-                className="w-full p-4 text-sm sm:text-base rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-amiri leading-relaxed"
-                required
+                onChange={setContent}
+                novelTitle={novels.find(n => n.id === selectedNovelId)?.title}
+                chapterTitle={title}
+                authorName="الكاتب أيمن كناني"
+                minHeight="380px"
               />
-
-              {/* Real-time word statistics bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 mt-2 px-3 py-2 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs text-[#6E6A64]">
-                <div className="flex items-center gap-4">
-                  <span>
-                    الكلمات: <strong className="text-[#4A5D4E] font-mono">{wordCount.toLocaleString()}</strong>
-                  </span>
-                  <span>
-                    الفقرات: <strong className="text-[#2C2C2C] font-mono">{paragraphCount}</strong>
-                  </span>
-                  <span>
-                    وقت القراءة التقديري: <strong className="text-[#2C2C2C] font-mono">{readingTime} دقيقة</strong>
-                  </span>
-                </div>
-                <span className="text-[11px] text-[#6E6A64]">
-                  افصل بين الفقرات بسطر فارغ لتنسيق مثالي
-                </span>
-              </div>
             </div>
           </>
         ) : (
           /* Live Reader Preview Pane */
-          <div className="p-6 rounded-2xl bg-[#FDFCF8] text-[#2C2C2C] border border-[#E5E2D9] font-amiri shadow-inner">
+          <div className="p-6 sm:p-8 rounded-2xl bg-[#FDFCF8] text-[#2C2C2C] border border-[#E5E2D9] font-amiri shadow-inner">
             <div className="text-center pb-6 mb-6 border-b border-[#E5E2D9]">
               <span className="text-xs text-[#4A5D4E] font-cairo font-bold">
                 {novels.find(n => n.id === selectedNovelId)?.title}
@@ -416,7 +400,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                 {title || 'فصل بدون عنوان'}
               </h2>
               <div className="text-xs text-[#6E6A64] mt-1 font-cairo">
-                {wordCount} كلمة · {readingTime} دقائق قراءة
+                {wordCount.toLocaleString()} كلمة · {readingTime} دقائق قراءة
               </div>
             </div>
 
@@ -428,11 +412,18 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
 
             <div className="space-y-4 text-base leading-relaxed text-[#2C2C2C]">
               {content ? (
-                content.split('\n\n').filter(p => p.trim()).map((p, i) => (
-                  <p key={i}>
-                    {p}
-                  </p>
-                ))
+                /<[a-z][\s\S]*>/i.test(content) ? (
+                  <div
+                    className="book-reader-content space-y-6 leading-relaxed"
+                    dangerouslySetInnerHTML={{ __html: content }}
+                  />
+                ) : (
+                  content.split('\n\n').filter(p => p.trim()).map((p, i) => (
+                    <p key={i}>
+                      {p}
+                    </p>
+                  ))
+                )
               ) : (
                 <p className="text-[#6E6A64] italic text-center py-8 font-cairo">
                   لم يتم كتابة أي نص بعد. انتقل إلى وضع المحرر للبدء في الكتابة!

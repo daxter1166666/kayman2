@@ -127,10 +127,21 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onBack }) => {
               <span>عن هذا العمل ورؤية الكاتب أيمن كناني:</span>
             </div>
             <blockquote className="text-base sm:text-lg font-amiri font-semibold text-[#2C2C2C] leading-relaxed italic pr-3 border-r-2 border-[#4A5D4E]">
-              "أضع هذا العمل ابتغاء وجه الله، وأسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا."
+              "أسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا."
             </blockquote>
             <p className="text-sm text-[#4A4740] leading-relaxed">
               الأفكار والرؤية في هذا العمل نابعة مني بالكامل. أستعين بأدوات الذكاء الاصطناعي لتوسيع الأفكار وصياغتها الأولية، مع مراجعتي وإشرافي الكامل على كل نص قبل نشره.
+            </p>
+          </div>
+
+          {/* Author Revenue & Monetization Clarification */}
+          <div className="bg-[#FAF8F2] border border-[#E5DFD0] p-6 sm:p-7 rounded-2xl space-y-3 shadow-xs">
+            <div className="flex items-center gap-2 text-[#4A5D4E] font-bold text-sm">
+              <ShieldCheck className="w-4 h-4 text-[#4A5D4E]" />
+              <span>بيان رخصة النشر ودعم الكاتب:</span>
+            </div>
+            <p className="text-sm sm:text-base font-amiri font-semibold text-[#2C2C2C] leading-relaxed bg-[#FFFFFF] p-4 rounded-xl border border-[#E5E2D9]">
+              "هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء."
             </p>
           </div>
 

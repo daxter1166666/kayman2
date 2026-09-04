@@ -5,6 +5,7 @@ import { AuthorProfileTab } from './AuthorProfileTab';
 import { DonationsTab } from './DonationsTab';
 import { SupabaseTab } from './SupabaseTab';
 import { ChapterPublisherTab } from './ChapterPublisherTab';
+import { RichEditorStudioTab } from './RichEditorStudioTab';
 import { NovelManagerTab } from './NovelManagerTab';
 import { CategoryManagerTab } from './CategoryManagerTab';
 import { LegalAndContactManagerTab } from './LegalAndContactManagerTab';
@@ -31,7 +32,8 @@ import {
   Copy,
   Check,
   Search,
-  RotateCcw
+  RotateCcw,
+  Feather
 } from 'lucide-react';
 import { ResetDataModal } from './ResetDataModal';
 
@@ -62,9 +64,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   const tabs = [
     { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
+    { id: 'rich_editor', label: 'محرر الكتب والنصوص (WYSIWYG)', icon: Feather },
+    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
     { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
-    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
     { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
     { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
     { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
@@ -233,6 +236,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             chapters={chapters}
             comments={comments}
             adSettings={adSettings}
+            onNavigateTab={tab => setActiveTab(tab)}
+          />
+        )}
+
+        {activeTab === 'rich_editor' && (
+          <RichEditorStudioTab
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
             onNavigateTab={tab => setActiveTab(tab)}
           />
         )}

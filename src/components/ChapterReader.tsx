@@ -280,8 +280,30 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   }[readerSettings.contentWidth];
 
   // Split chapter content for mid-chapter ad insertion if long
-  const paragraphs = chapter.content.split('\n\n').filter(p => p.trim());
+  const isHtmlContent = /<[a-z][\s\S]*>/i.test(chapter.content);
+  const paragraphs = !isHtmlContent ? chapter.content.split('\n\n').filter(p => p.trim()) : [];
   const midPoint = Math.floor(paragraphs.length / 2);
+
+  const htmlParts = useMemo(() => {
+    if (!isHtmlContent) return null;
+    const chunks = chapter.content.split(/(<\/p>)/gi);
+    const pList: string[] = [];
+    for (let i = 0; i < chunks.length; i += 2) {
+      const chunk = chunks[i];
+      const closer = chunks[i + 1] || '';
+      if (chunk.trim()) {
+        pList.push(chunk + closer);
+      }
+    }
+    if (pList.length <= 2) {
+      return { firstHalf: chapter.content, secondHalf: '' };
+    }
+    const mid = Math.floor(pList.length / 2);
+    return {
+      firstHalf: pList.slice(0, mid).join(''),
+      secondHalf: pList.slice(mid).join(''),
+    };
+  }, [chapter.content, isHtmlContent]);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeStyles.bg} ${themeStyles.text} font-cairo`}>
@@ -783,25 +805,45 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           } space-y-6 sm:space-y-8 select-text cursor-text selection:bg-[#4A5D4E]/20`}
           style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
         >
-          {/* Render first half */}
-          {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
-            <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
-              {para}
-            </p>
-          ))}
+          {/* Render content based on whether it is rich HTML or plain text */}
+          {isHtmlContent && htmlParts ? (
+            <>
+              <div
+                className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
+                dangerouslySetInnerHTML={{ __html: htmlParts.firstHalf }}
+              />
+              {htmlParts.secondHalf && (
+                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
+              )}
+              {htmlParts.secondHalf && (
+                <div
+                  className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
+                  dangerouslySetInnerHTML={{ __html: htmlParts.secondHalf }}
+                />
+              )}
+            </>
+          ) : (
+            <>
+              {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
+                <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
+                  {para}
+                </p>
+              ))}
 
-          {/* Mid-Chapter Ad Placement */}
-          {paragraphs.length > 2 && (
-            <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
+              {/* Mid-Chapter Ad Placement */}
+              {paragraphs.length > 2 && (
+                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
+              )}
+
+              {/* Render second half */}
+              {paragraphs.length > 2 &&
+                paragraphs.slice(midPoint).map((para, idx) => (
+                  <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
+                    {para}
+                  </p>
+                ))}
+            </>
           )}
-
-          {/* Render second half */}
-          {paragraphs.length > 2 &&
-            paragraphs.slice(midPoint).map((para, idx) => (
-              <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
-                {para}
-              </p>
-            ))}
 
           {/* Chapter License Notice */}
           <div className={`mt-10 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
@@ -830,6 +872,10 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
+
+            <p className="mt-3 pt-3 border-t border-current/10 text-[11px] opacity-80 leading-relaxed">
+              هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
+            </p>
           </div>
         </article>
 
