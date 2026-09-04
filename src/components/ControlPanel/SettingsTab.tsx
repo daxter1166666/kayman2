@@ -20,6 +20,7 @@ import {
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { SiteBranding } from '../../types';
+import { ResetDataModal } from './ResetDataModal';
 
 interface SettingsTabProps {
   onRefreshData: () => void;
@@ -37,6 +38,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
   const [isDraggingFavicon, setIsDraggingFavicon] = useState<boolean>(false);
   const [isDraggingPwaIcon, setIsDraggingPwaIcon] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -536,24 +538,36 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
 
           <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 flex flex-col justify-between">
             <div>
-              <h4 className="text-xs font-bold text-rose-900 mb-1">
-                إعادة ضبط البيانات الأولية
+              <h4 className="text-xs font-bold text-rose-900 mb-1 flex items-center gap-1.5">
+                <RotateCcw className="w-4 h-4 text-rose-700" />
+                <span>إعادة ضبط البيانات (مسح الكاش وسحب Supabase)</span>
               </h4>
               <p className="text-[11px] text-rose-700 leading-relaxed mb-4">
-                استعادة المؤلفات والفصول التجريبية الأصلية وتفريغ التقييمات.
+                مسح التخزين المحلي (localStorage) للكتب والفصول وإجبار التطبيق على إعادة سحب البيانات المحدثة فقط من سوباباس لحل مشاكل تكرار الكتب.
               </p>
             </div>
             <button
               type="button"
-              onClick={handleResetData}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+              id="settings-reset-data-btn"
+              onClick={() => setIsResetModalOpen(true)}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>استعادة الحالة الافتراضية</span>
+              <span>إعادة ضبط وسحب البيانات السحابية</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Reset Data Confirmation & Execution Modal */}
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={() => {
+          onRefreshData();
+          showToast('تمت إعادة ضبط البيانات بنجاح وسحب النسخة المحدثة من سوباباس!');
+        }}
+      />
     </div>
   );
 };

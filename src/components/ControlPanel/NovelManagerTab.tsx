@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Novel, NovelStatus, Genre, Category } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
+import { DEFAULT_BOOK_COVER } from '../../data/initialData';
 import { ImageUploadInput } from '../ImageUploadInput';
 import {
   BookOpen,
@@ -15,8 +16,10 @@ import {
   Heart,
   Download,
   ExternalLink,
-  FileText
+  FileText,
+  RotateCcw
 } from 'lucide-react';
+import { ResetDataModal } from './ResetDataModal';
 
 interface NovelManagerTabProps {
   novels: Novel[];
@@ -47,6 +50,11 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   const [pdfFileSize, setPdfFileSize] = useState<string>('');
   const [downloadButtonText, setDownloadButtonText] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Delete modal state
+  const [novelToDelete, setNovelToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -182,17 +190,34 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     onRefreshData();
   };
 
-  const handleDeleteNovel = async (id: string, novelTitle: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف عمل "${novelTitle}" وجميع فصوله ومراجعاته نهائياً؟`)) {
+  const handleDeleteNovel = (id: string, novelTitle: string) => {
+    setNovelToDelete({ id, title: novelTitle });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!novelToDelete) return;
+    setIsDeleting(true);
+    const { id, title: delTitle } = novelToDelete;
+    
+    try {
+      // 1. Immediately delete locally and refresh UI
       storageService.deleteNovel(id);
       onRefreshData();
-      showToast('جاري حذف الكتاب والفصول من سوباباس...');
+
+      // 2. Delete permanently from Supabase
+      showToast(`جاري حذف "${delTitle}" من قاعدة البيانات السحابية...`);
       const cloudSuccess = await supabaseService.deleteNovelFromSupabase(id);
       if (cloudSuccess) {
-        showToast(`تم حذف "${novelTitle}" وفصوله نهائياً من المتصفح وقاعدة البيانات السحابية!`);
+        showToast(`تم حذف كتاب "${delTitle}" وفصوله نهائياً من المتصفح وقاعدة البيانات السحابية!`);
       } else {
-        showToast('تم الحذف محلياً. تنبيه: لم يتم الحذف من سوباباس (تأكد من كود الصلاحيات).');
+        showToast(`تم الحذف من المتصفح. تنبيه: لم يتم الحذف السحابي.`);
       }
+    } catch (err) {
+      console.error('Delete error:', err);
+      showToast('حدث خطأ أثناء محاولة الحذف.');
+    } finally {
+      setIsDeleting(false);
+      setNovelToDelete(null);
       onRefreshData();
     }
   };
@@ -219,15 +244,28 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          id="create-new-novel-btn"
-          onClick={handleStartCreate}
-          className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-        >
-          <Plus className="w-4 h-4" />
-          <span>إضافة مؤلف / كتاب جديد</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            id="novel-manager-reset-btn"
+            onClick={() => setIsResetModalOpen(true)}
+            className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
+            title="مسح التخزين المحلي وإعادة سحب الكتب المحدثة فقط من سوباباس"
+          >
+            <RotateCcw className="w-4 h-4 text-rose-600" />
+            <span>إعادة ضبط وتحديث الكتب</span>
+          </button>
+
+          <button
+            type="button"
+            id="create-new-novel-btn"
+            onClick={handleStartCreate}
+            className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+          >
+            <Plus className="w-4 h-4" />
+            <span>إضافة مؤلف / كتاب جديد</span>
+          </button>
+        </div>
       </div>
 
       {/* Create / Edit Form Modal / Panel */}
@@ -552,7 +590,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
               <div>
                 <div className="flex gap-4 mb-4">
                   <img
-                    src={novel.coverImage}
+                    src={novel.coverImage?.trim() || DEFAULT_BOOK_COVER}
                     alt={novel.title}
                     className="w-20 h-28 object-cover rounded-xl border border-[#E5E2D9] shrink-0"
                   />
@@ -615,6 +653,65 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
           ))}
         </div>
       )}
+
+      {/* Delete Confirmation Modal */}
+      {novelToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#FFFFFF] border border-[#E5E2D9] rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 font-cairo">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] text-center mb-2">
+              تأكيد حذف الكتاب نهائياً
+            </h3>
+            <p className="text-xs text-[#6E6A64] text-center leading-relaxed mb-6">
+              هل أنت متأكد من رغبتك في حذف عمل <strong className="text-[#2C2C2C]">"{novelToDelete.title}"</strong> وجميع فصوله ومراجعاته نهائياً؟
+              <br />
+              <span className="text-rose-600 font-semibold block mt-1.5">
+                سيتم حذفه من قاعدة البيانات السحابية والمتصفح ولن يتمكن القراء من رؤيته بعد الآن.
+              </span>
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setNovelToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] text-xs font-bold hover:bg-[#F7F5EE] transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDelete}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>جاري الحذف...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>نعم، احذف نهائياً</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Data Confirmation & Execution Modal */}
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={() => {
+          onRefreshData();
+          showToast('تمت إعادة ضبط البيانات بنجاح وسحب الكتب المحدثة فقط!');
+        }}
+      />
     </div>
   );
 };

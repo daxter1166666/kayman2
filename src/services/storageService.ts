@@ -63,14 +63,26 @@ function setStored<T>(key: string, value: T): void {
   }
 }
 
+function deduplicateById<T extends { id: string }>(items: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    if (item && item.id) {
+      map.set(item.id, item);
+    }
+  }
+  return Array.from(map.values());
+}
+
 export const storageService = {
   // --- Novels ---
   getNovels(): Novel[] {
-    return getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
+    const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
+    const deletedIds = new Set(this.getDeletedNovelIds());
+    return raw.filter(n => !deletedIds.has(n.id));
   },
 
   saveNovels(novels: Novel[]): void {
-    setStored(KEYS.NOVELS, novels);
+    setStored(KEYS.NOVELS, deduplicateById(novels));
   },
 
   getNovelById(id: string): Novel | undefined {
@@ -136,16 +148,19 @@ export const storageService = {
   // --- Chapters ---
   getChapters(novelId?: string): Chapter[] {
     const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    const deletedChapterIds = new Set(this.getDeletedChapterIds());
+    const deletedNovelIds = new Set(this.getDeletedNovelIds());
+    const valid = chapters.filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId));
     if (novelId) {
-      return chapters
+      return valid
         .filter(c => c.novelId === novelId)
         .sort((a, b) => a.chapterNumber - b.chapterNumber);
     }
-    return chapters;
+    return valid;
   },
 
   saveChapters(chapters: Chapter[]): void {
-    setStored(KEYS.CHAPTERS, chapters);
+    setStored(KEYS.CHAPTERS, deduplicateById(chapters));
   },
 
   getChapterById(id: string): Chapter | undefined {
@@ -683,26 +698,64 @@ export const storageService = {
     this.saveContactMessages(messages);
   },
 
+  /**
+   * Clears local storage data caches (novels, chapters, comments, reading state, etc.)
+   * while safely preserving essential admin credentials and Supabase connectivity keys.
+   * Ensures novels and chapters are set to empty arrays so no duplicate or stale mock data resurfaces.
+   */
+  clearLocalDataCaches(): void {
+    try {
+      const adminAuth = localStorage.getItem(KEYS.ADMIN_AUTH);
+      const adminCreds = localStorage.getItem(KEYS.ADMIN_CREDS);
+      const supabaseConfig = localStorage.getItem(KEYS.SUPABASE_CONFIG);
+
+      const keysToPurge = [
+        KEYS.NOVELS,
+        KEYS.CHAPTERS,
+        KEYS.COMMENTS,
+        KEYS.AD_SETTINGS,
+        KEYS.READER_SETTINGS,
+        KEYS.BOOKMARKS,
+        KEYS.READ_HISTORY,
+        KEYS.USER_LIKED_CHAPTERS,
+        KEYS.USER_LIKED_COMMENTS,
+        KEYS.USER_RATINGS,
+        KEYS.CATEGORIES,
+        KEYS.LEGAL_DOCS,
+        KEYS.CONTACT_MESSAGES,
+        KEYS.AUTHOR_PROFILE,
+        KEYS.SITE_BRANDING,
+        KEYS.SEO_SETTINGS,
+        KEYS.DONATION_SETTINGS,
+      ];
+
+      keysToPurge.forEach(k => {
+        try {
+          localStorage.removeItem(k);
+        } catch {
+          // ignore
+        }
+      });
+
+      // Explicitly initialize novels and chapters to empty arrays
+      localStorage.setItem(KEYS.NOVELS, JSON.stringify([]));
+      localStorage.setItem(KEYS.CHAPTERS, JSON.stringify([]));
+      localStorage.setItem(KEYS.COMMENTS, JSON.stringify([]));
+
+      // Restore preserved admin credentials and Supabase configurations
+      if (adminAuth) localStorage.setItem(KEYS.ADMIN_AUTH, adminAuth);
+      if (adminCreds) localStorage.setItem(KEYS.ADMIN_CREDS, adminCreds);
+      if (supabaseConfig) localStorage.setItem(KEYS.SUPABASE_CONFIG, supabaseConfig);
+    } catch (err) {
+      console.warn('Error executing clearLocalDataCaches:', err);
+    }
+  },
+
   // Reset to initial demo data
   resetAllData(): void {
-    localStorage.removeItem(KEYS.NOVELS);
-    localStorage.removeItem(KEYS.CHAPTERS);
-    localStorage.removeItem(KEYS.COMMENTS);
-    localStorage.removeItem(KEYS.AD_SETTINGS);
-    localStorage.removeItem(KEYS.READER_SETTINGS);
-    localStorage.removeItem(KEYS.BOOKMARKS);
-    localStorage.removeItem(KEYS.READ_HISTORY);
-    localStorage.removeItem(KEYS.USER_LIKED_CHAPTERS);
-    localStorage.removeItem(KEYS.USER_LIKED_COMMENTS);
-    localStorage.removeItem(KEYS.USER_RATINGS);
+    this.clearLocalDataCaches();
     localStorage.removeItem(KEYS.ADMIN_AUTH);
     localStorage.removeItem(KEYS.ADMIN_CREDS);
-    localStorage.removeItem(KEYS.CATEGORIES);
-    localStorage.removeItem(KEYS.LEGAL_DOCS);
-    localStorage.removeItem(KEYS.CONTACT_MESSAGES);
-    localStorage.removeItem(KEYS.AUTHOR_PROFILE);
-    localStorage.removeItem(KEYS.SITE_BRANDING);
-    localStorage.removeItem(KEYS.DONATION_SETTINGS);
     localStorage.removeItem(KEYS.SUPABASE_CONFIG);
     localStorage.removeItem(KEYS.DELETED_NOVEL_IDS);
     localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);

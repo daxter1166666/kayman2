@@ -47,6 +47,8 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
   const [status, setStatus] = useState<ChapterStatus>('PUBLISHED');
   const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
   const [notification, setNotification] = useState<string | null>(null);
+  const [chapterToDelete, setChapterToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   // Filtered chapters for current novel
   const currentNovelChapters = chapters
@@ -88,20 +90,35 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteChapter = async (chId: string, chTitle: string) => {
-    if (window.confirm(`هل أنت متأكد من رغبتك في حذف الفصل "${chTitle}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
+  const handleDeleteChapter = (chId: string, chTitle: string) => {
+    setChapterToDelete({ id: chId, title: chTitle });
+  };
+
+  const handleConfirmDeleteChapter = async () => {
+    if (!chapterToDelete) return;
+    setIsDeleting(true);
+    const { id: chId, title: chTitle } = chapterToDelete;
+
+    try {
       storageService.deleteChapter(chId);
       if (editingChapterId === chId) {
         handleStartNew();
       }
       onRefreshData();
-      showToast('جاري حذف الفصل من سوباباس...');
+
+      showToast(`جاري حذف فصل "${chTitle}" من قاعدة البيانات السحابية...`);
       const cloudSuccess = await supabaseService.deleteChapterFromSupabase(chId);
       if (cloudSuccess) {
         showToast(`تم حذف الفصل "${chTitle}" نهائياً من المتصفح وقاعدة البيانات السحابية!`);
       } else {
-        showToast('تم الحذف محلياً. تنبيه: لم يتم الحذف من سوباباس (تأكد من كود الصلاحيات).');
+        showToast('تم الحذف من المتصفح. تنبيه: لم يتم الحذف السحابي.');
       }
+    } catch (err) {
+      console.error('Delete chapter error:', err);
+      showToast('حدث خطأ أثناء حذف الفصل.');
+    } finally {
+      setIsDeleting(false);
+      setChapterToDelete(null);
       onRefreshData();
     }
   };
@@ -536,6 +553,55 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {chapterToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-[#FFFFFF] border border-[#E5E2D9] rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 font-cairo">
+            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] text-center mb-2">
+              تأكيد حذف الفصل نهائياً
+            </h3>
+            <p className="text-xs text-[#6E6A64] text-center leading-relaxed mb-6">
+              هل أنت متأكد من رغبتك في حذف فصل <strong className="text-[#2C2C2C]">"{chapterToDelete.title}"</strong>؟
+              <br />
+              <span className="text-rose-600 font-semibold block mt-1.5">
+                سيتم حذفه من قاعدة البيانات السحابية والمتصفح ولن يتمكن القراء من قراءته بعد الآن.
+              </span>
+            </p>
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={() => setChapterToDelete(null)}
+                className="flex-1 py-2.5 px-4 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] text-xs font-bold hover:bg-[#F7F5EE] transition-colors cursor-pointer"
+              >
+                إلغاء
+              </button>
+              <button
+                type="button"
+                disabled={isDeleting}
+                onClick={handleConfirmDeleteChapter}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+              >
+                {isDeleting ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>جاري الحذف...</span>
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>نعم، احذف نهائياً</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
