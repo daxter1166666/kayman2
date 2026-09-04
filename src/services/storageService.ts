@@ -571,7 +571,11 @@ export const storageService = {
 
   // --- SEO & Search Engines Settings ---
   getSeoSettings(): SeoSettings {
-    return getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
+    const stored = getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
+    return {
+      ...INITIAL_SEO_SETTINGS,
+      ...(stored || {}),
+    };
   },
 
   saveSeoSettings(settings: Partial<SeoSettings>): SeoSettings {

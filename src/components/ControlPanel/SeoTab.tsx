@@ -15,7 +15,10 @@ import {
   ExternalLink,
   ShieldCheck,
   Layers,
-  Star
+  Star,
+  TrendingUp,
+  Lightbulb,
+  Compass
 } from 'lucide-react';
 import { storageService } from '../../services/storageService';
 import { seoService } from '../../services/seoService';
@@ -50,7 +53,7 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
     onRefreshData();
   };
 
-  const currentBaseUrl = (settings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+  const currentBaseUrl = ((settings?.canonicalBaseUrl) || window.location.origin).replace(/\/$/, '');
   const sitemapUrl = `${currentBaseUrl}/sitemap.xml`;
   const robotsUrl = `${currentBaseUrl}/robots.txt`;
 
@@ -77,13 +80,33 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
     showToast('تم إنشاء وتحميل ملف sitemap.xml المحدث بنجاح!');
   };
 
+  const handleGenerateSmartKeywords = () => {
+    const bookTitles = novels.map(n => n.title).filter(Boolean);
+    const authorKeywords = [
+      'أيمن كناني',
+      'Ayman Kinani',
+      'كتب أيمن كناني',
+      'مؤلفات أيمن كناني',
+      'تحميل كتب أيمن كناني PDF',
+      'روايات أيمن كناني',
+      'كتب وروايات عربية مجانية',
+      'قراءة أونلاين',
+      'كتب فلسفة وفكر',
+      'دار نشر أيمن كناني'
+    ];
+    const combined = Array.from(new Set([...authorKeywords, ...bookTitles])).join('، ');
+    setSettings(prev => ({ ...prev, keywords: combined }));
+    showToast('تم توليد الكلمات المفتاحية الذكية الأكثر بحثاً في Google!');
+  };
+
   // Preview novel calculation
   const previewNovel = novels.find(n => n.id === selectedPreviewNovelId) || novels[0];
+  const template = settings?.siteTitleTemplate || '%title% | الكاتب أيمن كناني';
   const previewTitle = previewNovel
-    ? settings.siteTitleTemplate.replace('%title%', `رواية ${previewNovel.title}`)
-    : settings.defaultTitle;
-  const previewDesc = previewNovel?.synopsis || settings.defaultDescription;
-  const descCharCount = settings.defaultDescription.length;
+    ? template.replace('%title%', `كتاب ${previewNovel.title}`)
+    : (settings?.defaultTitle || 'الكاتب أيمن كناني');
+  const previewDesc = previewNovel?.synopsis || settings?.defaultDescription || 'المنصة الرسمية لنشر وتحميل كتب وروايات الكاتب أيمن كناني';
+  const descCharCount = (settings?.defaultDescription || '').length;
 
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
@@ -218,18 +241,28 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
 
             {/* Keywords */}
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-[#2C2C2C] block">
-                الكلمات المفتاحية العامة (Meta Keywords):
-              </label>
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-[#2C2C2C] block">
+                  الكلمات المفتاحية العامة (Meta Keywords):
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGenerateSmartKeywords}
+                  className="px-2.5 py-1 rounded-lg bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-[11px] font-bold flex items-center gap-1.5 transition-colors cursor-pointer border border-[#4A5D4E]/20"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>توليد واقتراح كلمات مفتاحية ذكية</span>
+                </button>
+              </div>
               <input
                 type="text"
                 value={settings.keywords}
                 onChange={e => setSettings({ ...settings, keywords: e.target.value })}
-                placeholder="أيمن كناني, روايات أيمن كناني, كتب فلسفية, تحميل روايات PDF"
+                placeholder="أيمن كناني, كتب أيمن كناني, مؤلفات أيمن كناني, كتب فلسفية, تحميل كتب PDF"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FDFCF8] text-xs focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
               />
               <p className="text-[11px] text-[#6E6A64]">
-                افصل بين كل كلمة أو عبارة بفاصلة (، أو ,).
+                افصل بين كل كلمة أو عبارة بفاصلة (، أو ,). تشمل اسم المؤلف، أسماء الكتب، ونوع المؤلفات لضمان الفهرسة السريعة.
               </p>
             </div>
 
@@ -543,6 +576,100 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
                   {copiedRobots ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
                   <span>{copiedRobots ? 'تم النسخ' : 'نسخ'}</span>
                 </button>
+              </div>
+            </div>
+          </div>
+
+          {/* Google Top Ranking Playbook (دليل تصدر نتائج بحث Google الأولى) */}
+          <div className="p-6 rounded-2xl bg-gradient-to-br from-[#FAF8F2] to-[#FFFFFF] border-2 border-[#4A5D4E]/20 shadow-xs space-y-4">
+            <div className="flex items-center gap-2.5 text-[#2C2C2C]">
+              <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
+                <TrendingUp className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="font-bold text-sm">
+                  خارطة طريق تصدر كتبك في نتائج Google الأولى
+                </h4>
+                <p className="text-[11px] text-[#6E6A64]">
+                  خطوات عملية ومجربة لرفع تصنيف مؤلفات وكتب الكاتب أيمن كناني
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+              {/* Step 1 */}
+              <div className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-6 h-6 rounded-full bg-[#4A5D4E] text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                    1
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    أولوية قصوى
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#2C2C2C]">
+                  تقديم خريطة الموقع لـ Google Search Console
+                </h5>
+                <p className="text-[11px] text-[#6E6A64] leading-relaxed">
+                  انسخ رابط <code className="bg-[#F7F5EE] px-1 py-0.5 rounded font-mono text-[10px]">sitemap.xml</code> أعلاه وقم بإضافته في قسم "Sitemaps" داخل Search Console حتى يتعرف Google على جميع كتبك فوراً.
+                </p>
+                <a
+                  href="https://search.google.com/search-console"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4A5D4E] hover:underline pt-1"
+                >
+                  <span>فتح Google Search Console</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              {/* Step 2 */}
+              <div className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-6 h-6 rounded-full bg-[#4A5D4E] text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                    2
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-200">
+                    النتائج الغنية
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#2C2C2C]">
+                  التحقق من بيانات النجوم والغلاف (Rich Snippets)
+                </h5>
+                <p className="text-[11px] text-[#6E6A64] leading-relaxed">
+                  يقوم الموقع بحقن بيانات Schema.org تلقائياً لكل كتاب. افحص أي صفحة كتاب في أداة Google للتأكد من ظهور نجوم التقييم وصورة الغلاف في نتائج البحث.
+                </p>
+                <a
+                  href="https://search.google.com/test/rich-results"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4A5D4E] hover:underline pt-1"
+                >
+                  <span>فحص في Google Rich Results</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              {/* Step 3 */}
+              <div className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="w-6 h-6 rounded-full bg-[#4A5D4E] text-white text-[11px] font-bold flex items-center justify-center font-mono">
+                    3
+                  </span>
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-50 text-amber-800 border border-amber-200">
+                    المحتوى والفهرس
+                  </span>
+                </div>
+                <h5 className="font-bold text-xs text-[#2C2C2C]">
+                  إثراء فهارس ونبذة الكتب المباشرة
+                </h5>
+                <p className="text-[11px] text-[#6E6A64] leading-relaxed">
+                  الكتب التي تحتوي على فهرس محتويات يدوي ونبذة غنية بالكلمات الدلالية تتصدر كلمات البحث الطويلة مثل (تحميل كتاب... وقراءة فصول...).
+                </p>
+                <div className="pt-1 text-[10px] text-[#8E8A83]">
+                  نصيحة: احرص على تضمين اسم الكاتب "أيمن كناني" في نبذة كل كتاب.
+                </div>
               </div>
             </div>
           </div>

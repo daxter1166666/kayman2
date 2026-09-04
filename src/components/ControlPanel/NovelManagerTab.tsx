@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Novel, NovelStatus, Genre, Category } from '../../types';
+import { Novel, NovelStatus, Genre, Category, TableOfContentItem } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { DEFAULT_BOOK_COVER } from '../../data/initialData';
@@ -17,7 +17,13 @@ import {
   Download,
   ExternalLink,
   FileText,
-  RotateCcw
+  RotateCcw,
+  ListOrdered,
+  ArrowUp,
+  ArrowDown,
+  FileCode,
+  Layers,
+  Bookmark
 } from 'lucide-react';
 import { ResetDataModal } from './ResetDataModal';
 
@@ -51,6 +57,15 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   const [downloadButtonText, setDownloadButtonText] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Table of Contents state
+  const [tableOfContents, setTableOfContents] = useState<TableOfContentItem[]>([]);
+  const [tocItemTitle, setTocItemTitle] = useState<string>('');
+  const [tocItemPage, setTocItemPage] = useState<string>('');
+  const [tocItemDesc, setTocItemDesc] = useState<string>('');
+  const [tocItemUrl, setTocItemUrl] = useState<string>('');
+  const [showBulkTocInput, setShowBulkTocInput] = useState<boolean>(false);
+  const [tocBulkText, setTocBulkText] = useState<string>('');
+
   // Delete modal state
   const [novelToDelete, setNovelToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -76,6 +91,11 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl('');
     setPdfFileSize('');
     setDownloadButtonText('');
+    setTableOfContents([]);
+    setTocItemTitle('');
+    setTocItemPage('');
+    setTocItemDesc('');
+    setTocItemUrl('');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -95,8 +115,74 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl(novel.pdfDownloadUrl || '');
     setPdfFileSize(novel.pdfFileSize || '');
     setDownloadButtonText(novel.downloadButtonText || '');
+    setTableOfContents(novel.tableOfContents || []);
+    setTocItemTitle('');
+    setTocItemPage('');
+    setTocItemDesc('');
+    setTocItemUrl('');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Table of Contents Handlers
+  const handleAddTocItem = () => {
+    if (!tocItemTitle.trim()) return;
+    const newItem: TableOfContentItem = {
+      id: `toc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      title: tocItemTitle.trim(),
+      pageNumber: tocItemPage.trim() || undefined,
+      description: tocItemDesc.trim() || undefined,
+      linkUrl: tocItemUrl.trim() || undefined,
+    };
+    setTableOfContents([...tableOfContents, newItem]);
+    setTocItemTitle('');
+    setTocItemPage('');
+    setTocItemDesc('');
+    setTocItemUrl('');
+  };
+
+  const handleRemoveTocItem = (id: string) => {
+    setTableOfContents(tableOfContents.filter(item => item.id !== id));
+  };
+
+  const handleMoveTocItem = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= tableOfContents.length) return;
+    const updated = [...tableOfContents];
+    const temp = updated[index];
+    updated[index] = updated[targetIndex];
+    updated[targetIndex] = temp;
+    setTableOfContents(updated);
+  };
+
+  const handleBulkParseToc = () => {
+    if (!tocBulkText.trim()) return;
+    const lines = tocBulkText.split('\n').map(l => l.trim()).filter(Boolean);
+    const parsed: TableOfContentItem[] = [];
+
+    lines.forEach((line, idx) => {
+      let pageNumber = '';
+      let title = line;
+
+      const match = line.match(/(?:[-|–—:]\s*(?:ص|صفحة|page|p\.?)?\s*(\d+))|(?:(?:ص|صفحة)\s*(\d+))/i);
+      if (match) {
+        pageNumber = `ص ${match[1] || match[2]}`;
+        title = line.replace(match[0], '').replace(/[-|–—:]\s*$/, '').trim();
+      }
+
+      parsed.push({
+        id: `toc-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
+        title: title || line,
+        pageNumber: pageNumber || undefined,
+      });
+    });
+
+    if (parsed.length > 0) {
+      setTableOfContents([...tableOfContents, ...parsed]);
+      setTocBulkText('');
+      setShowBulkTocInput(false);
+      showToast(`تمت إضافة ${parsed.length} بنداً إلى فهرس الكتاب بنجاح!`);
+    }
   };
 
   const handleGenreToggle = (genreName: string) => {
@@ -143,6 +229,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
+        tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
       });
       const updated = storageService.getNovels().find(n => n.id === editingNovelId);
       if (updated) {
@@ -172,6 +259,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
+        tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
       });
       if (created) {
         supabaseService.saveNovelToSupabase(created).then(res => {
@@ -540,6 +628,203 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
               className="w-full p-3.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] leading-relaxed"
               required
             />
+          </div>
+
+          {/* Manual Table of Contents (فهرس محتويات الكتاب) */}
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] space-y-4 shadow-2xs">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E2D9] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
+                  <ListOrdered className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs sm:text-sm font-bold text-[#2C2C2C] flex items-center gap-2">
+                    <span>فهرس محتويات وأبواب الكتاب (يدوي)</span>
+                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#4A5D4E]/15 text-[#4A5D4E] font-bold">
+                      {tableOfContents.length} بند
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-[#6E6A64]">
+                    مخصص للكتب التي لا تعتمد نظام الفصول (كتب كاملة، دراسات، إصدارات PDF، أو مؤلفات مقسمة لأبواب ومباحث).
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowBulkTocInput(!showBulkTocInput)}
+                className="px-3 py-1.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[11px] font-bold text-[#4A5D4E] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto"
+              >
+                <FileCode className="w-3.5 h-3.5" />
+                <span>{showBulkTocInput ? 'إدخال بند ببند' : 'إضافة سريعة بالنسخ واللصق'}</span>
+              </button>
+            </div>
+
+            {/* Bulk Mode vs Single Add Mode */}
+            {showBulkTocInput ? (
+              <div className="space-y-2 p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9]">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[#2C2C2C]">
+                    الصق سطور الفهرس هنا (كل سطر يمثل بنداً أو فصلاً):
+                  </label>
+                  <span className="text-[10px] text-[#6E6A64]">
+                    مثال: المقدمة - ص 5
+                  </span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={tocBulkText}
+                  onChange={e => setTocBulkText(e.target.value)}
+                  placeholder={`المقدمة: مدخل عام - ص 7&#10;الباب الأول: تطور المفهوم والأصل التاريخي - ص 21&#10;الباب الثاني: النظريات والتحليل الفلسفي - ص 58&#10;خاتمة وتوصيات - ص 115`}
+                  className="w-full p-3 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono leading-relaxed"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={handleBulkParseToc}
+                    disabled={!tocBulkText.trim()}
+                    className="px-4 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-[#FDFCF8] text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>تحويل النص إلى بنود الفهرس</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-3">
+                <span className="text-xs font-bold text-[#2C2C2C] block">
+                  إضافة بند جديد للفهرس:
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
+                  <div className="sm:col-span-6">
+                    <input
+                      type="text"
+                      value={tocItemTitle}
+                      onChange={e => setTocItemTitle(e.target.value)}
+                      placeholder="عنوان الباب / الفصل / المبحث (مثال: المقدمة العامة)"
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          handleAddTocItem();
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="sm:col-span-3">
+                    <input
+                      type="text"
+                      value={tocItemPage}
+                      onChange={e => setTocItemPage(e.target.value)}
+                      placeholder="رقم الصفحة (مثال: ص 15)"
+                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+                    />
+                  </div>
+                  <div className="sm:col-span-3 flex">
+                    <button
+                      type="button"
+                      onClick={handleAddTocItem}
+                      disabled={!tocItemTitle.trim()}
+                      className="w-full px-3 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-[#FDFCF8] text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
+                    >
+                      <Plus className="w-4 h-4" />
+                      <span>إضافة للفهرس</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
+                  <input
+                    type="text"
+                    value={tocItemDesc}
+                    onChange={e => setTocItemDesc(e.target.value)}
+                    placeholder="نبذة موجزة عن هذا البند (اختياري)"
+                    className="w-full px-3 py-1.5 text-[11px] rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+                  />
+                  <input
+                    type="url"
+                    value={tocItemUrl}
+                    onChange={e => setTocItemUrl(e.target.value)}
+                    placeholder="رابط خارجي أو مرجع (اختياري)"
+                    className="w-full px-3 py-1.5 text-[11px] rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* TOC Items List */}
+            {tableOfContents.length === 0 ? (
+              <div className="text-center py-6 px-4 rounded-xl border border-dashed border-[#E5E2D9] bg-[#FFFFFF]/60">
+                <Bookmark className="w-8 h-8 text-[#D0CCC2] mx-auto mb-2" />
+                <p className="text-xs font-bold text-[#6E6A64]">
+                  لا يوجد بنود في فهرس هذا الكتاب حتى الآن
+                </p>
+                <p className="text-[11px] text-[#8E8A83] mt-0.5">
+                  أضف بنود الفهرس (الأبواب، المباحث، المقالات، أو أرقام الصفحات) لتظهر للقراء بوضوح وتسهل تصفح الكتاب.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
+                {tableOfContents.map((item, index) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] hover:border-[#4A5D4E]/40 transition-all shadow-2xs group"
+                  >
+                    <div className="flex items-center gap-2.5 truncate min-w-0 flex-1">
+                      <span className="w-6 h-6 rounded-lg bg-[#F7F5EE] text-[#6E6A64] text-[11px] font-mono font-bold flex items-center justify-center shrink-0 border border-[#E5E2D9]">
+                        {index + 1}
+                      </span>
+                      <div className="truncate min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-[#2C2C2C] truncate">
+                            {item.title}
+                          </span>
+                          {item.pageNumber && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#C88A3B]/10 text-[#965A15] shrink-0 border border-[#C88A3B]/20 font-mono">
+                              {item.pageNumber}
+                            </span>
+                          )}
+                        </div>
+                        {item.description && (
+                          <p className="text-[11px] text-[#6E6A64] truncate">
+                            {item.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleMoveTocItem(index, 'up')}
+                        disabled={index === 0}
+                        className="p-1 rounded-lg hover:bg-[#F7F5EE] disabled:opacity-30 text-[#6E6A64] cursor-pointer"
+                        title="تحريك لأعلى"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleMoveTocItem(index, 'down')}
+                        disabled={index === tableOfContents.length - 1}
+                        className="p-1 rounded-lg hover:bg-[#F7F5EE] disabled:opacity-30 text-[#6E6A64] cursor-pointer"
+                        title="تحريك لأسفل"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTocItem(item.id)}
+                        className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer transition-colors"
+                        title="حذف هذا البند"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E2D9]">

@@ -18,7 +18,11 @@ import {
   UserCheck,
   CheckCircle2,
   Tag,
-  Download
+  Download,
+  ListOrdered,
+  ExternalLink,
+  FileText,
+  Book
 } from 'lucide-react';
 
 interface NovelDetailViewProps {
@@ -53,10 +57,18 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
 
   const sortedChapters = [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
   const totalWords = chapters.reduce((acc, c) => acc + c.wordCount, 0);
+  const tocItems = novel.tableOfContents || [];
+  const hasChapters = sortedChapters.length > 0;
+  const hasToc = tocItems.length > 0;
+
+  const [activeContentView, setActiveContentView] = useState<'chapters' | 'toc'>(() => {
+    if (!hasChapters && hasToc) return 'toc';
+    return 'chapters';
+  });
 
   const statusConfig = {
     ONGOING: { label: 'مستمرة في النشر', classes: 'bg-[#4A5D4E]/15 text-[#2D4532] border-[#4A5D4E]/30' },
-    COMPLETED: { label: 'رواية مكتملة', classes: 'bg-[#C88A3B]/15 text-[#965A15] border-[#C88A3B]/30' },
+    COMPLETED: { label: 'كتاب مكتمل', classes: 'bg-[#C88A3B]/15 text-[#965A15] border-[#C88A3B]/30' },
     HIATUS: { label: 'متوقفة مؤقتاً', classes: 'bg-[#8E8A83]/15 text-[#5A5751] border-[#E5E2D9]' },
   }[novel.status];
 
@@ -87,7 +99,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
           className="flex items-center gap-2 px-3.5 py-2 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] text-xs font-bold transition-all cursor-pointer shadow-xs"
         >
           <ArrowRight className="w-4 h-4 text-[#4A5D4E]" />
-          <span>العودة لدليل الروايات</span>
+          <span>العودة للمكتبة والمؤلفات</span>
         </button>
 
         <div className="flex items-center gap-2">
@@ -96,7 +108,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
             id="share-novel-btn"
             onClick={handleShare}
             className="p-2.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] text-xs transition-all relative cursor-pointer shadow-xs flex items-center gap-1.5"
-            title="مشاركة رابط الرواية"
+            title="مشاركة رابط الكتاب"
           >
             <Share2 className="w-4 h-4 text-[#4A5D4E]" />
             <span className="text-xs font-semibold">مشاركة</span>
@@ -301,57 +313,200 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
       {/* Table of Contents / Chapter List */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] flex items-center gap-2">
-              <Layers className="w-5 h-5 text-[#4A5D4E]" />
-              <span>فهرس الفصول المنشورة ({sortedChapters.length})</span>
-            </h2>
-            <span className="text-xs text-[#6E6A64]">
-              إجمالي {totalWords.toLocaleString()} كلمة
-            </span>
+          {/* Header & View Switcher */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+            {hasChapters && hasToc ? (
+              <div className="flex items-center gap-1.5 p-1 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9]">
+                <button
+                  type="button"
+                  onClick={() => setActiveContentView('toc')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeContentView === 'toc'
+                      ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                      : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+                  }`}
+                >
+                  <ListOrdered className="w-3.5 h-3.5" />
+                  <span>فهرس ومحتويات الكتاب ({tocItems.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveContentView('chapters')}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer ${
+                    activeContentView === 'chapters'
+                      ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                      : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+                  }`}
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  <span>فصول القراءة ({sortedChapters.length})</span>
+                </button>
+              </div>
+            ) : hasToc ? (
+              <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] flex items-center gap-2">
+                <ListOrdered className="w-5 h-5 text-[#4A5D4E]" />
+                <span>فهرس محتويات وأبواب الكتاب ({tocItems.length})</span>
+              </h2>
+            ) : (
+              <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] flex items-center gap-2">
+                <Layers className="w-5 h-5 text-[#4A5D4E]" />
+                <span>فهرس الفصول المنشورة ({sortedChapters.length})</span>
+              </h2>
+            )}
+
+            {activeContentView === 'chapters' && hasChapters && (
+              <span className="text-xs text-[#6E6A64]">
+                إجمالي {totalWords.toLocaleString()} كلمة
+              </span>
+            )}
+            {activeContentView === 'toc' && hasToc && (
+              <span className="text-xs text-[#6E6A64]">
+                {tocItems.length} {tocItems.length === 1 ? 'مبحث/باب' : 'مباحث وأبواب'}
+              </span>
+            )}
           </div>
 
-          <div className="space-y-2.5">
-            {sortedChapters.map((ch) => (
-              <div
-                key={ch.id}
-                id={`chapter-row-${ch.id}`}
-                onClick={() => onSelectChapter(ch.id)}
-                className="group p-4 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] hover:border-[#4A5D4E]/40 transition-all flex items-center justify-between gap-4 cursor-pointer shadow-xs"
-              >
-                <div className="flex items-center gap-3.5 min-w-0">
-                  <span className="w-9 h-9 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] shrink-0 group-hover:border-[#4A5D4E]/40">
-                    {ch.chapterNumber}
-                  </span>
-                  <div className="min-w-0">
-                    <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors truncate">
-                      الفصل {ch.chapterNumber}: {ch.title}
-                    </h4>
-                    <div className="flex items-center gap-3 text-[11px] text-[#6E6A64] mt-0.5">
-                      <span>{ch.wordCount} كلمة</span>
-                      <span>·</span>
-                      <span className="flex items-center gap-1">
-                        <Eye className="w-3 h-3 text-[#8E8A83]" />
-                        <span>{ch.views} قراءة</span>
-                      </span>
-                      <span>·</span>
-                      <span className="flex items-center gap-1">
-                        <Heart className="w-3 h-3 text-rose-500" />
-                        <span>{ch.likes} إعجاب</span>
-                      </span>
+          {/* Table of Contents View */}
+          {activeContentView === 'toc' && hasToc && (
+            <div className="space-y-3">
+              {tocItems.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] hover:border-[#4A5D4E]/40 transition-all shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                >
+                  <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                    <span className="w-9 h-9 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] shrink-0 mt-0.5 sm:mt-0">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C]">
+                          {item.title}
+                        </h4>
+                        {item.pageNumber && (
+                          <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#C88A3B]/10 text-[#965A15] border border-[#C88A3B]/20 font-mono">
+                            {item.pageNumber}
+                          </span>
+                        )}
+                      </div>
+                      {item.description && (
+                        <p className="text-xs text-[#6E6A64] mt-1 leading-relaxed">
+                          {item.description}
+                        </p>
+                      )}
                     </div>
                   </div>
-                </div>
 
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className="text-xs font-bold text-[#4A5D4E] group-hover:-translate-x-1 transition-transform flex items-center gap-1">
-                    <span>قراءة</span>
-                    <ChevronLeft className="w-4 h-4" />
-                  </span>
+                  {item.linkUrl && (
+                    <a
+                      href={item.linkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs font-bold text-[#4A5D4E] hover:underline flex items-center gap-1 shrink-0 self-end sm:self-auto bg-[#F7F5EE] px-3 py-1.5 rounded-lg border border-[#E5E2D9]"
+                    >
+                      <span>الانتقال للبند</span>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                    </a>
+                  )}
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+
+              {novel.pdfDownloadUrl && (
+                <div className="p-4 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] flex flex-col sm:flex-row items-center justify-between gap-3 text-center sm:text-right mt-4">
+                  <div className="flex items-center gap-3">
+                    <Book className="w-5 h-5 text-[#4A5D4E] shrink-0 hidden sm:block" />
+                    <p className="text-xs text-[#6E6A64]">
+                      هذا الكتاب متاح كنسخة كاملة مجمعة. يمكنك تحميل النسخة الإلكترونية لمتابعة القراءة حسب الفهرس أعلاه.
+                    </p>
+                  </div>
+                  <a
+                    href={novel.pdfDownloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="px-4 py-2 bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold rounded-xl shadow-xs shrink-0 flex items-center gap-2"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{novel.downloadButtonText || 'تحميل الكتاب PDF'}</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Chapters View */}
+          {activeContentView === 'chapters' && hasChapters && (
+            <div className="space-y-2.5">
+              {sortedChapters.map((ch) => (
+                <div
+                  key={ch.id}
+                  id={`chapter-row-${ch.id}`}
+                  onClick={() => onSelectChapter(ch.id)}
+                  className="group p-4 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] hover:border-[#4A5D4E]/40 transition-all flex items-center justify-between gap-4 cursor-pointer shadow-xs"
+                >
+                  <div className="flex items-center gap-3.5 min-w-0">
+                    <span className="w-9 h-9 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] shrink-0 group-hover:border-[#4A5D4E]/40">
+                      {ch.chapterNumber}
+                    </span>
+                    <div className="min-w-0">
+                      <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors truncate">
+                        الفصل {ch.chapterNumber}: {ch.title}
+                      </h4>
+                      <div className="flex items-center gap-3 text-[11px] text-[#6E6A64] mt-0.5">
+                        <span>{ch.wordCount} كلمة</span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1">
+                          <Eye className="w-3 h-3 text-[#8E8A83]" />
+                          <span>{ch.views} قراءة</span>
+                        </span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1">
+                          <Heart className="w-3 h-3 text-rose-500" />
+                          <span>{ch.likes} إعجاب</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span className="text-xs font-bold text-[#4A5D4E] group-hover:-translate-x-1 transition-transform flex items-center gap-1">
+                      <span>قراءة</span>
+                      <ChevronLeft className="w-4 h-4" />
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Empty State when no chapters and no TOC */}
+          {!hasChapters && !hasToc && (
+            <div className="p-8 rounded-2xl border border-dashed border-[#E5E2D9] bg-[#FFFFFF] text-center space-y-3">
+              <BookOpen className="w-10 h-10 text-[#D0CCC2] mx-auto" />
+              <h3 className="font-amiri font-bold text-lg text-[#2C2C2C]">
+                هذا الكتاب منشور كنسخة كاملة
+              </h3>
+              <p className="text-xs text-[#6E6A64] max-w-md mx-auto leading-relaxed">
+                {novel.pdfDownloadUrl
+                  ? 'يمكنك تحميل النسخة الكاملة من الكتاب مباشرة عبر الزر في القائمة الجانبية أو من خلال الرابط أدناه.'
+                  : 'لم يتم إضافة فصول أو فهرس بعد لهذا الكتاب. سيتم تحديث المحتوى قريباً من قبل الكاتب.'}
+              </p>
+              {novel.pdfDownloadUrl && (
+                <div className="pt-2">
+                  <a
+                    href={novel.pdfDownloadUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    download
+                    className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold rounded-xl shadow-xs transition-all"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>{novel.downloadButtonText || 'تحميل نسخة الكتاب كاملة PDF'}</span>
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Sidebar: Ad Slot & Reader Features & Download Box */}

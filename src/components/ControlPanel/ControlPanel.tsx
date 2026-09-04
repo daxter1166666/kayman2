@@ -283,6 +283,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
 
+        {activeTab === 'seo' && (
+          <SeoTab
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+          />
+        )}
+
         {activeTab === 'comments' && (
           <CommentModeratorTab
             novels={novels}

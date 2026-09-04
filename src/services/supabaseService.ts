@@ -205,6 +205,7 @@ class SupabaseService {
         pdfDownloadUrl: n.pdf_download_url || undefined,
         pdfFileSize: n.pdf_file_size || undefined,
         downloadButtonText: n.download_button_text || undefined,
+        tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
       }));
 
       // 2. Fetch Chapters
@@ -408,6 +409,7 @@ class SupabaseService {
 
       // 4. Map & filter fresh novels
       const rawNovels = nRes.data || [];
+      const existingLocalNovels = new Map(storageService.getNovels().map(nov => [nov.id, nov]));
       const cleanNovelsMap = new Map<string, Novel>();
       for (const n of rawNovels) {
         if (!n || !n.id || cloudDeletedNovelIds.has(n.id)) continue;
@@ -433,6 +435,9 @@ class SupabaseService {
           pdfDownloadUrl: n.pdf_download_url || undefined,
           pdfFileSize: n.pdf_file_size || undefined,
           downloadButtonText: n.download_button_text || undefined,
+          tableOfContents: Array.isArray(n.table_of_contents) && n.table_of_contents.length > 0
+            ? n.table_of_contents
+            : (existingLocalNovels.get(n.id)?.tableOfContents || undefined),
         };
         cleanNovelsMap.set(mappedNovel.id, mappedNovel);
       }
@@ -536,10 +541,16 @@ class SupabaseService {
         pdf_download_url: novel.pdfDownloadUrl || '',
         pdf_file_size: novel.pdfFileSize || '',
         download_button_text: novel.downloadButtonText || '',
+        table_of_contents: novel.tableOfContents || [],
         created_at: novel.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-      const { error } = await client.from('novels').upsert(row);
+      let { error } = await client.from('novels').upsert(row);
+      if (error && (error.message?.includes('table_of_contents') || error.code === 'PGRST204')) {
+        delete row.table_of_contents;
+        const retry = await client.from('novels').upsert(row);
+        error = retry.error;
+      }
       if (error) {
         console.warn('Error saving novel to Supabase:', error);
         return false;

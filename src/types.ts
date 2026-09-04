@@ -128,6 +128,15 @@ export interface Novel {
   pdfDownloadUrl?: string; // Direct PDF link or Drive/Cloud download URL
   pdfFileSize?: string; // e.g. "12.4 MB"
   downloadButtonText?: string; // e.g. "تحميل الكتاب PDF" or custom text
+  tableOfContents?: TableOfContentItem[]; // Manual Table of Contents / فهرس محتويات الكتاب
+}
+
+export interface TableOfContentItem {
+  id: string;
+  title: string;
+  pageNumber?: string;
+  description?: string;
+  linkUrl?: string;
 }
 
 export interface Chapter {
