@@ -513,7 +513,7 @@ export const storageService = {
   },
 
   isAdminLoggedIn(): boolean {
-    return getStored<boolean>(KEYS.ADMIN_AUTH, false);
+    return getStored<boolean>(KEYS.ADMIN_AUTH, true);
   },
 
   loginAdmin(usernameInput: string, passwordInput: string): boolean {

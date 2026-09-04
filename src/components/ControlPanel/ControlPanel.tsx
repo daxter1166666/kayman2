@@ -56,22 +56,22 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onAdminLogout,
   onOpenLegalPage,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('author_profile');
+  const [activeTab, setActiveTab] = useState<string>('novels');
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const tabs = [
-    { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
-    { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
-    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
+    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
+    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
     { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
-    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
+    { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
+    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
+    { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
     { id: 'categories', label: 'إدارة وتخصيص الأقسام', icon: Layers },
     { id: 'legal_contact', label: 'السياسات ورسائل القراء', icon: FileText },
     { id: 'ads', label: 'إدارة الإعلانات', icon: DollarSign },
     { id: 'compliance', label: 'شروط AdSense', icon: ShieldCheck },
-    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'comments', label: 'تعليقات القراء', icon: MessageSquare, badge: comments.length },
     { id: 'settings', label: 'الهوية والأمان والنسخ', icon: Settings },
   ];

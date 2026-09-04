@@ -58,7 +58,7 @@ export default function App() {
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
   // Navigation View State
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('control_panel');
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
