@@ -149,7 +149,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         showToast('تم تحديث بيانات الكتاب بنجاح!');
       }
     } else {
-      storageService.addNovel({
+      const created = storageService.addNovel({
         title: title.trim(),
         slug,
         author: author.trim() || 'أيمن كناني',
@@ -165,13 +165,12 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
       });
-      const created = storageService.getNovels().find(n => n.slug === slug);
       if (created) {
         supabaseService.saveNovelToSupabase(created).then(res => {
           if (res) {
             showToast('تمت إضافة الكتاب ومزامنته بنجاح مع سوباباس!');
           } else {
-            showToast('تمت الإضافة محلياً. تنبيه: لم يتم الإرسال لسوباباس (تأكد من كود الصلاحيات).');
+            showToast('تمت الإضافة ومحفوظ بأمان محلياً، وسيتزامن تلقائياً مع السحابة.');
           }
         });
       } else {

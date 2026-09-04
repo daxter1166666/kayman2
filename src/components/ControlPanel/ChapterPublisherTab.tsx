@@ -143,21 +143,19 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       }
     } else {
       // Create new
-      storageService.addChapter({
+      const newlyAdded = storageService.addChapter({
         novelId: selectedNovelId,
         title: title.trim(),
         content: content.trim(),
         authorNote: authorNote.trim() || undefined,
         status,
       });
-      const latestChapters = storageService.getChapters();
-      const newlyAdded = latestChapters[latestChapters.length - 1];
       if (newlyAdded) {
         supabaseService.saveChapterToSupabase(newlyAdded).then(res => {
           if (res) {
             showToast(`تم نشر الفصل ${nextChapterNumber} ومزامنته مع سوباباس!`);
           } else {
-            showToast('تم النشر محلياً. تنبيه: لم يتم الإرسال لسوباباس (تأكد من كود الصلاحيات).');
+            showToast(`تم نشر الفصل ${nextChapterNumber} ومحفوظ بأمان محلياً وسيتزامن تلقائياً.`);
           }
         });
       } else {

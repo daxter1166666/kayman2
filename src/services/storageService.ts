@@ -22,6 +22,8 @@ const KEYS = {
   SEO_SETTINGS: 'ayman_seo_settings_v1',
   DONATION_SETTINGS: 'ayman_donation_settings_v1',
   SUPABASE_CONFIG: 'ayman_supabase_config_v1',
+  DELETED_NOVEL_IDS: 'ayman_deleted_novel_ids_v1',
+  DELETED_CHAPTER_IDS: 'ayman_deleted_chapter_ids_v1',
 };
 
 // Clean legacy mock keys if present in browser storage
@@ -90,6 +92,7 @@ export const storageService = {
     };
     novels.unshift(newNovel);
     this.saveNovels(novels);
+    this.unmarkNovelDeleted(newNovel.id);
     return newNovel;
   },
 
@@ -105,11 +108,29 @@ export const storageService = {
   deleteNovel(id: string): void {
     const novels = this.getNovels().filter(n => n.id !== id);
     this.saveNovels(novels);
+    // Mark as deleted so pulling from remote doesn't re-add it
+    this.markNovelDeleted(id);
     // Also delete chapters & comments belonging to this novel
     const chapters = this.getChapters().filter(c => c.novelId !== id);
     this.saveChapters(chapters);
     const comments = this.getComments().filter(c => c.novelId !== id);
     this.saveComments(comments);
+  },
+
+  getDeletedNovelIds(): string[] {
+    return getStored<string[]>(KEYS.DELETED_NOVEL_IDS, []);
+  },
+
+  markNovelDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedNovelIds());
+    deleted.add(id);
+    setStored(KEYS.DELETED_NOVEL_IDS, Array.from(deleted));
+  },
+
+  unmarkNovelDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedNovelIds());
+    deleted.delete(id);
+    setStored(KEYS.DELETED_NOVEL_IDS, Array.from(deleted));
   },
 
   // --- Chapters ---
@@ -163,6 +184,7 @@ export const storageService = {
 
     chapters.push(newChapter);
     this.saveChapters(chapters);
+    this.unmarkChapterDeleted(newChapter.id);
 
     // Update novel updatedAt
     this.updateNovel(data.novelId, {});
@@ -185,6 +207,23 @@ export const storageService = {
   deleteChapter(id: string): void {
     const chapters = this.getChapters().filter(c => c.id !== id);
     this.saveChapters(chapters);
+    this.markChapterDeleted(id);
+  },
+
+  getDeletedChapterIds(): string[] {
+    return getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
+  },
+
+  markChapterDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedChapterIds());
+    deleted.add(id);
+    setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
+  },
+
+  unmarkChapterDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedChapterIds());
+    deleted.delete(id);
+    setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
   },
 
   incrementChapterView(chapterId: string, novelId: string): void {
@@ -665,5 +704,7 @@ export const storageService = {
     localStorage.removeItem(KEYS.SITE_BRANDING);
     localStorage.removeItem(KEYS.DONATION_SETTINGS);
     localStorage.removeItem(KEYS.SUPABASE_CONFIG);
+    localStorage.removeItem(KEYS.DELETED_NOVEL_IDS);
+    localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);
   }
 };

@@ -286,17 +286,71 @@ class SupabaseService {
 
       const isDatabaseActive = (rawSettings && rawSettings.length > 0) || !!rawProfile?.data || (rawNovels && rawNovels.length > 0);
 
-      // Update local storage cache
+      // Smart Non-Destructive Merge: Prevents local books/chapters from vanishing
+      // 1. Novels merge
+      let mergedNovels: Novel[] = novels;
       if (!nErr && Array.isArray(rawNovels)) {
-        if (novels.length > 0 || isDatabaseActive) {
-          storageService.saveNovels(novels);
+        const localNovels = storageService.getNovels();
+        const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
+        
+        // Filter out any remote novel that the user explicitly deleted locally
+        const validRemoteNovels = novels.filter(rn => !deletedNovelIds.has(rn.id));
+        const remoteNovelMap = new Map(validRemoteNovels.map(n => [n.id, n]));
+
+        // Check which local novels are missing from remote (e.g. freshly created or failed to push earlier)
+        const unsyncedLocalNovels: Novel[] = [];
+        for (const ln of localNovels) {
+          if (deletedNovelIds.has(ln.id)) continue;
+          if (!remoteNovelMap.has(ln.id)) {
+            unsyncedLocalNovels.push(ln);
+          }
+        }
+
+        // Start with remote novels, and preserve unsynced local creations
+        mergedNovels = [...validRemoteNovels, ...unsyncedLocalNovels];
+        if (mergedNovels.length > 0 || isDatabaseActive) {
+          storageService.saveNovels(mergedNovels);
+        }
+
+        // Auto-sync back: Automatically upload any local books that were missing from Supabase
+        if (unsyncedLocalNovels.length > 0) {
+          unsyncedLocalNovels.forEach(un => {
+            this.saveNovelToSupabase(un).catch(() => {});
+          });
         }
       }
+
+      // 2. Chapters merge
+      let mergedChapters: Chapter[] = chapters;
       if (!cErr && Array.isArray(rawChapters)) {
-        if (chapters.length > 0 || isDatabaseActive) {
-          storageService.saveChapters(chapters);
+        const localChapters = storageService.getChapters();
+        const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
+
+        const validRemoteChapters = chapters.filter(rc => !deletedChapterIds.has(rc.id));
+        const remoteChapterMap = new Map(validRemoteChapters.map(c => [c.id, c]));
+
+        const unsyncedLocalChapters: Chapter[] = [];
+        for (const lc of localChapters) {
+          if (deletedChapterIds.has(lc.id)) continue;
+          if (!remoteChapterMap.has(lc.id)) {
+            unsyncedLocalChapters.push(lc);
+          }
+        }
+
+        mergedChapters = [...validRemoteChapters, ...unsyncedLocalChapters];
+        if (mergedChapters.length > 0 || isDatabaseActive) {
+          storageService.saveChapters(mergedChapters);
+        }
+
+        // Auto-sync back: Automatically upload any local chapters that were missing from Supabase
+        if (unsyncedLocalChapters.length > 0) {
+          unsyncedLocalChapters.forEach(uc => {
+            this.saveChapterToSupabase(uc).catch(() => {});
+          });
         }
       }
+
+      // 3. Comments merge
       if (Array.isArray(rawComments)) {
         if (comments.length > 0 || isDatabaseActive) {
           storageService.saveComments(comments);
@@ -311,8 +365,8 @@ class SupabaseService {
       if (seoSettings) storageService.saveSeoSettings(seoSettings);
 
       return {
-        novels,
-        chapters,
+        novels: mergedNovels,
+        chapters: mergedChapters,
         comments,
         authorProfile,
         siteBranding,
