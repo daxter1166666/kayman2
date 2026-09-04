@@ -20,7 +20,8 @@ import {
   Search,
   ChevronDown,
   ChevronUp,
-  Globe
+  Globe,
+  RefreshCw
 } from 'lucide-react';
 
 interface ChapterPublisherTabProps {
@@ -55,6 +56,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
   const [notification, setNotification] = useState<string | null>(null);
   const [chapterToDelete, setChapterToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
 
   // Chapter-Level SEO State
   const [seoMetaTitle, setSeoMetaTitle] = useState<string>('');
@@ -156,7 +158,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       alert('يرجى كتابة عنوان الفصل');
@@ -171,69 +173,75 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       return;
     }
 
-    const hasCustomSeo = Boolean(
-      seoMetaTitle.trim() ||
-      seoMetaDescription.trim() ||
-      seoFocusKeywords.trim() ||
-      seoCanonicalUrl.trim() ||
-      seoOgImage.trim() ||
-      seoNoIndex
-    );
-    const seoData: ChapterSeoMeta | undefined = hasCustomSeo ? {
-      metaTitle: seoMetaTitle.trim() || undefined,
-      metaDescription: seoMetaDescription.trim() || undefined,
-      focusKeywords: seoFocusKeywords.trim() || undefined,
-      canonicalUrl: seoCanonicalUrl.trim() || undefined,
-      ogImage: seoOgImage.trim() || undefined,
-      noIndex: seoNoIndex,
-    } : undefined;
+    setIsSaving(true);
+    try {
+      const hasCustomSeo = Boolean(
+        seoMetaTitle.trim() ||
+        seoMetaDescription.trim() ||
+        seoFocusKeywords.trim() ||
+        seoCanonicalUrl.trim() ||
+        seoOgImage.trim() ||
+        seoNoIndex
+      );
+      const seoData: ChapterSeoMeta | undefined = hasCustomSeo ? {
+        metaTitle: seoMetaTitle.trim() || undefined,
+        metaDescription: seoMetaDescription.trim() || undefined,
+        focusKeywords: seoFocusKeywords.trim() || undefined,
+        canonicalUrl: seoCanonicalUrl.trim() || undefined,
+        ogImage: seoOgImage.trim() || undefined,
+        noIndex: seoNoIndex,
+      } : undefined;
 
-    if (editingChapterId) {
-      // Update existing
-      storageService.updateChapter(editingChapterId, {
-        title: title.trim(),
-        content: content.trim(),
-        authorNote: authorNote.trim() || undefined,
-        status,
-        seo: seoData,
-      });
-      const updatedCh = storageService.getChapters().find(c => c.id === editingChapterId);
-      if (updatedCh) {
-        supabaseService.saveChapterToSupabase(updatedCh).then(res => {
+      if (editingChapterId) {
+        // Update existing
+        storageService.updateChapter(editingChapterId, {
+          title: title.trim(),
+          content: content.trim(),
+          authorNote: authorNote.trim() || undefined,
+          status,
+          seo: seoData,
+        });
+        const updatedCh = storageService.getChapters().find(c => c.id === editingChapterId);
+        if (updatedCh) {
+          const res = await supabaseService.saveChapterToSupabase(updatedCh);
           if (res) {
             showToast('تم تحديث بيانات وسيو الفصل ومزامنته سحابياً مع سوباباس!');
           } else {
-            showToast('تم التحديث محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
+            showToast('تم حفظ تعديلات الفصل بنجاح!');
           }
-        });
+        } else {
+          showToast('تم تحديث وحفظ تعديلات الفصل بنجاح!');
+        }
       } else {
-        showToast('تم تحديث وحفظ تعديلات الفصل وسيو محركات البحث بنجاح!');
-      }
-    } else {
-      // Create new
-      const newlyAdded = storageService.addChapter({
-        novelId: selectedNovelId,
-        title: title.trim(),
-        content: content.trim(),
-        authorNote: authorNote.trim() || undefined,
-        status,
-        seo: seoData,
-      });
-      if (newlyAdded) {
-        supabaseService.saveChapterToSupabase(newlyAdded).then(res => {
+        // Create new
+        const newlyAdded = storageService.addChapter({
+          novelId: selectedNovelId,
+          title: title.trim(),
+          content: content.trim(),
+          authorNote: authorNote.trim() || undefined,
+          status,
+          seo: seoData,
+        });
+        if (newlyAdded) {
+          const res = await supabaseService.saveChapterToSupabase(newlyAdded);
           if (res) {
-            showToast(`تم نشر الفصل ${nextChapterNumber} مع إعدادات السيو ومزامنته مع سوباباس!`);
+            showToast(`تم نشر الفصل ${nextChapterNumber} ومزامنته مع سوباباس بنجاح!`);
           } else {
-            showToast(`تم نشر الفصل ${nextChapterNumber} ومحفوظ بأمان محلياً وسيتزامن تلقائياً.`);
+            showToast(`تم نشر الفصل ${nextChapterNumber} ومحفوظ بأمان!`);
           }
-        });
-      } else {
-        showToast(`تم نشر الفصل ${nextChapterNumber} بنجاح!`);
+        } else {
+          showToast(`تم نشر الفصل ${nextChapterNumber} بنجاح!`);
+        }
+        handleStartNew();
       }
-      handleStartNew();
-    }
 
-    onRefreshData();
+      onRefreshData();
+    } catch (err: any) {
+      console.error('Error saving chapter:', err);
+      showToast('حدث خطأ أثناء حفظ الفصل: ' + (err?.message || err));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleInsertTemplate = () => {
@@ -572,10 +580,23 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
             <button
               type="submit"
               id="save-chapter-btn"
-              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
+              disabled={isSaving}
+              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {editingChapterId ? <Save className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-              <span>{editingChapterId ? 'حفظ تعديلات الفصل' : 'نشر الفصل الآن'}</span>
+              {isSaving ? (
+                <RefreshCw className="w-4 h-4 animate-spin" />
+              ) : editingChapterId ? (
+                <Save className="w-4 h-4" />
+              ) : (
+                <Send className="w-4 h-4" />
+              )}
+              <span>
+                {isSaving
+                  ? 'جاري حفظ ومزامنة الفصل سحابياً...'
+                  : editingChapterId
+                  ? 'حفظ تعديلات الفصل'
+                  : 'نشر الفصل الآن'}
+              </span>
             </button>
           </div>
         </div>

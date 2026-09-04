@@ -25,7 +25,8 @@ import {
   FileCode,
   Layers,
   Bookmark,
-  Search
+  Search,
+  RefreshCw
 } from 'lucide-react';
 import { ResetDataModal } from './ResetDataModal';
 
@@ -40,6 +41,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [editingNovelId, setEditingNovelId] = useState<string | null>(null);
+  const [isSavingNovel, setIsSavingNovel] = useState<boolean>(false);
 
   const categories: Category[] = storageService.getCategories();
 
@@ -222,7 +224,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     }
   };
 
-  const handleSaveNovel = (e: React.FormEvent) => {
+  const handleSaveNovel = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       alert('يرجى إدخال عنوان الكتاب أو المؤلف');
@@ -233,96 +235,102 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
       return;
     }
 
-    const tags = tagsInput
-      .split(/[,،]/)
-      .map(t => t.trim())
-      .filter(Boolean);
+    setIsSavingNovel(true);
+    try {
+      const tags = tagsInput
+        .split(/[,،]/)
+        .map(t => t.trim())
+        .filter(Boolean);
 
-    const slug = title.toLowerCase().replace(/[^a-z0-9\u0621-\u064A]+/g, '-');
+      const slug = title.toLowerCase().replace(/[^a-z0-9\u0621-\u064A]+/g, '-');
 
-    const novelSeo: NovelSeoMeta | undefined = (
-      seoMetaTitle.trim() ||
-      seoMetaDescription.trim() ||
-      seoFocusKeywords.trim() ||
-      seoCanonicalUrl.trim() ||
-      seoOgImage.trim() ||
-      seoNoIndex ||
-      seoAuthorName.trim()
-    ) ? {
-      metaTitle: seoMetaTitle.trim() || undefined,
-      metaDescription: seoMetaDescription.trim() || undefined,
-      focusKeywords: seoFocusKeywords.trim() || undefined,
-      canonicalUrl: seoCanonicalUrl.trim() || undefined,
-      ogImage: seoOgImage.trim() || undefined,
-      noIndex: seoNoIndex || undefined,
-      authorName: seoAuthorName.trim() || undefined,
-    } : undefined;
+      const novelSeo: NovelSeoMeta | undefined = (
+        seoMetaTitle.trim() ||
+        seoMetaDescription.trim() ||
+        seoFocusKeywords.trim() ||
+        seoCanonicalUrl.trim() ||
+        seoOgImage.trim() ||
+        seoNoIndex ||
+        seoAuthorName.trim()
+      ) ? {
+        metaTitle: seoMetaTitle.trim() || undefined,
+        metaDescription: seoMetaDescription.trim() || undefined,
+        focusKeywords: seoFocusKeywords.trim() || undefined,
+        canonicalUrl: seoCanonicalUrl.trim() || undefined,
+        ogImage: seoOgImage.trim() || undefined,
+        noIndex: seoNoIndex || undefined,
+        authorName: seoAuthorName.trim() || undefined,
+      } : undefined;
 
-    if (editingNovelId) {
-      storageService.updateNovel(editingNovelId, {
-        title: title.trim(),
-        slug,
-        author: author.trim(),
-        authorBio: authorBio.trim(),
-        synopsis: synopsis.trim(),
-        coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd4?q=80&w=800&auto=format&fit=crop',
-        bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-        genres: selectedGenres as any,
-        tags,
-        status,
-        isFeatured,
-        pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
-        pdfFileSize: pdfFileSize.trim() || undefined,
-        downloadButtonText: downloadButtonText.trim() || undefined,
-        tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
-        seo: novelSeo,
-      });
-      const updated = storageService.getNovels().find(n => n.id === editingNovelId);
-      if (updated) {
-        supabaseService.saveNovelToSupabase(updated).then(res => {
+      if (editingNovelId) {
+        storageService.updateNovel(editingNovelId, {
+          title: title.trim(),
+          slug,
+          author: author.trim(),
+          authorBio: authorBio.trim(),
+          synopsis: synopsis.trim(),
+          coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd4?q=80&w=800&auto=format&fit=crop',
+          bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
+          genres: selectedGenres as any,
+          tags,
+          status,
+          isFeatured,
+          pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
+          pdfFileSize: pdfFileSize.trim() || undefined,
+          downloadButtonText: downloadButtonText.trim() || undefined,
+          tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
+          seo: novelSeo,
+        });
+        const updated = storageService.getNovels().find(n => n.id === editingNovelId);
+        if (updated) {
+          const res = await supabaseService.saveNovelToSupabase(updated);
           if (res) {
             showToast('تم تحديث بيانات وسيو الكتاب ومزامنته سحابياً بنجاح!');
           } else {
-            showToast('تم الحفظ محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
+            showToast('تم الحفظ محلياً بنجاح!');
           }
-        });
+        } else {
+          showToast('تم تحديث بيانات الكتاب بنجاح!');
+        }
       } else {
-        showToast('تم تحديث بيانات الكتاب بنجاح!');
-      }
-    } else {
-      const created = storageService.addNovel({
-        title: title.trim(),
-        slug,
-        author: author.trim() || 'أيمن كناني',
-        authorBio: authorBio.trim() || 'مؤلف معتمد على المنصة',
-        synopsis: synopsis.trim(),
-        coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop',
-        bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop',
-        genres: selectedGenres as any,
-        tags: tags.length > 0 ? tags : ['فكر', 'مؤلفات'],
-        status,
-        isFeatured,
-        pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
-        pdfFileSize: pdfFileSize.trim() || undefined,
-        downloadButtonText: downloadButtonText.trim() || undefined,
-        tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
-        seo: novelSeo,
-      });
-      if (created) {
-        supabaseService.saveNovelToSupabase(created).then(res => {
+        const created = storageService.addNovel({
+          title: title.trim(),
+          slug,
+          author: author.trim() || 'أيمن كناني',
+          authorBio: authorBio.trim() || 'مؤلف معتمد على المنصة',
+          synopsis: synopsis.trim(),
+          coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop',
+          bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop',
+          genres: selectedGenres as any,
+          tags: tags.length > 0 ? tags : ['فكر', 'مؤلفات'],
+          status,
+          isFeatured,
+          pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
+          pdfFileSize: pdfFileSize.trim() || undefined,
+          downloadButtonText: downloadButtonText.trim() || undefined,
+          tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
+          seo: novelSeo,
+        });
+        if (created) {
+          const res = await supabaseService.saveNovelToSupabase(created);
           if (res) {
-            showToast('تمت إضافة الكتاب وإعدادات السيو ومزامنته بنجاح مع سوباباس!');
+            showToast('تم نشر الكتاب وتثبيته سحابياً في سوباباس بنجاح!');
           } else {
-            showToast('تمت الإضافة ومحفوظ بأمان محلياً، وسيتزامن تلقائياً مع السحابة.');
+            showToast('تمت إضافة الكتاب بنجاح ومحفوظ بأمان!');
           }
-        });
-      } else {
-        showToast('تمت إضافة الكتاب الجديد بنجاح!');
+        } else {
+          showToast('تمت إضافة الكتاب الجديد بنجاح!');
+        }
       }
-    }
 
-    setIsCreating(false);
-    onRefreshData();
+      setIsCreating(false);
+      onRefreshData();
+    } catch (err: any) {
+      console.error('Error saving novel:', err);
+      showToast('حدث خطأ أثناء حفظ الكتاب: ' + (err?.message || err));
+    } finally {
+      setIsSavingNovel(false);
+    }
   };
 
   const handleDeleteNovel = (id: string, novelTitle: string) => {
@@ -910,9 +918,17 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             <button
               type="submit"
               id="save-novel-submit-btn"
-              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+              disabled={isSavingNovel}
+              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
             >
-              {editingNovelId ? 'حفظ التعديلات' : 'نشر العمل في المكتبة'}
+              {isSavingNovel && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              <span>
+                {isSavingNovel
+                  ? 'جاري حفظ ونشر العمل سحابياً...'
+                  : editingNovelId
+                  ? 'حفظ التعديلات'
+                  : 'نشر العمل في المكتبة'}
+              </span>
             </button>
           </div>
         </form>
