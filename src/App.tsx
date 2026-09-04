@@ -58,7 +58,7 @@ export default function App() {
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
   // Navigation View State
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('control_panel');
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
@@ -127,6 +127,25 @@ export default function App() {
         setCurrentView('control_panel');
       } else {
         setShowAdminLoginModal(true);
+      }
+    } else {
+      const novelParam = urlParams.get('novel');
+      const chapterParam = urlParams.get('chapter');
+      const legalParam = urlParams.get('legal');
+
+      if (chapterParam) {
+        const chapter = storageService.getChapterById(chapterParam);
+        if (chapter) {
+          setSelectedNovelId(chapter.novelId);
+          setSelectedChapterId(chapterParam);
+          setCurrentView('reader');
+        }
+      } else if (novelParam) {
+        setSelectedNovelId(novelParam);
+        setCurrentView('novel_detail');
+      } else if (legalParam && ['terms', 'privacy', 'dmca', 'licenses', 'contact', 'ads_txt'].includes(legalParam)) {
+        setLegalPage(legalParam as any);
+        setCurrentView('legal');
       }
     }
 
