@@ -796,6 +796,10 @@ export async function serverFetchAllSyncData() {
       rating: c.rating ? Number(c.rating) : undefined,
     }));
 
+    const delData = settingsMap.get('deleted_records');
+    const deletedNovels: string[] = Array.isArray(delData?.novels) ? delData.novels : [];
+    const deletedChapters: string[] = Array.isArray(delData?.chapters) ? delData.chapters : [];
+
     return {
       novels,
       chapters,
@@ -807,6 +811,10 @@ export async function serverFetchAllSyncData() {
       legalDocuments: settingsMap.get('legal_documents'),
       adSettings: settingsMap.get('ad_settings'),
       seoSettings: settingsMap.get('seo_settings'),
+      deletedRecords: {
+        novels: deletedNovels,
+        chapters: deletedChapters,
+      },
     };
   } catch (err) {
     console.error('serverFetchAllSyncData exception:', err);

@@ -140,6 +140,15 @@ export const storageService = {
     const deleted = new Set(this.getDeletedNovelIds());
     deleted.add(id);
     setStored(KEYS.DELETED_NOVEL_IDS, Array.from(deleted));
+    // Purge immediately from stored raw novels so stale objects don't linger in localStorage
+    try {
+      const raw = getStored<Novel[]>(KEYS.NOVELS, []);
+      if (raw.some(n => n.id === id)) {
+        setStored(KEYS.NOVELS, raw.filter(n => n.id !== id));
+      }
+    } catch {
+      // ignore
+    }
   },
 
   unmarkNovelDeleted(id: string): void {
@@ -242,6 +251,15 @@ export const storageService = {
     const deleted = new Set(this.getDeletedChapterIds());
     deleted.add(id);
     setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
+    // Purge immediately from stored raw chapters so stale objects don't linger in localStorage
+    try {
+      const raw = getStored<Chapter[]>(KEYS.CHAPTERS, []);
+      if (raw.some(c => c.id === id)) {
+        setStored(KEYS.CHAPTERS, raw.filter(c => c.id !== id));
+      }
+    } catch {
+      // ignore
+    }
   },
 
   unmarkChapterDeleted(id: string): void {

@@ -194,7 +194,16 @@ class SupabaseService {
    */
   private async pushUnsyncedItems(novels: Novel[], chapters: Chapter[]): Promise<void> {
     if (this.isPushingUnsynced) return;
-    if (novels.length === 0 && chapters.length === 0) return;
+    // Only authenticated administrators should ever sync local changes to cloud
+    if (!storageService.isAdminLoggedIn()) return;
+
+    // Never push any item recorded as deleted
+    const deletedNovels = new Set(storageService.getDeletedNovelIds());
+    const deletedChapters = new Set(storageService.getDeletedChapterIds());
+    const validNovels = novels.filter(n => n && n.id && !deletedNovels.has(n.id));
+    const validChapters = chapters.filter(c => c && c.id && !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
+
+    if (validNovels.length === 0 && validChapters.length === 0) return;
     this.isPushingUnsynced = true;
     try {
       // 1. Try server sync push first if available (with 3s abort timeout)
@@ -205,7 +214,7 @@ class SupabaseService {
           const resp = await fetch('/api/sync/push', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ novels, chapters }),
+            body: JSON.stringify({ novels: validNovels, chapters: validChapters }),
             signal: controller.signal,
           }).finally(() => clearTimeout(timeoutId));
           const contentType = resp.headers.get('content-type') || '';
@@ -219,11 +228,15 @@ class SupabaseService {
       }
 
       // 2. Direct Supabase Client: Save one by one sequentially to avoid connection choking
-      for (const novel of novels) {
-        await this.saveNovelToSupabase(novel);
+      for (const novel of validNovels) {
+        if (!deletedNovels.has(novel.id)) {
+          await this.saveNovelToSupabase(novel);
+        }
       }
-      for (const chapter of chapters) {
-        await this.saveChapterToSupabase(chapter);
+      for (const chapter of validChapters) {
+        if (!deletedChapters.has(chapter.id) && !deletedNovels.has(chapter.novelId)) {
+          await this.saveChapterToSupabase(chapter);
+        }
       }
     } finally {
       this.isPushingUnsynced = false;
@@ -286,11 +299,18 @@ class SupabaseService {
         if (resp.ok && contentType.includes('application/json')) {
           const syncData = await resp.json();
           if (syncData.success) {
-            // Merge with local novels to ensure newly added novels are NEVER dropped
-            const localNovels = storageService.getNovels();
-            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
-            const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
+            // 1. Process and apply cloud-deleted records first
+            const remoteDeletedNovels: string[] = Array.isArray(syncData.deletedRecords?.novels) ? syncData.deletedRecords.novels : [];
+            const remoteDeletedChapters: string[] = Array.isArray(syncData.deletedRecords?.chapters) ? syncData.deletedRecords.chapters : [];
 
+            remoteDeletedNovels.forEach(id => storageService.markNovelDeleted(id));
+            remoteDeletedChapters.forEach(id => storageService.markChapterDeleted(id));
+
+            const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
+            const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
+
+            // 2. Build canonical map from remote novels
+            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
             const novelsMap = new Map<string, Novel>();
             remoteNovels.forEach((rn: Novel) => {
               if (!deletedNovelIds.has(rn.id)) {
@@ -298,24 +318,26 @@ class SupabaseService {
               }
             });
 
+            // ONLY an authenticated administrator should ever push new local items to the cloud!
+            // Random readers/visitors MUST NOT resurrect novels or chapters deleted from the server!
             const unsyncedNovels: Novel[] = [];
-            localNovels.forEach(ln => {
-              if (!deletedNovelIds.has(ln.id)) {
-                if (!novelsMap.has(ln.id)) {
-                  novelsMap.set(ln.id, ln);
-                  unsyncedNovels.push(ln);
+            if (storageService.isAdminLoggedIn()) {
+              const localNovels = storageService.getNovels();
+              localNovels.forEach(ln => {
+                if (!deletedNovelIds.has(ln.id)) {
+                  if (!novelsMap.has(ln.id)) {
+                    novelsMap.set(ln.id, ln);
+                    unsyncedNovels.push(ln);
+                  }
                 }
-              }
-            });
+              });
+            }
 
             const mergedNovels = Array.from(novelsMap.values());
             storageService.saveNovels(mergedNovels);
 
-            // Chapters merge
-            const localChapters = storageService.getChapters();
+            // 3. Chapters merge
             const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
-            const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
-
             const chaptersMap = new Map<string, Chapter>();
             remoteChapters.forEach((rc: Chapter) => {
               if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
@@ -324,20 +346,23 @@ class SupabaseService {
             });
 
             const unsyncedChapters: Chapter[] = [];
-            localChapters.forEach(lc => {
-              if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
-                if (!chaptersMap.has(lc.id)) {
-                  chaptersMap.set(lc.id, lc);
-                  unsyncedChapters.push(lc);
+            if (storageService.isAdminLoggedIn()) {
+              const localChapters = storageService.getChapters();
+              localChapters.forEach(lc => {
+                if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
+                  if (!chaptersMap.has(lc.id)) {
+                    chaptersMap.set(lc.id, lc);
+                    unsyncedChapters.push(lc);
+                  }
                 }
-              }
-            });
+              });
+            }
 
             const mergedChapters = Array.from(chaptersMap.values());
             storageService.saveChapters(mergedChapters);
 
-            // If any unsynced items were found locally, safely push them!
-            if (unsyncedNovels.length > 0 || unsyncedChapters.length > 0) {
+            // If any unsynced items were found locally by an authenticated admin, safely push them!
+            if (storageService.isAdminLoggedIn() && (unsyncedNovels.length > 0 || unsyncedChapters.length > 0)) {
               this.pushUnsyncedItems(unsyncedNovels, unsyncedChapters).catch(e => console.warn('Background sync push warning:', e));
             }
 
@@ -521,7 +546,6 @@ class SupabaseService {
         };
       });
 
-      const localNovels = storageService.getNovels();
       const remoteNovelsMap = new Map<string, Novel>();
       enrichedRemoteNovels.forEach(rn => {
         if (!cloudDeletedNovelIds.has(rn.id)) {
@@ -530,23 +554,26 @@ class SupabaseService {
       });
 
       const unsyncedLocalNovels: Novel[] = [];
-      localNovels.forEach(localN => {
-        if (!cloudDeletedNovelIds.has(localN.id)) {
-          if (!remoteNovelsMap.has(localN.id)) {
-            // Local novel not in Supabase yet -> preserve and push to Supabase!
-            remoteNovelsMap.set(localN.id, localN);
-            unsyncedLocalNovels.push(localN);
-          } else {
-            // Keep local richer fields if remote does not have them yet
-            const remoteN = remoteNovelsMap.get(localN.id)!;
-            remoteNovelsMap.set(localN.id, {
-              ...remoteN,
-              tableOfContents: localN.tableOfContents || remoteN.tableOfContents,
-              seo: localN.seo || remoteN.seo,
-            });
+      if (storageService.isAdminLoggedIn()) {
+        const localNovels = storageService.getNovels();
+        localNovels.forEach(localN => {
+          if (!cloudDeletedNovelIds.has(localN.id)) {
+            if (!remoteNovelsMap.has(localN.id)) {
+              // Local novel not in Supabase yet -> preserve and push to Supabase!
+              remoteNovelsMap.set(localN.id, localN);
+              unsyncedLocalNovels.push(localN);
+            } else {
+              // Keep local richer fields if remote does not have them yet
+              const remoteN = remoteNovelsMap.get(localN.id)!;
+              remoteNovelsMap.set(localN.id, {
+                ...remoteN,
+                tableOfContents: localN.tableOfContents || remoteN.tableOfContents,
+                seo: localN.seo || remoteN.seo,
+              });
+            }
           }
-        }
-      });
+        });
+      }
 
       const mergedNovels = Array.from(remoteNovelsMap.values());
       storageService.saveNovels(mergedNovels);
@@ -560,7 +587,6 @@ class SupabaseService {
         };
       });
 
-      const localChapters = storageService.getChapters();
       const remoteChaptersMap = new Map<string, Chapter>();
       enrichedRemoteChapters.forEach(rc => {
         if (!cloudDeletedChapterIds.has(rc.id) && !cloudDeletedNovelIds.has(rc.novelId)) {
@@ -569,27 +595,30 @@ class SupabaseService {
       });
 
       const unsyncedLocalChapters: Chapter[] = [];
-      localChapters.forEach(localC => {
-        if (!cloudDeletedChapterIds.has(localC.id) && !cloudDeletedNovelIds.has(localC.novelId)) {
-          if (!remoteChaptersMap.has(localC.id)) {
-            remoteChaptersMap.set(localC.id, localC);
-            unsyncedLocalChapters.push(localC);
-          } else {
-            const remoteC = remoteChaptersMap.get(localC.id)!;
-            remoteChaptersMap.set(localC.id, {
-              ...remoteC,
-              content: localC.content || remoteC.content,
-              seo: localC.seo || remoteC.seo,
-            });
+      if (storageService.isAdminLoggedIn()) {
+        const localChapters = storageService.getChapters();
+        localChapters.forEach(localC => {
+          if (!cloudDeletedChapterIds.has(localC.id) && !cloudDeletedNovelIds.has(localC.novelId)) {
+            if (!remoteChaptersMap.has(localC.id)) {
+              remoteChaptersMap.set(localC.id, localC);
+              unsyncedLocalChapters.push(localC);
+            } else {
+              const remoteC = remoteChaptersMap.get(localC.id)!;
+              remoteChaptersMap.set(localC.id, {
+                ...remoteC,
+                content: localC.content || remoteC.content,
+                seo: localC.seo || remoteC.seo,
+              });
+            }
           }
-        }
-      });
+        });
+      }
 
       const mergedChapters = Array.from(remoteChaptersMap.values());
       storageService.saveChapters(mergedChapters);
 
-      // Push unsynced records safely in sequential queue to prevent ERR_CONNECTION_TIMED_OUT
-      if (unsyncedLocalNovels.length > 0 || unsyncedLocalChapters.length > 0) {
+      // Push unsynced records safely in sequential queue only by an authenticated administrator
+      if (storageService.isAdminLoggedIn() && (unsyncedLocalNovels.length > 0 || unsyncedLocalChapters.length > 0)) {
         this.pushUnsyncedItems(unsyncedLocalNovels, unsyncedLocalChapters).catch(e => {
           console.warn('Background sync items note:', e);
         });

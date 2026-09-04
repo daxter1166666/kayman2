@@ -242,17 +242,27 @@ async function startServer() {
       const { novels, chapters } = req.body || {};
       const results: { novels: any[]; chapters: any[] } = { novels: [], chapters: [] };
 
+      // Filter out any items recorded in deleted_records so stale clients never resurrect deleted content
+      const client = getServerSupabase();
+      const { data: delRow } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+      const deletedNovelIds = new Set<string>(Array.isArray(delRow?.data?.novels) ? delRow.data.novels : []);
+      const deletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
+
       if (Array.isArray(novels)) {
         for (const n of novels) {
-          const r = await serverSaveNovel(n);
-          results.novels.push({ id: n.id, success: r.success, error: r.error });
+          if (n && n.id && !deletedNovelIds.has(n.id)) {
+            const r = await serverSaveNovel(n);
+            results.novels.push({ id: n.id, success: r.success, error: r.error });
+          }
         }
       }
 
       if (Array.isArray(chapters)) {
         for (const c of chapters) {
-          const r = await serverSaveChapter(c);
-          results.chapters.push({ id: c.id, success: r.success, error: r.error });
+          if (c && c.id && !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId)) {
+            const r = await serverSaveChapter(c);
+            results.chapters.push({ id: c.id, success: r.success, error: r.error });
+          }
         }
       }
 
