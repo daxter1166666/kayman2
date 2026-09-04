@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { storageService } from '../../services/storageService';
 import { seoService } from '../../services/seoService';
+import { supabaseService } from '../../services/supabaseService';
 import { SeoSettings, Novel, Chapter } from '../../types';
 
 interface SeoTabProps {
@@ -43,8 +44,9 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     storageService.saveSeoSettings(settings);
+    supabaseService.saveSeoSettingsToSupabase(settings);
     seoService.updateHead();
-    showToast('تم حفظ وتطبيق إعدادات السيو ومحركات البحث بنجاح!');
+    showToast('تم حفظ وتطبيق إعدادات السيو ومحركات البحث بنجاح ومزامنتها سحابياً!');
     onRefreshData();
   };
 

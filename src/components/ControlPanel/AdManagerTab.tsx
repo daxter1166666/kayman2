@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { AdSettings, AdPlacement, CorporateSponsor, AdType } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 import {
   DollarSign,
   Sparkles,
@@ -57,6 +58,12 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     setTimeout(() => setNotification(null), 3000);
   };
 
+  const persistAdSettings = (updated: AdSettings) => {
+    storageService.saveAdSettings(updated);
+    supabaseService.saveAdSettingsToSupabase(updated);
+    onRefreshData();
+  };
+
   // Save Adsterra Config
   const handleSaveAdsterraConfig = (e: React.FormEvent) => {
     e.preventDefault();
@@ -70,9 +77,8 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
         nativeBannerScript: nativeBannerScript.trim(),
       },
     };
-    storageService.saveAdSettings(updated);
-    onRefreshData();
-    showToast('تم حفظ إعدادات وأكواد شبكة Adsterra بنجاح!');
+    persistAdSettings(updated);
+    showToast('تم حفظ إعدادات وأكواد شبكة Adsterra بنجاح ومزامنتها سحابياً!');
   };
 
   // Update placement settings
@@ -80,9 +86,8 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     const updated = { ...adSettings };
     if (updated.placements[key]) {
       updated.placements[key].enabled = enabled;
-      storageService.saveAdSettings(updated);
-      onRefreshData();
-      showToast(`تم ${enabled ? 'تفعيل' : 'تعطيل'} موضع "${updated.placements[key].name}"`);
+      persistAdSettings(updated);
+      showToast(`تم ${enabled ? 'تفعيل' : 'تعطيل'} موضع "${updated.placements[key].name}" ومزامنته سحابياً`);
     }
   };
 
@@ -90,8 +95,7 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     const updated = { ...adSettings };
     if (updated.placements[key]) {
       updated.placements[key].type = type;
-      storageService.saveAdSettings(updated);
-      onRefreshData();
+      persistAdSettings(updated);
       showToast(`تم تغيير مصدر موضع "${updated.placements[key].name}" إلى ${type === 'adsense' ? 'جوجل أدسنس' : 'راعي مباشر'}`);
     }
   };
@@ -100,9 +104,8 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     const updated = { ...adSettings };
     if (updated.placements[key]) {
       updated.placements[key].corporateSponsorId = sponsorId;
-      storageService.saveAdSettings(updated);
-      onRefreshData();
-      showToast(`تم تعيين الراعي للموضع المحدد`);
+      persistAdSettings(updated);
+      showToast(`تم تعيين الراعي للموضع المحدد ومزامنته`);
     }
   };
 
@@ -110,8 +113,7 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     const updated = { ...adSettings };
     if (updated.placements[key]) {
       updated.placements[key].adSlotId = slotId;
-      storageService.saveAdSettings(updated);
-      onRefreshData();
+      persistAdSettings(updated);
     }
   };
 
@@ -128,9 +130,8 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
         adsTxtContent: adsTxtContent.trim(),
       },
     };
-    storageService.saveAdSettings(updated);
-    onRefreshData();
-    showToast('تم حفظ إعدادات جوجل أدسنس بنجاح!');
+    persistAdSettings(updated);
+    showToast('تم حفظ إعدادات جوجل أدسنس بنجاح ومزامنتها سحابياً!');
   };
 
   // Save Corporate Sponsor
@@ -155,7 +156,7 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
           ctaText: ctaText.trim() || 'اكتشف المزيد',
         };
       }
-      showToast('تم تحديث بيانات الراعي بنجاح!');
+      showToast('تم تحديث بيانات الراعي بنجاح ومزامنته سحابياً!');
     } else {
       const newSponsor: CorporateSponsor = {
         id: `corp-${Date.now()}`,
@@ -170,13 +171,12 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
         clicks: 0,
       };
       updated.corporateSponsors.push(newSponsor);
-      showToast('تمت إضافة راعي تجاري جديد!');
+      showToast('تمت إضافة راعي تجاري جديد ومزامنته سحابياً!');
     }
 
-    storageService.saveAdSettings(updated);
+    persistAdSettings(updated);
     setIsEditingSponsor(false);
     setEditingSponsorId(null);
-    onRefreshData();
   };
 
   const handleStartCreateSponsor = () => {
@@ -205,9 +205,8 @@ export const AdManagerTab: React.FC<AdManagerTabProps> = ({
     if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا الراعي التجاري؟')) {
       const updated = { ...adSettings };
       updated.corporateSponsors = updated.corporateSponsors.filter(s => s.id !== sId);
-      storageService.saveAdSettings(updated);
-      onRefreshData();
-      showToast('تم حذف الراعي بنجاح');
+      persistAdSettings(updated);
+      showToast('تم حذف الراعي بنجاح ومزامنته سحابياً');
     }
   };
 

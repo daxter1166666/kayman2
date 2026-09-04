@@ -88,16 +88,21 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleDeleteChapter = (chId: string, chTitle: string) => {
+  const handleDeleteChapter = async (chId: string, chTitle: string) => {
     if (window.confirm(`هل أنت متأكد من رغبتك في حذف الفصل "${chTitle}"؟ لا يمكن التراجع عن هذا الإجراء.`)) {
       storageService.deleteChapter(chId);
-      // Auto-sync with Supabase in background
-      supabaseService.deleteChapterFromSupabase(chId);
       if (editingChapterId === chId) {
         handleStartNew();
       }
       onRefreshData();
-      showToast('تم حذف الفصل بنجاح');
+      showToast('جاري حذف الفصل من سوباباس...');
+      const cloudSuccess = await supabaseService.deleteChapterFromSupabase(chId);
+      if (cloudSuccess) {
+        showToast(`تم حذف الفصل "${chTitle}" نهائياً من المتصفح وقاعدة البيانات السحابية!`);
+      } else {
+        showToast('تم الحذف محلياً. تنبيه: لم يتم الحذف من سوباباس (تأكد من كود الصلاحيات).');
+      }
+      onRefreshData();
     }
   };
 
@@ -126,9 +131,16 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       });
       const updatedCh = storageService.getChapters().find(c => c.id === editingChapterId);
       if (updatedCh) {
-        supabaseService.saveChapterToSupabase(updatedCh);
+        supabaseService.saveChapterToSupabase(updatedCh).then(res => {
+          if (res) {
+            showToast('تم تحديث بيانات الفصل ومزامنته سحابياً مع سوباباس!');
+          } else {
+            showToast('تم التحديث محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
+          }
+        });
+      } else {
+        showToast('تم تحديث وحفظ تعديلات الفصل بنجاح!');
       }
-      showToast('تم تحديث وحفظ تعديلات الفصل بنجاح!');
     } else {
       // Create new
       storageService.addChapter({
@@ -141,9 +153,16 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       const latestChapters = storageService.getChapters();
       const newlyAdded = latestChapters[latestChapters.length - 1];
       if (newlyAdded) {
-        supabaseService.saveChapterToSupabase(newlyAdded);
+        supabaseService.saveChapterToSupabase(newlyAdded).then(res => {
+          if (res) {
+            showToast(`تم نشر الفصل ${nextChapterNumber} ومزامنته مع سوباباس!`);
+          } else {
+            showToast('تم النشر محلياً. تنبيه: لم يتم الإرسال لسوباباس (تأكد من كود الصلاحيات).');
+          }
+        });
+      } else {
+        showToast(`تم نشر الفصل ${nextChapterNumber} بنجاح!`);
       }
-      showToast(`تم نشر الفصل ${nextChapterNumber} بنجاح!`);
       handleStartNew();
     }
 

@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { LegalDocuments, ContactMessage } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 
 interface LegalAndContactManagerTabProps {
   onRefreshData: () => void;
@@ -44,7 +45,7 @@ export const LegalAndContactManagerTab: React.FC<LegalAndContactManagerTabProps>
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  const handleSaveLegalDocs = (e: React.FormEvent) => {
+  const handleSaveLegalDocs = async (e: React.FormEvent) => {
     e.preventDefault();
     const updated = storageService.saveLegalDocuments({
       termsOfService: terms,
@@ -56,7 +57,14 @@ export const LegalAndContactManagerTab: React.FC<LegalAndContactManagerTabProps>
       supportEmail: supportEmail.trim(),
     });
     setLegalDocs(updated);
-    showToast('تم حفظ وتحديث كافة السياسات والوثائق القانونية والتراخيص ومعلومات الناشر!');
+    showToast('جاري حفظ ومزامنة الوثائق القانونية مع سوباباس...');
+    const cloudSuccess = await supabaseService.saveLegalDocumentsToSupabase(updated);
+    if (cloudSuccess) {
+      showToast('تم حفظ وتحديث كافة السياسات والوثائق القانونية ومعلومات الناشر ومزامنتها سحابياً بنجاح!');
+    } else {
+      showToast('تم الحفظ محلياً. تنبيه: لم يتم الإرسال لسوباباس (تأكد من تشغيل كود صلاحيات SQL).');
+    }
+    onRefreshData();
   };
 
   const handleDeleteMessage = (id: string) => {

@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import { AuthorProfile, AuthorSocialLinks } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
+import { compressAndResizeImage } from '../../utils/imageOptimizer';
 import {
   User,
   Upload,
@@ -15,7 +16,9 @@ import {
   Phone,
   Link as LinkIcon,
   Eye,
-  Trash2
+  Trash2,
+  Loader2,
+  AlertCircle
 } from 'lucide-react';
 
 interface AuthorProfileTabProps {
@@ -25,6 +28,9 @@ interface AuthorProfileTabProps {
 export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshData }) => {
   const [profile, setProfile] = useState<AuthorProfile>(() => storageService.getAuthorProfile());
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
+  const [cloudStatus, setCloudStatus] = useState<{ isError: boolean; message: string } | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isCompressing, setIsCompressing] = useState<boolean>(false);
   const [isDraggingAvatar, setIsDraggingAvatar] = useState<boolean>(false);
   const [isDraggingCover, setIsDraggingCover] = useState<boolean>(false);
   const avatarInputRef = useRef<HTMLInputElement>(null);
@@ -44,25 +50,30 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
     }));
   };
 
-  // Image Upload helper from file
-  const handleFileUpload = (file: File, type: 'avatar' | 'cover') => {
+  // Image Upload helper with automatic compression to prevent database & storage limits
+  const handleFileUpload = async (file: File, type: 'avatar' | 'cover') => {
     if (!file.type.startsWith('image/')) {
       alert('يرجى اختيار ملف صورة صالح (PNG, JPG, WEBP).');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const result = e.target?.result as string;
-      if (result) {
-        if (type === 'avatar') {
-          setProfile(prev => ({ ...prev, avatar: result }));
-        } else {
-          setProfile(prev => ({ ...prev, coverImage: result }));
-        }
+    try {
+      setIsCompressing(true);
+      const maxWidth = type === 'avatar' ? 600 : 1200;
+      const maxHeight = type === 'avatar' ? 600 : 800;
+      const optimized = await compressAndResizeImage(file, maxWidth, maxHeight, 0.85);
+
+      if (type === 'avatar') {
+        setProfile(prev => ({ ...prev, avatar: optimized }));
+      } else {
+        setProfile(prev => ({ ...prev, coverImage: optimized }));
       }
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Image compression error:', err);
+      alert('حدث خطأ أثناء معالجة الصورة، يرجى اختيار ملف أصغر.');
+    } finally {
+      setIsCompressing(false);
+    }
   };
 
   const handleAvatarDrop = (e: React.DragEvent) => {
@@ -81,13 +92,43 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    storageService.saveAuthorProfile(profile);
-    supabaseService.saveAuthorProfileToSupabase(profile);
-    setSavedSuccess(true);
-    onRefreshData();
-    setTimeout(() => setSavedSuccess(false), 4000);
+    setIsSaving(true);
+    setCloudStatus(null);
+    setSavedSuccess(false);
+
+    try {
+      // 1. Save to local storage
+      storageService.saveAuthorProfile(profile);
+
+      // 2. Persist to Supabase cloud
+      const cloudSuccess = await supabaseService.saveAuthorProfileToSupabase(profile);
+      if (cloudSuccess) {
+        setSavedSuccess(true);
+        setCloudStatus({
+          isError: false,
+          message: 'تم حفظ وتحديث بيانات وصورة الكاتب ومزامنتها بنجاح مع سوباباس (Supabase) لتظهر على كافة الأجهزة والمتصفحات!'
+        });
+      } else {
+        setSavedSuccess(true);
+        setCloudStatus({
+          isError: true,
+          message: 'تم الحفظ محلياً على هذا المتصفح، ولكن تعذر تحديث قاعدة بيانات سوباباس. يرجى التأكد من تشغيل كود SQL في لوحة سوباباس لمنح صلاحيات الكتابة.'
+        });
+      }
+      onRefreshData();
+    } catch (err: any) {
+      setCloudStatus({
+        isError: true,
+        message: err?.message || 'حدث خطأ غير متوقع أثناء الحفظ.'
+      });
+    } finally {
+      setIsSaving(false);
+      setTimeout(() => {
+        setSavedSuccess(false);
+      }, 7000);
+    }
   };
 
   const sampleAvatars = [
@@ -121,17 +162,44 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
         <button
           type="button"
           onClick={handleSave}
-          className="w-full md:w-auto px-6 py-3 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm hover:shadow-md"
+          disabled={isSaving || isCompressing}
+          className="w-full md:w-auto px-6 py-3 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-[#FDFCF8] rounded-xl font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm hover:shadow-md"
         >
-          <Check className="w-5 h-5" />
-          <span>حفظ التعديلات وتحديث الموقع</span>
+          {isSaving ? (
+            <>
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>جاري الحفظ والمزامنة السحابية...</span>
+            </>
+          ) : (
+            <>
+              <Check className="w-5 h-5" />
+              <span>حفظ التعديلات وتحديث سوباباس</span>
+            </>
+          )}
         </button>
       </div>
 
-      {savedSuccess && (
-        <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-bold flex items-center gap-3 animate-fade-in">
-          <Check className="w-5 h-5 text-emerald-600 shrink-0" />
-          <span>تم حفظ وتحديث ملف الكاتب أيمن كناني وبيانات التواصل الاجتماعي بنجاح! تم نشر التحديثات على الموقع.</span>
+      {isCompressing && (
+        <div className="p-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl text-xs font-bold flex items-center gap-2 animate-fade-in">
+          <Loader2 className="w-4 h-4 animate-spin text-amber-600" />
+          <span>جاري ضغط ومعالجة الصورة لتقليل حجمها لتناسب المتصفحات ومزامنة سوباباس بأعلى سرعة...</span>
+        </div>
+      )}
+
+      {cloudStatus && (
+        <div
+          className={`p-4 rounded-xl text-sm font-bold flex items-center gap-3 animate-fade-in border ${
+            cloudStatus.isError
+              ? 'bg-amber-50 border-amber-200 text-amber-900'
+              : 'bg-emerald-50 border-emerald-200 text-emerald-900'
+          }`}
+        >
+          {cloudStatus.isError ? (
+            <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+          ) : (
+            <Check className="w-5 h-5 text-emerald-600 shrink-0" />
+          )}
+          <span>{cloudStatus.message}</span>
         </div>
       )}
 

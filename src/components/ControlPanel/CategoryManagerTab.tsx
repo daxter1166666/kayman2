@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Category, Novel } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 
 interface CategoryManagerTabProps {
   novels: Novel[];
@@ -70,17 +71,19 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
         name: englishName.trim(),
         description: description.trim(),
       });
-      showToast('تم تحديث بيانات القسم بنجاح!');
+      showToast('تم تحديث بيانات القسم بنجاح ومزامنته سحابياً!');
     } else {
       storageService.addCategory({
         arabicName: arabicName.trim(),
         name: englishName.trim(),
         description: description.trim(),
       });
-      showToast('تمت إضافة القسم الجديد بنجاح!');
+      showToast('تمت إضافة القسم الجديد بنجاح ومزامنته سحابياً!');
     }
 
-    setCategories(storageService.getCategories());
+    const updatedCategories = storageService.getCategories();
+    supabaseService.saveCategoriesToSupabase(updatedCategories);
+    setCategories(updatedCategories);
     onRefreshData();
     handleResetForm();
   };
@@ -94,9 +97,11 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
 
     if (window.confirm(confirmText)) {
       storageService.deleteCategory(cat.id);
-      setCategories(storageService.getCategories());
+      const updatedCategories = storageService.getCategories();
+      supabaseService.saveCategoriesToSupabase(updatedCategories);
+      setCategories(updatedCategories);
       onRefreshData();
-      showToast(`تم حذف قسم "${cat.arabicName}" بنجاح.`);
+      showToast(`تم حذف قسم "${cat.arabicName}" ومزامنة التغيير سحابياً.`);
       if (editingCatId === cat.id) {
         handleResetForm();
       }

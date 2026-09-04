@@ -138,9 +138,16 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
       });
       const updated = storageService.getNovels().find(n => n.id === editingNovelId);
       if (updated) {
-        supabaseService.saveNovelToSupabase(updated);
+        supabaseService.saveNovelToSupabase(updated).then(res => {
+          if (res) {
+            showToast('تم تحديث بيانات الكتاب ومزامنته سحابياً مع سوباباس!');
+          } else {
+            showToast('تم الحفظ محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
+          }
+        });
+      } else {
+        showToast('تم تحديث بيانات الكتاب بنجاح!');
       }
-      showToast('تم تحديث بيانات الكتاب بنجاح!');
     } else {
       storageService.addNovel({
         title: title.trim(),
@@ -160,22 +167,34 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
       });
       const created = storageService.getNovels().find(n => n.slug === slug);
       if (created) {
-        supabaseService.saveNovelToSupabase(created);
+        supabaseService.saveNovelToSupabase(created).then(res => {
+          if (res) {
+            showToast('تمت إضافة الكتاب ومزامنته بنجاح مع سوباباس!');
+          } else {
+            showToast('تمت الإضافة محلياً. تنبيه: لم يتم الإرسال لسوباباس (تأكد من كود الصلاحيات).');
+          }
+        });
+      } else {
+        showToast('تمت إضافة الكتاب الجديد بنجاح!');
       }
-      showToast('تمت إضافة الكتاب الجديد بنجاح!');
     }
 
     setIsCreating(false);
     onRefreshData();
   };
 
-  const handleDeleteNovel = (id: string, novelTitle: string) => {
+  const handleDeleteNovel = async (id: string, novelTitle: string) => {
     if (window.confirm(`هل أنت متأكد من حذف عمل "${novelTitle}" وجميع فصوله ومراجعاته نهائياً؟`)) {
       storageService.deleteNovel(id);
-      // Auto-sync deletion with Supabase
-      supabaseService.deleteNovelFromSupabase(id);
       onRefreshData();
-      showToast('تم حذف الكتاب والفصول المرتبطة به.');
+      showToast('جاري حذف الكتاب والفصول من سوباباس...');
+      const cloudSuccess = await supabaseService.deleteNovelFromSupabase(id);
+      if (cloudSuccess) {
+        showToast(`تم حذف "${novelTitle}" وفصوله نهائياً من المتصفح وقاعدة البيانات السحابية!`);
+      } else {
+        showToast('تم الحذف محلياً. تنبيه: لم يتم الحذف من سوباباس (تأكد من كود الصلاحيات).');
+      }
+      onRefreshData();
     }
   };
 

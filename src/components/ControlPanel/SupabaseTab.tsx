@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SupabaseConfig, Novel, Chapter, Comment } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
@@ -16,7 +16,8 @@ import {
   Layers,
   ArrowUpRight,
   Download,
-  Globe
+  Globe,
+  Sparkles
 } from 'lucide-react';
 
 interface SupabaseTabProps {
@@ -32,6 +33,7 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
   comments,
   onRefreshData,
 }) => {
+  const detectedEnv = supabaseService.detectEnvironmentCredentials();
   const [config, setConfig] = useState<SupabaseConfig>(() => storageService.getSupabaseConfig());
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
   const [isTesting, setIsTesting] = useState<boolean>(false);
@@ -41,6 +43,51 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const [pullResult, setPullResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  // Table Health Check State
+  const [tablesStatus, setTablesStatus] = useState<{
+    tested: boolean;
+    allOk: boolean;
+    details: { table: string; label: string; exists: boolean }[];
+  } | null>(null);
+  const [isCheckingTables, setIsCheckingTables] = useState<boolean>(false);
+
+  // Auto-fill from detected environment variables if storage config is empty
+  useEffect(() => {
+    if ((!config.url || !config.anonKey) && detectedEnv.url && detectedEnv.anonKey) {
+      const initialFromEnv: SupabaseConfig = {
+        ...config,
+        enabled: true,
+        url: detectedEnv.url,
+        anonKey: detectedEnv.anonKey,
+        connected: true,
+      };
+      setConfig(initialFromEnv);
+      storageService.saveSupabaseConfig(initialFromEnv);
+    }
+  }, [detectedEnv.url, detectedEnv.anonKey]);
+
+  const handleCheckTables = async () => {
+    setIsCheckingTables(true);
+    try {
+      const status = await supabaseService.checkTablesStatus();
+      setTablesStatus({
+        tested: true,
+        allOk: status.allTablesReady,
+        details: [
+          { table: 'novels', label: 'المؤلفات والروايات (novels)', exists: status.tables.novels },
+          { table: 'chapters', label: 'الفصول والأجزاء (chapters)', exists: status.tables.chapters },
+          { table: 'comments', label: 'التعليقات والمراجعات (comments)', exists: status.tables.comments },
+          { table: 'author_profile', label: 'الملف التعريفي للكاتب (author_profile)', exists: status.tables.author_profile },
+          { table: 'site_settings', label: 'الإعدادات والأقسام والوثائق (site_settings)', exists: status.tables.site_settings },
+        ]
+      });
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsCheckingTables(false);
+    }
+  };
 
   const handlePullAll = async () => {
     setIsPulling(true);
@@ -167,6 +214,10 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
         authorProfile,
         siteBranding,
         donationSettings,
+        categories: storageService.getCategories(),
+        legalDocuments: storageService.getLegalDocuments(),
+        adSettings: storageService.getAdSettings(),
+        seoSettings: storageService.getSeoSettings(),
       });
 
       setSyncResult(res);
@@ -185,10 +236,14 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
     }
   };
 
-  const sqlScript = supabaseService.getSqlSchemaScript();
+  const [sqlTab, setSqlTab] = useState<'full' | 'fix'>('fix');
+
+  const activeSqlScript = sqlTab === 'fix' 
+    ? supabaseService.getFixPermissionsSqlScript() 
+    : supabaseService.getSqlSchemaScript();
 
   const handleCopySql = () => {
-    navigator.clipboard.writeText(sqlScript);
+    navigator.clipboard.writeText(activeSqlScript);
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 3000);
   };
@@ -231,6 +286,40 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
         <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl text-sm font-bold flex items-center gap-3 animate-fade-in">
           <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
           <span>تم حفظ إعدادات الاتصال بـ Supabase بنجاح!</span>
+        </div>
+      )}
+
+      {/* Vercel Integration Detected Banner */}
+      {detectedEnv.url && (
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-emerald-50 to-[#F4F9F5] border-2 border-emerald-300 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-xs">
+          <div className="flex items-center gap-3.5">
+            <div className="w-10 h-10 rounded-xl bg-emerald-700 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-xs font-bold text-emerald-950">
+                  {detectedEnv.isFromVercel ? 'تم ربط مشروع Supabase تلقائياً عبر Vercel Integration!' : 'تم اكتشاف بيانات الربط بسوباباس من المتغيرات البرمجية!'}
+                </h4>
+                <span className="text-[10px] bg-emerald-700 text-white px-2 py-0.5 rounded-full font-bold">
+                  متصل
+                </span>
+              </div>
+              <p className="text-[11px] text-emerald-800 mt-0.5 font-mono" dir="ltr">
+                {detectedEnv.url}
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleCheckTables}
+            disabled={isCheckingTables}
+            className="px-4 py-2 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shrink-0 shadow-xs disabled:opacity-60"
+          >
+            {isCheckingTables ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4" />}
+            <span>فحص جاهزية الجداول الآن</span>
+          </button>
         </div>
       )}
 
@@ -448,6 +537,77 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
               </div>
             )}
           </div>
+
+          {/* Database Tables Health Check Card */}
+          <div className="bg-[#FFFFFF] border border-[#E5E2D9] rounded-2xl p-6 sm:p-8 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E2D9] pb-3">
+              <h3 className="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
+                <Database className="w-5 h-5 text-[#4A5D4E]" />
+                <span>فحص جاهزية جداول قاعدة البيانات (Tables Health Check)</span>
+              </h3>
+              <button
+                type="button"
+                onClick={handleCheckTables}
+                disabled={isCheckingTables}
+                className="px-4 py-2 bg-[#F7F5EE] hover:bg-[#E5E2D9] text-[#2C2C2C] border border-[#E5E2D9] rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
+              >
+                {isCheckingTables ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Zap className="w-4 h-4 text-emerald-700" />}
+                <span>فحص وجود الجداول الآن</span>
+              </button>
+            </div>
+
+            <p className="text-xs text-[#6E6A64] leading-relaxed">
+              عند ربط سوباباس عبر Vercel Integration لأول مرة، تكون قاعدة البيانات جديدة وخالية. تحقق هنا بضغطة زر مما إذا كانت الجداول الخمسة المطلوبة قد أُنشئت بنجاح أم أنها بحاجة لتشغيل كود SQL:
+            </p>
+
+            {tablesStatus && (
+              <div className="space-y-3 pt-2">
+                <div
+                  className={`p-3.5 rounded-xl text-xs font-bold flex items-center gap-2.5 border ${
+                    tablesStatus.allOk
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                      : 'bg-rose-50 border-rose-200 text-rose-800'
+                  }`}
+                >
+                  {tablesStatus.allOk ? (
+                    <>
+                      <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span>ممتاز! جميع جداول قاعدة البيانات (5 من 5) موجودة وجاهزة للعمل والحفظ ومزامنة المتصفحات فوراً.</span>
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                      <span>تنبيه: بعض الجداول غير موجودة بعد! انسخ كود SQL من الصندوق المجاور ونفذه في SQL Editor داخل سوباباس.</span>
+                    </>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {tablesStatus.details.map((d) => (
+                    <div
+                      key={d.table}
+                      className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                        d.exists
+                          ? 'bg-emerald-50/40 border-emerald-200/60 text-emerald-800'
+                          : 'bg-rose-50/40 border-rose-200/60 text-rose-800'
+                      }`}
+                    >
+                      <span className="font-bold">{d.label}</span>
+                      {d.exists ? (
+                        <span className="flex items-center gap-1 font-bold text-emerald-700">
+                          <Check className="w-3.5 h-3.5" /> متاح
+                        </span>
+                      ) : (
+                        <span className="flex items-center gap-1 font-bold text-rose-700">
+                          مفقود (يتطلب SQL)
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* SQL Schema Generator & Setup Guide (5 Cols) */}
@@ -457,7 +617,7 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
             <div className="flex items-center justify-between">
               <h3 className="text-base font-bold text-[#2C2C2C] flex items-center gap-2">
                 <Database className="w-4 h-4 text-[#4A5D4E]" />
-                <span>كود SQL لإنشاء الجداول</span>
+                <span>أكواد SQL لـ Supabase</span>
               </h3>
               <button
                 type="button"
@@ -472,18 +632,52 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
                 ) : (
                   <>
                     <Copy className="w-3.5 h-3.5" />
-                    <span>نسخ كود SQL</span>
+                    <span>نسخ الكود المختار</span>
                   </>
                 )}
               </button>
             </div>
 
-            <p className="text-xs text-[#6E6A64]">
-              انسخ هذا الكود والصقه في <strong>SQL Editor</strong> داخل لوحة تحكم Supabase واضغط <strong>Run</strong> لإنشاء الجداول تلقائياً:
+            {/* Sub Tabs */}
+            <div className="flex items-center gap-2 bg-[#F7F5EE] p-1 rounded-xl border border-[#E5E2D9] text-xs">
+              <button
+                type="button"
+                onClick={() => setSqlTab('fix')}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer text-center ${
+                  sqlTab === 'fix'
+                    ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-2xs'
+                    : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+                }`}
+              >
+                ⚡ كود إصلاح الصلاحيات والحذف الفوري (Fix Permissions)
+              </button>
+              <button
+                type="button"
+                onClick={() => setSqlTab('full')}
+                className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all cursor-pointer text-center ${
+                  sqlTab === 'full'
+                    ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-2xs'
+                    : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+                }`}
+              >
+                🛠️ كود إنشاء الجداول الكامل (Full Schema)
+              </button>
+            </div>
+
+            <p className="text-xs text-[#6E6A64] leading-relaxed">
+              {sqlTab === 'fix' ? (
+                <span>
+                  <strong>حل مشكلة الحذف والتعديل:</strong> إذا كانت الجداول موجودة بالفعل ولكن حذف الروايات أو تعديل الصورة أو الخصوصية لا ينعكس في سوباباس، انسخ هذا الكود والصقه في <strong>SQL Editor</strong> في سوباباس واضغط <strong>Run</strong> لتفعيل صلاحيات الحذف والتعديل لكافة الجداول فوراً.
+                </span>
+              ) : (
+                <span>
+                  <strong>للمشاريع الجديدة:</strong> انسخ هذا الكود والصقه في <strong>SQL Editor</strong> في سوباباس واضغط <strong>Run</strong> لإنشاء الجداول الخمسة وتفعيل قواعد الأمان.
+                </span>
+              )}
             </p>
 
             <div className="relative bg-[#1E2421] text-emerald-300 rounded-xl p-3 font-mono text-[11px] h-64 overflow-y-auto direction-ltr text-left border border-black/20">
-              <pre className="whitespace-pre-wrap">{sqlScript}</pre>
+              <pre className="whitespace-pre-wrap">{activeSqlScript}</pre>
             </div>
           </div>
 

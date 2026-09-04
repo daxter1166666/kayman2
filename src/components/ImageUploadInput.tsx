@@ -8,8 +8,10 @@ import {
   CheckCircle2,
   FolderOpen,
   Eye,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
+import { compressAndResizeImage } from '../utils/imageOptimizer';
 
 interface ImageUploadInputProps {
   label: string;
@@ -33,31 +35,33 @@ export const ImageUploadInput: React.FC<ImageUploadInputProps> = ({
   const [activeTab, setActiveTab] = useState<'upload' | 'url' | 'presets'>('upload');
   const [dragOver, setDragOver] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFile = (file: File) => {
+  const handleFile = async (file: File) => {
     setErrorMessage(null);
     if (!file.type.startsWith('image/')) {
       setErrorMessage('يرجى اختيار ملف صورة صالح (PNG, JPG, WebP, GIF)');
       return;
     }
 
-    // Max 10MB check
-    if (file.size > 10 * 1024 * 1024) {
-      setErrorMessage('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 10 ميجابايت.');
+    // Max 15MB raw check before compression
+    if (file.size > 15 * 1024 * 1024) {
+      setErrorMessage('حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 15 ميجابايت.');
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      if (e.target?.result) {
-        onChange(e.target.result as string);
-      }
-    };
-    reader.onerror = () => {
-      setErrorMessage('تعذر قراءة ملف الصورة من الحاسوب.');
-    };
-    reader.readAsDataURL(file);
+    try {
+      setIsProcessing(true);
+      const maxW = aspectRatio === '16/9' ? 1200 : aspectRatio === 'square' ? 600 : 800;
+      const maxH = aspectRatio === '16/9' ? 700 : aspectRatio === 'square' ? 600 : 1200;
+      const optimizedDataUrl = await compressAndResizeImage(file, maxW, maxH, 0.82);
+      onChange(optimizedDataUrl);
+    } catch {
+      setErrorMessage('تعذر معالجة وضغط الصورة، يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const handleDrop = (e: React.DragEvent) => {
@@ -173,14 +177,20 @@ export const ImageUploadInput: React.FC<ImageUploadInputProps> = ({
             }}
           />
           <div className="w-10 h-10 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center">
-            <FolderOpen className="w-5 h-5" />
+            {isProcessing ? (
+              <Loader2 className="w-5 h-5 animate-spin" />
+            ) : (
+              <FolderOpen className="w-5 h-5" />
+            )}
           </div>
           <div>
             <p className="text-xs font-bold text-[#2C2C2C]">
-              اسحب وأفلت صورة الغلاف هنا، أو <span className="text-[#4A5D4E] underline">تصفح ملفات جهازك</span>
+              {isProcessing
+                ? 'جاري ضغط ومعالجة الصورة للمزامنة السريعة...'
+                : 'اسحب وأفلت صورة الغلاف هنا، أو اضغط للتصفح'}
             </p>
             <p className="text-[10px] text-[#8E8A83] mt-0.5">
-              يدعم كافة الصيغ (PNG, JPG, WebP) بأعلى دقة
+              يدعم كافة الصيغ (PNG, JPG, WebP) - يتم ضغطها تلقائياً لتناسب المتصفحات وقاعدة البيانات
             </p>
           </div>
         </div>

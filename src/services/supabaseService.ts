@@ -1,5 +1,17 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
-import { SupabaseConfig, Novel, Chapter, Comment, AuthorProfile, SiteBranding, DonationSettings } from '../types';
+import {
+  SupabaseConfig,
+  Novel,
+  Chapter,
+  Comment,
+  AuthorProfile,
+  SiteBranding,
+  DonationSettings,
+  Category,
+  LegalDocuments,
+  AdSettings,
+  SeoSettings
+} from '../types';
 import { storageService } from './storageService';
 
 class SupabaseService {
@@ -62,6 +74,43 @@ class SupabaseService {
     }
   }
 
+  public detectEnvironmentCredentials(): { url: string; anonKey: string; isFromVercel: boolean } {
+    const rawUrl =
+      (typeof import.meta !== 'undefined' && import.meta.env && (
+        import.meta.env.VITE_SUPABASE_URL ||
+        (import.meta.env as any).SUPABASE_URL ||
+        (import.meta.env as any).NEXT_PUBLIC_SUPABASE_URL
+      )) ||
+      (typeof process !== 'undefined' && process.env && (
+        process.env.SUPABASE_URL ||
+        process.env.VITE_SUPABASE_URL ||
+        process.env.NEXT_PUBLIC_SUPABASE_URL
+      )) ||
+      '';
+
+    const rawKey =
+      (typeof import.meta !== 'undefined' && import.meta.env && (
+        import.meta.env.VITE_SUPABASE_ANON_KEY ||
+        (import.meta.env as any).SUPABASE_ANON_KEY ||
+        (import.meta.env as any).NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )) ||
+      (typeof process !== 'undefined' && process.env && (
+        process.env.SUPABASE_ANON_KEY ||
+        process.env.VITE_SUPABASE_ANON_KEY ||
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+      )) ||
+      '';
+
+    const cleanUrl = rawUrl ? this.cleanProjectUrl(rawUrl.trim()) : '';
+    const cleanKey = rawKey ? rawKey.trim() : '';
+
+    return {
+      url: cleanUrl,
+      anonKey: cleanKey,
+      isFromVercel: Boolean(cleanUrl && cleanKey),
+    };
+  }
+
   public getClient(config?: SupabaseConfig): SupabaseClient | null {
     if (config && config.url && config.anonKey) {
       return this.initClient(config);
@@ -71,24 +120,32 @@ class SupabaseService {
     const defaultUrl = 'https://kepuolqhropozwfwwwbb.supabase.co';
     const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw';
 
-    // Check environment variables first, then default to the project credentials
-    const envUrl = (import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_URL.trim()) ? import.meta.env.VITE_SUPABASE_URL.trim() : defaultUrl;
-    const envKey = (import.meta.env.VITE_SUPABASE_ANON_KEY && import.meta.env.VITE_SUPABASE_ANON_KEY.trim()) ? import.meta.env.VITE_SUPABASE_ANON_KEY.trim() : defaultKey;
-    if (envUrl && envKey) {
+    // 1. Check environment variables from Vercel Integration or Vite
+    const detected = this.detectEnvironmentCredentials();
+    if (detected.url && detected.anonKey) {
       return this.initClient({
-        url: envUrl,
-        anonKey: envKey,
+        url: detected.url,
+        anonKey: detected.anonKey,
         enabled: true,
         autoSync: true,
         connected: true
       });
     }
 
+    // 2. Check stored local configuration if user entered one in dashboard
     const storedConfig = storageService.getSupabaseConfig();
     if (storedConfig && storedConfig.url && storedConfig.anonKey) {
       return this.initClient(storedConfig);
     }
-    return null;
+
+    // 3. Fallback to default project credentials
+    return this.initClient({
+      url: defaultUrl,
+      anonKey: defaultKey,
+      enabled: true,
+      autoSync: true,
+      connected: true
+    });
   }
 
   public isConfigured(): boolean {
@@ -106,6 +163,10 @@ class SupabaseService {
     authorProfile?: AuthorProfile;
     siteBranding?: SiteBranding;
     donationSettings?: DonationSettings;
+    categories?: Category[];
+    legalDocuments?: LegalDocuments;
+    adSettings?: AdSettings;
+    seoSettings?: SeoSettings;
   } | null> {
     const client = this.getClient();
     if (!client) return null;
@@ -200,6 +261,11 @@ class SupabaseService {
 
       let siteBranding: SiteBranding | undefined;
       let donationSettings: DonationSettings | undefined;
+      let categories: Category[] | undefined;
+      let legalDocuments: LegalDocuments | undefined;
+      let adSettings: AdSettings | undefined;
+      let seoSettings: SeoSettings | undefined;
+
       const { data: rawSettings } = await client
         .from('site_settings')
         .select('id, data');
@@ -208,45 +274,41 @@ class SupabaseService {
         if (brandRow?.data) siteBranding = brandRow.data;
         const donateRow = rawSettings.find((r: any) => r.id === 'donation_settings');
         if (donateRow?.data) donationSettings = donateRow.data;
+        const catRow = rawSettings.find((r: any) => r.id === 'categories');
+        if (catRow?.data && Array.isArray(catRow.data) && catRow.data.length > 0) categories = catRow.data;
+        const legalRow = rawSettings.find((r: any) => r.id === 'legal_documents');
+        if (legalRow?.data) legalDocuments = legalRow.data;
+        const adRow = rawSettings.find((r: any) => r.id === 'ad_settings');
+        if (adRow?.data) adSettings = adRow.data;
+        const seoRow = rawSettings.find((r: any) => r.id === 'seo_settings');
+        if (seoRow?.data) seoSettings = seoRow.data;
       }
 
-      // Update local storage cache only when items exist so empty cloud doesn't wipe local works
-      if (novels.length > 0) {
-        storageService.saveNovels(novels);
+      const isDatabaseActive = (rawSettings && rawSettings.length > 0) || !!rawProfile?.data || (rawNovels && rawNovels.length > 0);
+
+      // Update local storage cache
+      if (!nErr && Array.isArray(rawNovels)) {
+        if (novels.length > 0 || isDatabaseActive) {
+          storageService.saveNovels(novels);
+        }
       }
-      if (chapters.length > 0) {
-        storageService.saveChapters(chapters);
+      if (!cErr && Array.isArray(rawChapters)) {
+        if (chapters.length > 0 || isDatabaseActive) {
+          storageService.saveChapters(chapters);
+        }
       }
-      if (comments.length > 0) {
-        storageService.saveComments(comments);
+      if (Array.isArray(rawComments)) {
+        if (comments.length > 0 || isDatabaseActive) {
+          storageService.saveComments(comments);
+        }
       }
       if (authorProfile) storageService.saveAuthorProfile(authorProfile);
       if (siteBranding) storageService.saveSiteBranding(siteBranding);
       if (donationSettings) storageService.saveDonationSettings(donationSettings);
-
-      // If Supabase is currently empty, but this device already has local novels/chapters,
-      // automatically push them up to Supabase so other browsers can immediately access them!
-      if (novels.length === 0 && chapters.length === 0) {
-        const localNovels = storageService.getNovels();
-        const localChapters = storageService.getChapters();
-        if (localNovels.length > 0 || localChapters.length > 0) {
-          console.log('Supabase tables are empty. Auto-syncing existing local novels to cloud...');
-          this.syncAllToSupabase(this.currentConfig || {
-            url: 'https://kepuolqhropozwfwwwbb.supabase.co',
-            anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw',
-            enabled: true,
-            autoSync: true,
-            connected: true
-          }, {
-            novels: localNovels,
-            chapters: localChapters,
-            comments: storageService.getComments(),
-            authorProfile: storageService.getAuthorProfile(),
-            siteBranding: storageService.getSiteBranding(),
-            donationSettings: storageService.getDonationSettings(),
-          }).catch(e => console.warn('Auto-sync to Supabase notice:', e));
-        }
-      }
+      if (categories && Array.isArray(categories)) storageService.saveCategories(categories);
+      if (legalDocuments) storageService.saveLegalDocuments(legalDocuments);
+      if (adSettings) storageService.saveAdSettings(adSettings);
+      if (seoSettings) storageService.saveSeoSettings(seoSettings);
 
       return {
         novels,
@@ -255,6 +317,10 @@ class SupabaseService {
         authorProfile,
         siteBranding,
         donationSettings,
+        categories,
+        legalDocuments,
+        adSettings,
+        seoSettings,
       };
     } catch (e) {
       console.warn('pullAllFromSupabase failed:', e);
@@ -307,10 +373,17 @@ class SupabaseService {
     const client = this.getClient();
     if (!client) return false;
     try {
-      // Also delete chapters
+      // 1. Delete comments belonging to this novel
+      await client.from('comments').delete().eq('novel_id', novelId);
+      // 2. Delete chapters belonging to this novel
       await client.from('chapters').delete().eq('novel_id', novelId);
+      // 3. Delete the novel itself
       const { error } = await client.from('novels').delete().eq('id', novelId);
-      return !error;
+      if (error) {
+        console.error('Supabase deleteNovelFromSupabase error:', error);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.warn('Supabase deleteNovelFromSupabase exception:', e);
       return false;
@@ -336,7 +409,11 @@ class SupabaseService {
         status: chapter.status || 'PUBLISHED',
       };
       const { error } = await client.from('chapters').upsert(row);
-      return !error;
+      if (error) {
+        console.error('Supabase saveChapterToSupabase error:', error);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.warn('Supabase saveChapterToSupabase exception:', e);
       return false;
@@ -347,8 +424,14 @@ class SupabaseService {
     const client = this.getClient();
     if (!client) return false;
     try {
+      // Delete comments belonging to this chapter
+      await client.from('comments').delete().eq('chapter_id', chapterId);
       const { error } = await client.from('chapters').delete().eq('id', chapterId);
-      return !error;
+      if (error) {
+        console.error('Supabase deleteChapterFromSupabase error:', error);
+        return false;
+      }
+      return true;
     } catch (e) {
       console.warn('Supabase deleteChapterFromSupabase exception:', e);
       return false;
@@ -364,8 +447,13 @@ class SupabaseService {
         data: profile,
         updated_at: new Date().toISOString(),
       });
-      return !error;
-    } catch {
+      if (error) {
+        console.error('Supabase saveAuthorProfileToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveAuthorProfileToSupabase exception:', e);
       return false;
     }
   }
@@ -379,8 +467,13 @@ class SupabaseService {
         data: branding,
         updated_at: new Date().toISOString(),
       });
-      return !error;
-    } catch {
+      if (error) {
+        console.error('Supabase saveSiteBrandingToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveSiteBrandingToSupabase exception:', e);
       return false;
     }
   }
@@ -394,8 +487,93 @@ class SupabaseService {
         data: donations,
         updated_at: new Date().toISOString(),
       });
-      return !error;
-    } catch {
+      if (error) {
+        console.error('Supabase saveDonationSettingsToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveDonationSettingsToSupabase exception:', e);
+      return false;
+    }
+  }
+
+  public async saveCategoriesToSupabase(categories: Category[]): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'categories',
+        data: categories,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error('Supabase saveCategoriesToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveCategoriesToSupabase exception:', e);
+      return false;
+    }
+  }
+
+  public async saveLegalDocumentsToSupabase(docs: LegalDocuments): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'legal_documents',
+        data: docs,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error('Supabase saveLegalDocumentsToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveLegalDocumentsToSupabase exception:', e);
+      return false;
+    }
+  }
+
+  public async saveAdSettingsToSupabase(ads: AdSettings): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'ad_settings',
+        data: ads,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error('Supabase saveAdSettingsToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveAdSettingsToSupabase exception:', e);
+      return false;
+    }
+  }
+
+  public async saveSeoSettingsToSupabase(seo: SeoSettings): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'seo_settings',
+        data: seo,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error('Supabase saveSeoSettingsToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveSeoSettingsToSupabase exception:', e);
       return false;
     }
   }
@@ -475,6 +653,10 @@ class SupabaseService {
       authorProfile: AuthorProfile;
       siteBranding: SiteBranding;
       donationSettings: DonationSettings;
+      categories?: Category[];
+      legalDocuments?: LegalDocuments;
+      adSettings?: AdSettings;
+      seoSettings?: SeoSettings;
     }
   ): Promise<{ success: boolean; message: string }> {
     const cleanUrl = this.cleanProjectUrl(config.url);
@@ -582,7 +764,7 @@ class SupabaseService {
         console.warn('Author profile sync optional warning:', e);
       }
 
-      // 5. Sync Site Branding (try/catch in case table is optional)
+      // 5. Sync Site Branding
       try {
         await client.from('site_settings').upsert({
           id: 'site_branding',
@@ -604,16 +786,136 @@ class SupabaseService {
         console.warn('Donation settings sync optional warning:', e);
       }
 
+      // 7. Sync Categories
+      if (payload.categories && payload.categories.length > 0) {
+        try {
+          await client.from('site_settings').upsert({
+            id: 'categories',
+            data: payload.categories,
+            updated_at: new Date().toISOString(),
+          });
+          syncedSummary.push(`${payload.categories.length} قسم`);
+        } catch (e) {
+          console.warn('Categories sync optional warning:', e);
+        }
+      }
+
+      // 8. Sync Legal Documents
+      if (payload.legalDocuments) {
+        try {
+          await client.from('site_settings').upsert({
+            id: 'legal_documents',
+            data: payload.legalDocuments,
+            updated_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Legal documents sync optional warning:', e);
+        }
+      }
+
+      // 9. Sync Ad Settings
+      if (payload.adSettings) {
+        try {
+          await client.from('site_settings').upsert({
+            id: 'ad_settings',
+            data: payload.adSettings,
+            updated_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('Ad settings sync optional warning:', e);
+        }
+      }
+
+      // 10. Sync SEO Settings
+      if (payload.seoSettings) {
+        try {
+          await client.from('site_settings').upsert({
+            id: 'seo_settings',
+            data: payload.seoSettings,
+            updated_at: new Date().toISOString(),
+          });
+        } catch (e) {
+          console.warn('SEO settings sync optional warning:', e);
+        }
+      }
+
       const summaryText = syncedSummary.length > 0 ? syncedSummary.join(' و ') : 'البيانات كاملة';
 
       return {
         success: true,
-        message: `تمت المزامنة بنجاح! تم رفع ${summaryText} وملف الكاتب وإعدادات الموقع إلى سوباباس وتحديثها سحابياً.`,
+        message: `تمت المزامنة بنجاح! تم رفع ${summaryText} وملف الكاتب والأقسام وإعدادات الموقع إلى سوباباس وتحديثها سحابياً.`,
       };
     } catch (err: any) {
       return {
         success: false,
         message: `خطأ أثناء المزامنة مع سوباباس: ${err.message || 'يرجى التأكد من تشغيل كود الـ SQL في سوباباس أولاً'}`,
+      };
+    }
+  }
+
+  public async checkTablesStatus(): Promise<{
+    hasClient: boolean;
+    connected: boolean;
+    tables: {
+      novels: boolean;
+      chapters: boolean;
+      comments: boolean;
+      author_profile: boolean;
+      site_settings: boolean;
+    };
+    allTablesReady: boolean;
+    errorMessage?: string;
+  }> {
+    const client = this.getClient();
+    if (!client) {
+      return {
+        hasClient: false,
+        connected: false,
+        tables: { novels: false, chapters: false, comments: false, author_profile: false, site_settings: false },
+        allTablesReady: false,
+        errorMessage: 'لم يتم العثور على بيانات اتصال بسوباباس',
+      };
+    }
+
+    try {
+      const results = {
+        novels: false,
+        chapters: false,
+        comments: false,
+        author_profile: false,
+        site_settings: false,
+      };
+
+      const [nRes, cRes, comRes, pRes, sRes] = await Promise.all([
+        client.from('novels').select('id').limit(1),
+        client.from('chapters').select('id').limit(1),
+        client.from('comments').select('id').limit(1),
+        client.from('author_profile').select('id').limit(1),
+        client.from('site_settings').select('id').limit(1),
+      ]);
+
+      results.novels = !nRes.error;
+      results.chapters = !cRes.error;
+      results.comments = !comRes.error;
+      results.author_profile = !pRes.error;
+      results.site_settings = !sRes.error;
+
+      const allReady = results.novels && results.chapters && results.comments && results.author_profile && results.site_settings;
+
+      return {
+        hasClient: true,
+        connected: true,
+        tables: results,
+        allTablesReady: allReady,
+        errorMessage: allReady ? undefined : 'بعض الجداول غير موجودة بعد في قاعدة البيانات. يرجى تشغيل كود SQL في SQL Editor في سوباباس لإنشائها.',
+      };
+    } catch (e: any) {
+      return {
+        hasClient: true,
+        connected: false,
+        tables: { novels: false, chapters: false, comments: false, author_profile: false, site_settings: false },
+        allTablesReady: false,
+        errorMessage: e.message || 'فشل الاتصال بقاعدة البيانات',
       };
     }
   }
@@ -701,19 +1003,76 @@ ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.author_profile ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
 
--- سياسة السماح بالقراءة للجميع
-CREATE POLICY "Public Read Access Novels" ON public.novels FOR SELECT USING (true);
-CREATE POLICY "Public Read Access Chapters" ON public.chapters FOR SELECT USING (true);
-CREATE POLICY "Public Read Access Comments" ON public.comments FOR SELECT USING (true);
-CREATE POLICY "Public Read Access Author" ON public.author_profile FOR SELECT USING (true);
-CREATE POLICY "Public Read Access Settings" ON public.site_settings FOR SELECT USING (true);
+-- تنظيف أي سياسات سابقة لتفادي التعارض
+DROP POLICY IF EXISTS "Public Read Access Novels" ON public.novels;
+DROP POLICY IF EXISTS "Public Insert/Update Novels" ON public.novels;
+DROP POLICY IF EXISTS "Allow All Novels" ON public.novels;
+CREATE POLICY "Allow All Novels" ON public.novels FOR ALL USING (true) WITH CHECK (true);
 
--- سياسة الإدراج والتحديث للعامة بالمفتاح
-CREATE POLICY "Public Insert/Update Novels" ON public.novels FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Insert/Update Chapters" ON public.chapters FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Insert/Update Comments" ON public.comments FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Insert/Update Author" ON public.author_profile FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public Insert/Update Settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Public Read Access Chapters" ON public.chapters;
+DROP POLICY IF EXISTS "Public Insert/Update Chapters" ON public.chapters;
+DROP POLICY IF EXISTS "Allow All Chapters" ON public.chapters;
+CREATE POLICY "Allow All Chapters" ON public.chapters FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Comments" ON public.comments;
+DROP POLICY IF EXISTS "Public Insert/Update Comments" ON public.comments;
+DROP POLICY IF EXISTS "Allow All Comments" ON public.comments;
+CREATE POLICY "Allow All Comments" ON public.comments FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Author" ON public.author_profile;
+DROP POLICY IF EXISTS "Public Insert/Update Author" ON public.author_profile;
+DROP POLICY IF EXISTS "Allow All Author" ON public.author_profile;
+CREATE POLICY "Allow All Author" ON public.author_profile FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Public Read Access Settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Public Insert/Update Settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Allow All Settings" ON public.site_settings;
+CREATE POLICY "Allow All Settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
+`;
+  }
+
+  public getFixPermissionsSqlScript(): string {
+    return `-- ========================================================
+-- كود سريع لإصلاح وتفعيل صلاحيات الحذف والتعديل الفوري في Supabase
+-- قم بنسخ هذا الكود ولصقه في SQL Editor في سوباباس ثم اضغط Run:
+-- ========================================================
+
+-- 1. تنظيف السياسات المقيدة السابقة
+DROP POLICY IF EXISTS "Public Read Access Novels" ON public.novels;
+DROP POLICY IF EXISTS "Public Insert/Update Novels" ON public.novels;
+DROP POLICY IF EXISTS "Allow All Novels" ON public.novels;
+
+DROP POLICY IF EXISTS "Public Read Access Chapters" ON public.chapters;
+DROP POLICY IF EXISTS "Public Insert/Update Chapters" ON public.chapters;
+DROP POLICY IF EXISTS "Allow All Chapters" ON public.chapters;
+
+DROP POLICY IF EXISTS "Public Read Access Comments" ON public.comments;
+DROP POLICY IF EXISTS "Public Insert/Update Comments" ON public.comments;
+DROP POLICY IF EXISTS "Allow All Comments" ON public.comments;
+
+DROP POLICY IF EXISTS "Public Read Access Author" ON public.author_profile;
+DROP POLICY IF EXISTS "Public Insert/Update Author" ON public.author_profile;
+DROP POLICY IF EXISTS "Allow All Author" ON public.author_profile;
+
+DROP POLICY IF EXISTS "Public Read Access Settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Public Insert/Update Settings" ON public.site_settings;
+DROP POLICY IF EXISTS "Allow All Settings" ON public.site_settings;
+
+-- 2. تفعيل السياسات الشاملة (قراءة، إضافة، تعديل، حذف)
+ALTER TABLE public.novels ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All Novels" ON public.novels FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.chapters ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All Chapters" ON public.chapters FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.comments ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All Comments" ON public.comments FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.author_profile ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All Author" ON public.author_profile FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow All Settings" ON public.site_settings FOR ALL USING (true) WITH CHECK (true);
 `;
   }
 }

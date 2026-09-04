@@ -94,13 +94,27 @@ export default function App() {
 
     // Cross-browser cloud synchronization with Supabase
     // When deployed or when Supabase credentials exist, fetch latest books and chapters for all readers
-    supabaseService.pullAllFromSupabase().then(res => {
-      if (res && (res.novels.length > 0 || res.chapters.length > 0)) {
-        refreshData();
+    const doPull = () => {
+      supabaseService.pullAllFromSupabase().then(res => {
+        if (res) {
+          refreshData();
+        }
+      }).catch(err => {
+        console.warn('Supabase pull note:', err);
+      });
+    };
+
+    doPull();
+
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        doPull();
       }
-    }).catch(err => {
-      console.warn('Initial Supabase pull note:', err);
-    });
+    };
+
+    window.addEventListener('visibilitychange', handleVisibility);
+    window.addEventListener('focus', doPull);
+    const syncInterval = setInterval(doPull, 45000);
 
     // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
@@ -139,6 +153,9 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
+      window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', doPull);
+      clearInterval(syncInterval);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
