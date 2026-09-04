@@ -50,6 +50,7 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   ogDefaultImage: 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop',
   enableStructuredData: true,
   indexingPolicy: 'all',
+  googleAnalyticsId: '',
 };
 
 export const INITIAL_DONATION_SETTINGS: DonationSettings = {

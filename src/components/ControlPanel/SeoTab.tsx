@@ -102,10 +102,15 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
   // Preview novel calculation
   const previewNovel = novels.find(n => n.id === selectedPreviewNovelId) || novels[0];
   const template = settings?.siteTitleTemplate || '%title% | الكاتب أيمن كناني';
-  const previewTitle = previewNovel
-    ? template.replace('%title%', `كتاب ${previewNovel.title}`)
-    : (settings?.defaultTitle || 'الكاتب أيمن كناني');
-  const previewDesc = previewNovel?.synopsis || settings?.defaultDescription || 'المنصة الرسمية لنشر وتحميل كتب وروايات الكاتب أيمن كناني';
+  const previewTitle = previewNovel?.seo?.metaTitle?.trim()
+    ? previewNovel.seo.metaTitle.trim()
+    : previewNovel
+      ? template.replace('%title%', `كتاب ${previewNovel.title}`)
+      : (settings?.defaultTitle || 'الكاتب أيمن كناني');
+  const previewDesc = previewNovel?.seo?.metaDescription?.trim()
+    || previewNovel?.synopsis?.slice(0, 160)
+    || settings?.defaultDescription
+    || 'المنصة الرسمية لنشر وتحميل كتب وروايات الكاتب أيمن كناني';
   const descCharCount = (settings?.defaultDescription || '').length;
 
   return (
@@ -364,6 +369,67 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
                 placeholder="رمز التحقق من Bing (msvalidate.01)"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FDFCF8] text-xs font-mono focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
               />
+            </div>
+          </div>
+
+          {/* Google Analytics 4 (GA4) Integration */}
+          <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 flex items-center justify-center font-bold">
+                  <TrendingUp className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm text-[#2C2C2C]">ربط الموقع مع إحصائيات غوغل (Google Analytics 4)</h4>
+                  <p className="text-[11px] text-[#6E6A64]">
+                    تتبع عدد الزوار الفعلي، مشاهدات الروايات، وقراءات الفصول، ونقرات تحميل الكتب PDF
+                  </p>
+                </div>
+              </div>
+
+              {settings.googleAnalyticsId?.trim() ? (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1.5 shrink-0">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>متصل ومفعل</span>
+                </span>
+              ) : (
+                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 shrink-0">
+                  غير مربوط بعد
+                </span>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#2C2C2C] flex items-center justify-between">
+                <span>معرف قياس Google Analytics (Measurement ID):</span>
+                <span className="text-[10px] text-[#6E6A64] font-normal font-mono">يبدأ دائماً بـ G-</span>
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={settings.googleAnalyticsId || ''}
+                  onChange={e => setSettings({ ...settings, googleAnalyticsId: e.target.value.trim() })}
+                  placeholder="مثال: G-XXXXXXXXXX"
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FDFCF8] text-xs font-mono focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
+                />
+                {settings.googleAnalyticsId?.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      seoService.syncGoogleAnalytics(settings.googleAnalyticsId);
+                      seoService.trackEvent('test_ping', { timestamp: new Date().toISOString() });
+                      showToast('تم إرسال إشارة اختبار ناجحة إلى Google Analytics 4!');
+                    }}
+                    className="px-3.5 py-2 bg-[#F7F5EE] hover:bg-[#E5E2D9] text-[#2C2C2C] rounded-xl text-xs font-bold border border-[#E5E2D9] cursor-pointer transition-colors"
+                    title="فحص عمل التتبع وإرسال حدث تجريبي"
+                  >
+                    فحص التتبع
+                  </button>
+                )}
+              </div>
+              <p className="text-[11px] text-[#6E6A64] leading-relaxed">
+                خطوات الربط: ادخل إلى <a href="https://analytics.google.com" target="_blank" rel="noreferrer" className="text-[#4A5D4E] font-bold underline">Google Analytics</a> › اختر <strong>المسؤول (Admin)</strong> › <strong>تدفقات البيانات (Data Streams)</strong> › اضغط على موقع الويب وانسخ <strong>معرّف القياس (Measurement ID)</strong> وضعه هنا ثم اضغط "حفظ وتطبيق".
+              </p>
             </div>
           </div>
 
@@ -674,6 +740,109 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Novel SEO Status Registry (سجل ومراجعة سيو كل رواية ومؤلف) */}
+      <div className="p-6 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E2D9] pb-4">
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-blue-50 border border-blue-200 text-blue-700 flex items-center justify-center font-bold">
+              <Search className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-[#2C2C2C]">
+                فهرس وحالة سيو مؤلفات وروايات الكاتب (Novel SEO Registry)
+              </h3>
+              <p className="text-[11px] text-[#6E6A64]">
+                مراجعة العناوين، الكلمات المفتاحية المستهدفة، وحالة الأرشفة الفردية لكل كتاب على حدة
+              </p>
+            </div>
+          </div>
+
+          <div className="text-xs text-[#6E6A64]">
+            إجمالي الأعمال: <strong className="text-[#2C2C2C]">{novels.length}</strong> · سيو مخصص: <strong className="text-emerald-700">{novels.filter(n => n.seo?.metaTitle || n.seo?.metaDescription).length}</strong>
+          </div>
+        </div>
+
+        {novels.length === 0 ? (
+          <div className="p-8 text-center text-xs text-[#6E6A64]">
+            لا توجد كتب مضافة بعد لعرض حالة السيو الخاصة بها.
+          </div>
+        ) : (
+          <div className="divide-y divide-[#E5E2D9]">
+            {novels.map(novel => {
+              const hasCustomSeo = Boolean(novel.seo?.metaTitle || novel.seo?.metaDescription || novel.seo?.focusKeywords);
+              const titleTag = novel.seo?.metaTitle || `كتاب ${novel.title} | الكاتب أيمن كناني`;
+              const descTag = novel.seo?.metaDescription || novel.synopsis?.slice(0, 140) + '...';
+              const kwList = novel.seo?.focusKeywords ? novel.seo.focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean) : (novel.genres || []);
+
+              return (
+                <div key={novel.id} className="py-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                  <div className="flex items-start gap-3.5 min-w-0 flex-1">
+                    <img
+                      src={novel.coverImage}
+                      alt={novel.title}
+                      className="w-12 h-16 object-cover rounded-lg border border-[#E5E2D9] shrink-0"
+                    />
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="font-amiri font-bold text-sm text-[#2C2C2C] truncate">
+                          {novel.title}
+                        </h4>
+                        {hasCustomSeo ? (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                            <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                            <span>سيو مخصص مكتمل</span>
+                          </span>
+                        ) : (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#6E6A64] border border-[#E5E2D9]">
+                            سيو تلقائي (Default)
+                          </span>
+                        )}
+                        {novel.seo?.noIndex && (
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            مستبعد من الفهرسة (noindex)
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="text-[11px] text-[#1a0dab] font-medium truncate">
+                        Google Title: {titleTag}
+                      </div>
+                      <p className="text-[11px] text-[#6E6A64] line-clamp-1 leading-relaxed">
+                        {descTag}
+                      </p>
+
+                      <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                        <span className="text-[10px] text-[#8E8A83]">الكلمات المستهدفة:</span>
+                        {kwList.slice(0, 5).map((kw, i) => (
+                          <span key={i} className="px-1.5 py-0.5 rounded text-[9px] bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]">
+                            {kw}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedPreviewNovelId(novel.id);
+                        window.scrollTo({ top: 350, behavior: 'smooth' });
+                      }}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 border border-[#E5E2D9] flex items-center gap-1 cursor-pointer transition-colors"
+                      title="معاينة ظهور هذا العمل في محرك Google"
+                    >
+                      <Search className="w-3 h-3" />
+                      <span>معاينة SERP</span>
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

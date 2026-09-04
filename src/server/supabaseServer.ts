@@ -308,6 +308,7 @@ function mapNovelRow(n: any): Novel {
     pdfFileSize: n.pdf_file_size || undefined,
     downloadButtonText: n.download_button_text || undefined,
     tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
+    seo: typeof n.seo === 'object' && n.seo !== null ? n.seo : (typeof n.seo === 'string' ? JSON.parse(n.seo) : undefined),
   };
 }
 

@@ -60,6 +60,7 @@ export interface SeoSettings {
   ogDefaultImage: string;
   enableStructuredData: boolean;
   indexingPolicy: 'all' | 'noindex';
+  googleAnalyticsId?: string; // معرف Google Analytics 4 (مثال: G-XXXXXXXXXX)
 }
 
 export interface DonationSettings {
@@ -106,6 +107,16 @@ export interface ContactMessage {
   read: boolean;
 }
 
+export interface NovelSeoMeta {
+  metaTitle?: string; // عنوان مخصص للظهور في نتائج بحث Google (SEO Meta Title)
+  metaDescription?: string; // وصف تعريفي مخصص للرواية في Google (140-160 حرف)
+  focusKeywords?: string; // الكلمات المفتاحية المستهدفة الخاصة بالرواية (مفصولة بفواصل)
+  canonicalUrl?: string; // الرابط الأساسي المخصص (Canonical URL)
+  ogImage?: string; // صورة مخصصة للمشاركة في شبكات التواصل (WhatsApp, X, Facebook)
+  noIndex?: boolean; // خيار استبعاد الرواية من الفهرسة في محركات البحث
+  authorName?: string; // اسم المؤلف المخصص لوسوم الميتا
+}
+
 export interface Novel {
   id: string;
   title: string;
@@ -129,6 +140,7 @@ export interface Novel {
   pdfFileSize?: string; // e.g. "12.4 MB"
   downloadButtonText?: string; // e.g. "تحميل الكتاب PDF" or custom text
   tableOfContents?: TableOfContentItem[]; // Manual Table of Contents / فهرس محتويات الكتاب
+  seo?: NovelSeoMeta; // إعدادات السيو المخصصة للرواية
 }
 
 export interface TableOfContentItem {

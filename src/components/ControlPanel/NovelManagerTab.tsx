@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Novel, NovelStatus, Genre, Category, TableOfContentItem } from '../../types';
+import { Novel, NovelStatus, Genre, Category, TableOfContentItem, NovelSeoMeta } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { DEFAULT_BOOK_COVER } from '../../data/initialData';
 import { ImageUploadInput } from '../ImageUploadInput';
+import { NovelSeoStudio } from './NovelSeoStudio';
 import {
   BookOpen,
   Plus,
@@ -23,7 +24,8 @@ import {
   ArrowDown,
   FileCode,
   Layers,
-  Bookmark
+  Bookmark,
+  Search
 } from 'lucide-react';
 import { ResetDataModal } from './ResetDataModal';
 
@@ -56,6 +58,15 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   const [pdfFileSize, setPdfFileSize] = useState<string>('');
   const [downloadButtonText, setDownloadButtonText] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Novel SEO states
+  const [seoMetaTitle, setSeoMetaTitle] = useState<string>('');
+  const [seoMetaDescription, setSeoMetaDescription] = useState<string>('');
+  const [seoFocusKeywords, setSeoFocusKeywords] = useState<string>('');
+  const [seoCanonicalUrl, setSeoCanonicalUrl] = useState<string>('');
+  const [seoOgImage, setSeoOgImage] = useState<string>('');
+  const [seoNoIndex, setSeoNoIndex] = useState<boolean>(false);
+  const [seoAuthorName, setSeoAuthorName] = useState<string>('');
 
   // Table of Contents state
   const [tableOfContents, setTableOfContents] = useState<TableOfContentItem[]>([]);
@@ -96,6 +107,14 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setTocItemPage('');
     setTocItemDesc('');
     setTocItemUrl('');
+    // Reset SEO
+    setSeoMetaTitle('');
+    setSeoMetaDescription('');
+    setSeoFocusKeywords('');
+    setSeoCanonicalUrl('');
+    setSeoOgImage('');
+    setSeoNoIndex(false);
+    setSeoAuthorName('');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -120,6 +139,14 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setTocItemPage('');
     setTocItemDesc('');
     setTocItemUrl('');
+    // Populate SEO
+    setSeoMetaTitle(novel.seo?.metaTitle || '');
+    setSeoMetaDescription(novel.seo?.metaDescription || '');
+    setSeoFocusKeywords(novel.seo?.focusKeywords || '');
+    setSeoCanonicalUrl(novel.seo?.canonicalUrl || '');
+    setSeoOgImage(novel.seo?.ogImage || '');
+    setSeoNoIndex(novel.seo?.noIndex || false);
+    setSeoAuthorName(novel.seo?.authorName || '');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -213,6 +240,24 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
 
     const slug = title.toLowerCase().replace(/[^a-z0-9\u0621-\u064A]+/g, '-');
 
+    const novelSeo: NovelSeoMeta | undefined = (
+      seoMetaTitle.trim() ||
+      seoMetaDescription.trim() ||
+      seoFocusKeywords.trim() ||
+      seoCanonicalUrl.trim() ||
+      seoOgImage.trim() ||
+      seoNoIndex ||
+      seoAuthorName.trim()
+    ) ? {
+      metaTitle: seoMetaTitle.trim() || undefined,
+      metaDescription: seoMetaDescription.trim() || undefined,
+      focusKeywords: seoFocusKeywords.trim() || undefined,
+      canonicalUrl: seoCanonicalUrl.trim() || undefined,
+      ogImage: seoOgImage.trim() || undefined,
+      noIndex: seoNoIndex || undefined,
+      authorName: seoAuthorName.trim() || undefined,
+    } : undefined;
+
     if (editingNovelId) {
       storageService.updateNovel(editingNovelId, {
         title: title.trim(),
@@ -230,12 +275,13 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
         tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
+        seo: novelSeo,
       });
       const updated = storageService.getNovels().find(n => n.id === editingNovelId);
       if (updated) {
         supabaseService.saveNovelToSupabase(updated).then(res => {
           if (res) {
-            showToast('تم تحديث بيانات الكتاب ومزامنته سحابياً مع سوباباس!');
+            showToast('تم تحديث بيانات وسيو الكتاب ومزامنته سحابياً بنجاح!');
           } else {
             showToast('تم الحفظ محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
           }
@@ -260,11 +306,12 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
         tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
+        seo: novelSeo,
       });
       if (created) {
         supabaseService.saveNovelToSupabase(created).then(res => {
           if (res) {
-            showToast('تمت إضافة الكتاب ومزامنته بنجاح مع سوباباس!');
+            showToast('تمت إضافة الكتاب وإعدادات السيو ومزامنته بنجاح مع سوباباس!');
           } else {
             showToast('تمت الإضافة ومحفوظ بأمان محلياً، وسيتزامن تلقائياً مع السحابة.');
           }
@@ -827,6 +874,31 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             )}
           </div>
 
+          {/* Novel SEO Studio (إعدادات سيو وفهرسة هذه الرواية) */}
+          <NovelSeoStudio
+            metaTitle={seoMetaTitle}
+            setMetaTitle={setSeoMetaTitle}
+            metaDescription={seoMetaDescription}
+            setMetaDescription={setSeoMetaDescription}
+            focusKeywords={seoFocusKeywords}
+            setFocusKeywords={setSeoFocusKeywords}
+            canonicalUrl={seoCanonicalUrl}
+            setCanonicalUrl={setSeoCanonicalUrl}
+            ogImage={seoOgImage}
+            setOgImage={setSeoOgImage}
+            noIndex={seoNoIndex}
+            setNoIndex={setSeoNoIndex}
+            authorName={seoAuthorName}
+            setAuthorName={setSeoAuthorName}
+            novelTitle={title}
+            novelAuthor={author}
+            novelSynopsis={synopsis}
+            novelGenres={selectedGenres}
+            novelCoverImage={coverImage}
+            novelId={editingNovelId || undefined}
+            pdfDownloadUrl={pdfDownloadUrl}
+          />
+
           <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E2D9]">
             <button
               type="button"
@@ -880,13 +952,29 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
                     className="w-20 h-28 object-cover rounded-xl border border-[#E5E2D9] shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]">
                         {novel.status === 'ONGOING' ? 'مستمر' : 'مكتمل'}
                       </span>
                       {novel.isFeatured && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C88A3B] text-white">
                           مميز
+                        </span>
+                      )}
+                      {novel.seo?.metaTitle || novel.seo?.metaDescription || novel.seo?.focusKeywords ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          <Search className="w-2.5 h-2.5 text-emerald-600" />
+                          <span>سيو مخصص</span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#6E6A64] border border-[#E5E2D9] flex items-center gap-1">
+                          <Search className="w-2.5 h-2.5 text-[#8E8A83]" />
+                          <span>سيو تلقائي</span>
+                        </span>
+                      )}
+                      {novel.seo?.noIndex && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                          noindex
                         </span>
                       )}
                     </div>
@@ -917,6 +1005,20 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E2D9]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleStartEdit(novel);
+                    setTimeout(() => {
+                      document.getElementById('novel-seo-meta-title')?.focus();
+                    }, 150);
+                  }}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#C88A3B] hover:bg-[#C88A3B]/10 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="تعديل وسوم سيو الرواية ومعاينة مظهرها في Google"
+                >
+                  <Search className="w-3.5 h-3.5" />
+                  <span>السيو</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => handleStartEdit(novel)}

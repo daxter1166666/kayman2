@@ -125,6 +125,87 @@ class SeoService {
     } else {
       this.removeJsonLd();
     }
+
+    // --- Google Analytics 4 (GA4) Synchronization ---
+    this.syncGoogleAnalytics();
+    this.trackPageView(currentPath, finalTitle);
+  }
+
+  /**
+   * Initializes or updates Google Analytics 4 (gtag.js) based on SeoSettings.
+   */
+  public syncGoogleAnalytics(forceId?: string): void {
+    if (typeof window === 'undefined' || typeof document === 'undefined') return;
+
+    const seoSettings = storageService.getSeoSettings();
+    const gaId = (forceId ?? seoSettings.googleAnalyticsId)?.trim();
+
+    const existingScript = document.getElementById('ga-gtag-script');
+
+    if (!gaId || !/^G-[A-Z0-9]+$/i.test(gaId)) {
+      if (existingScript && existingScript.parentNode) {
+        existingScript.parentNode.removeChild(existingScript);
+      }
+      return;
+    }
+
+    if (existingScript) {
+      if (existingScript.getAttribute('data-ga-id') === gaId) return;
+      existingScript.remove();
+    }
+
+    const script = document.createElement('script');
+    script.id = 'ga-gtag-script';
+    script.setAttribute('data-ga-id', gaId);
+    script.async = true;
+    script.src = `https://www.googletagmanager.com/gtag/js?id=${gaId}`;
+    document.head.appendChild(script);
+
+    const win = window as any;
+    win.dataLayer = win.dataLayer || [];
+    function gtag(...args: any[]) {
+      win.dataLayer.push(arguments);
+    }
+    win.gtag = win.gtag || gtag;
+    win.gtag('js', new Date());
+    win.gtag('config', gaId, {
+      send_page_view: false,
+      anonymize_ip: true,
+    });
+  }
+
+  /**
+   * Dispatches a page_view event to Google Analytics 4.
+   */
+  public trackPageView(pagePath: string, pageTitle?: string): void {
+    if (typeof window === 'undefined') return;
+    const gtag = (window as any).gtag;
+    if (typeof gtag === 'function') {
+      try {
+        gtag('event', 'page_view', {
+          page_path: pagePath,
+          page_title: pageTitle || document.title,
+          page_location: window.location.href,
+        });
+      } catch (err) {
+        console.warn('GA trackPageView warning:', err);
+      }
+    }
+  }
+
+  /**
+   * Dispatches custom interaction events (e.g. view_novel, download_pdf) to GA4.
+   */
+  public trackEvent(eventName: string, params: Record<string, any> = {}): void {
+    if (typeof window === 'undefined') return;
+    const gtag = (window as any).gtag;
+    if (typeof gtag === 'function') {
+      try {
+        gtag('event', eventName, params);
+      } catch (err) {
+        console.warn('GA trackEvent warning:', err);
+      }
+    }
   }
 
   /**
@@ -237,25 +318,35 @@ class SeoService {
    */
   public buildNovelJsonLd(novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
     const rootUrl = (baseUrl || storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
-    const novelUrl = `${rootUrl}/?novel=${novel.id}`;
+    const novelUrl = novel.seo?.canonicalUrl || `${rootUrl}/?novel=${novel.id}`;
+    const bookTitle = novel.seo?.metaTitle || novel.title;
+    const bookDesc = novel.seo?.metaDescription || novel.synopsis;
+    const shareImage = novel.seo?.ogImage || novel.coverImage;
+
+    const keywordsList = [
+      novel.seo?.focusKeywords,
+      ...(novel.genres || []),
+      ...(novel.tags || [])
+    ].filter(Boolean).join(', ');
 
     const schemas: any[] = [
       {
         '@context': 'https://schema.org',
         '@type': 'Book',
-        'name': novel.title,
+        'name': bookTitle,
+        'headline': bookTitle,
         'url': novelUrl,
-        'image': novel.coverImage,
-        'description': novel.synopsis,
+        'image': shareImage,
+        'description': bookDesc,
         'inLanguage': 'ar',
         'bookFormat': 'https://schema.org/EBook',
         'genre': novel.genres || [],
-        'keywords': (novel.tags || []).join(', '),
+        'keywords': keywordsList,
         'datePublished': novel.createdAt,
         'dateModified': novel.updatedAt,
         'author': {
           '@type': 'Person',
-          'name': novel.author || authorProfile?.name || 'أيمن كناني',
+          'name': novel.seo?.authorName || novel.author || authorProfile?.name || 'أيمن كناني',
           'url': `${rootUrl}/?view=about`
         },
         'publisher': {
@@ -307,6 +398,76 @@ class SeoService {
     }
 
     return schemas;
+  }
+
+  /**
+   * Updates all SEO meta tags specifically for a single Novel, honoring custom novel SEO fields.
+   */
+  public updateHeadForNovel(novel: Novel, authorProfile?: AuthorProfile): void {
+    if (typeof document === 'undefined') return;
+
+    const seoSettings = storageService.getSeoSettings();
+    const branding = storageService.getSiteBranding();
+    const baseUrl = (seoSettings.canonicalBaseUrl || (typeof window !== 'undefined' ? window.location.origin : '')).replace(/\/$/, '');
+
+    // 1. Title Resolution (Custom SEO Meta Title or Template or Default)
+    let pageTitle = novel.seo?.metaTitle?.trim();
+    if (!pageTitle) {
+      if (seoSettings.siteTitleTemplate && seoSettings.siteTitleTemplate.includes('%title%')) {
+        pageTitle = seoSettings.siteTitleTemplate.replace('%title%', `رواية ${novel.title}`);
+      } else {
+        pageTitle = `رواية ${novel.title} - تأليف ${novel.author} | ${branding.siteName || 'أيمن كناني'}`;
+      }
+    }
+
+    // 2. Description Resolution (Custom SEO Meta Description or Synopsis excerpt)
+    const pageDescription = novel.seo?.metaDescription?.trim() ||
+      novel.synopsis?.slice(0, 160) ||
+      `قراءة وتحميل رواية ${novel.title} للكاتب ${novel.author} أونلاين مجاناً بصيغة PDF.`;
+
+    // 3. Keywords Resolution (Custom Focus Keywords + Genres + Tags + Site Keywords)
+    const baseNovelKeywords = [...(novel.genres || []), ...(novel.tags || []), 'تحميل رواية PDF', 'قراءة رواية', novel.title, novel.author];
+    let finalKeywords = baseNovelKeywords;
+    if (novel.seo?.focusKeywords?.trim()) {
+      const customKw = novel.seo.focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean);
+      finalKeywords = [...customKw, ...baseNovelKeywords];
+    }
+
+    // 4. Share Image (Custom OG Image or Novel Cover or Global Fallback)
+    const shareImage = novel.seo?.ogImage?.trim() || novel.coverImage || seoSettings.ogDefaultImage || '';
+
+    // 5. Canonical URL
+    const canonicalUrl = novel.seo?.canonicalUrl?.trim() || `${baseUrl}/?novel=${novel.id}`;
+
+    // 6. Robots / Indexing
+    const robots = novel.seo?.noIndex ? 'noindex, nofollow' : undefined;
+
+    // 7. Schema.org JSON-LD
+    const jsonLd = this.buildNovelJsonLd(novel, authorProfile, baseUrl);
+
+    this.updateHead({
+      title: pageTitle,
+      description: pageDescription,
+      keywords: finalKeywords,
+      ogType: 'book',
+      ogImage: shareImage,
+      url: `/?novel=${novel.id}`,
+      canonicalUrl,
+      author: novel.seo?.authorName?.trim() || novel.author,
+      publishedTime: novel.createdAt,
+      modifiedTime: novel.updatedAt,
+      section: novel.genres?.[0] || 'روايات',
+      tags: novel.tags,
+      robots,
+      structuredData: jsonLd,
+    });
+
+    this.trackEvent('view_novel', {
+      novel_id: novel.id,
+      novel_title: novel.title,
+      novel_author: novel.author,
+      has_custom_seo: Boolean(novel.seo?.metaTitle || novel.seo?.metaDescription),
+    });
   }
 
   /**
@@ -398,17 +559,19 @@ class SeoService {
 
     // 2. Dynamic Novel Pages
     for (const novel of novels) {
-      const novelLoc = `${rootUrl}/?novel=${novel.id}`;
+      if (novel.seo?.noIndex) continue;
+      const novelLoc = novel.seo?.canonicalUrl || `${rootUrl}/?novel=${novel.id}`;
       const novelDate = (novel.updatedAt || novel.createdAt || today).slice(0, 10);
       xml += `  <url>\n`;
       xml += `    <loc>${novelLoc}</loc>\n`;
       xml += `    <lastmod>${novelDate}</lastmod>\n`;
       xml += `    <changefreq>weekly</changefreq>\n`;
       xml += `    <priority>0.9</priority>\n`;
-      if (novel.coverImage) {
+      const shareImg = novel.seo?.ogImage || novel.coverImage;
+      if (shareImg) {
         xml += `    <image:image>\n`;
-        xml += `      <image:loc>${novel.coverImage}</image:loc>\n`;
-        xml += `      <image:title>${novel.title.replace(/&/g, '&amp;')}</image:title>\n`;
+        xml += `      <image:loc>${shareImg}</image:loc>\n`;
+        xml += `      <image:title>${(novel.seo?.metaTitle || novel.title).replace(/&/g, '&amp;')}</image:title>\n`;
         xml += `    </image:image>\n`;
       }
       xml += `  </url>\n`;
@@ -417,6 +580,8 @@ class SeoService {
     // 3. Dynamic Chapter Pages
     for (const chapter of chapters) {
       if (chapter.status === 'DRAFT') continue;
+      const parentNovel = novels.find(n => n.id === chapter.novelId);
+      if (parentNovel?.seo?.noIndex) continue;
       const chLoc = `${rootUrl}/?novel=${chapter.novelId}&amp;chapter=${chapter.id}`;
       const chDate = (chapter.publishedAt || today).slice(0, 10);
       xml += `  <url>\n`;
@@ -434,10 +599,12 @@ class SeoService {
 
 export const seoService = new SeoService();
 export const updateSeo = (options?: SeoMetaOptions) => seoService.updateHead(options);
+export const updateNovelSeo = (novel: Novel, authorProfile?: AuthorProfile) => seoService.updateHeadForNovel(novel, authorProfile);
 
 if (typeof window !== 'undefined') {
   (window as any).seoService = seoService;
   (window as any).updateSeo = updateSeo;
+  (window as any).updateNovelSeo = updateNovelSeo;
 }
 
 export default seoService;

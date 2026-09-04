@@ -262,21 +262,7 @@ export default function App() {
     if (currentView === 'novel_detail' && selectedNovelId) {
       const novel = novels.find(n => n.id === selectedNovelId);
       if (novel) {
-        const jsonLd = seoService.buildNovelJsonLd(novel, authorProfile);
-        seoService.updateHead({
-          title: `رواية ${novel.title} - تأليف ${novel.author}`,
-          description: novel.synopsis?.slice(0, 160) || `قراءة وتحميل رواية ${novel.title} للكاتب ${novel.author} أونلاين بصيغة PDF.`,
-          keywords: [...(novel.genres || []), ...(novel.tags || []), 'تحميل رواية PDF', 'قراءة رواية'],
-          ogType: 'book',
-          ogImage: novel.coverImage,
-          url: `/?novel=${novel.id}`,
-          author: novel.author,
-          publishedTime: novel.createdAt,
-          modifiedTime: novel.updatedAt,
-          section: novel.genres?.[0] || 'روايات',
-          tags: novel.tags,
-          structuredData: jsonLd,
-        });
+        seoService.updateHeadForNovel(novel, authorProfile);
         return;
       }
     }

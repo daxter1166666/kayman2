@@ -438,15 +438,27 @@ export function generateNovelSeoTags({
   metaTags: string;
   jsonLd: string;
 } {
-  const pageTitle = `${novel.title} | بقلم ${novel.author || 'أيمن كناني'}`;
-  const excerpt = cleanExcerpt(novel.synopsis, 180) || `رواية ${novel.title} للمؤلف ${novel.author}. تصفح الفصول واقرأ مباشرة على المنصة الرسمية.`;
-  const canonicalUrl = `${domain}${reqUrl}`;
-  const coverImage = novel.coverImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const pageTitle = novel.seo?.metaTitle?.trim() || `${novel.title} | بقلم ${novel.author || 'أيمن كناني'}`;
+  const excerpt = novel.seo?.metaDescription?.trim() || cleanExcerpt(novel.synopsis, 180) || `رواية ${novel.title} للمؤلف ${novel.author}. تصفح الفصول واقرأ مباشرة على المنصة الرسمية.`;
+  const canonicalUrl = novel.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const coverImage = novel.seo?.ogImage?.trim() || novel.coverImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const authorName = novel.seo?.authorName?.trim() || novel.author || 'أيمن كناني';
+  const robotsDirective = novel.seo?.noIndex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large';
+
+  const keywordsList = [
+    novel.seo?.focusKeywords,
+    ...(novel.genres || []),
+    ...(novel.tags || []),
+    'روايات عربية',
+    'تحميل PDF'
+  ].filter(Boolean).join(', ');
 
   const metaTags = `
-    <!-- Dynamic SSR Meta Tags for Book/Novel -->
+    <!-- Dynamic SSR Meta Tags for Book/Novel (Individual Novel SEO) -->
     <meta name="description" content="${escapeHtml(excerpt)}" />
-    <meta name="author" content="${escapeHtml(novel.author || 'أيمن كناني')}" />
+    <meta name="author" content="${escapeHtml(authorName)}" />
+    <meta name="keywords" content="${escapeHtml(keywordsList)}" />
+    <meta name="robots" content="${escapeHtml(robotsDirective)}" />
     <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
 
     <!-- Open Graph -->
@@ -455,7 +467,9 @@ export function generateNovelSeoTags({
     <meta property="og:description" content="${escapeHtml(excerpt)}" />
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:image" content="${escapeHtml(coverImage)}" />
-    <meta property="book:author" content="${escapeHtml(novel.author || 'أيمن كناني')}" />
+    <meta property="og:image:alt" content="${escapeHtml(novel.title)}" />
+    <meta property="og:locale" content="ar_AR" />
+    <meta property="book:author" content="${escapeHtml(authorName)}" />
 
     <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -468,17 +482,26 @@ export function generateNovelSeoTags({
     '@context': 'https://schema.org',
     '@type': 'Book',
     '@id': `${canonicalUrl}#book`,
-    name: novel.title,
+    name: novel.seo?.metaTitle || novel.title,
+    headline: novel.seo?.metaTitle || novel.title,
     author: {
       '@type': 'Person',
-      name: novel.author,
+      name: authorName,
     },
     description: excerpt,
     image: coverImage,
     genre: novel.genres,
+    keywords: keywordsList,
     inLanguage: 'ar',
     numberOfPages: chapters.length,
     url: canonicalUrl,
+    aggregateRating: {
+      '@type': 'AggregateRating',
+      ratingValue: novel.rating || 5.0,
+      bestRating: 5,
+      worstRating: 1,
+      ratingCount: novel.ratingCount || 1,
+    }
   });
 
   return { title: pageTitle, metaTags, jsonLd };

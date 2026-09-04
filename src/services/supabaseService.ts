@@ -438,6 +438,9 @@ class SupabaseService {
           tableOfContents: Array.isArray(n.table_of_contents) && n.table_of_contents.length > 0
             ? n.table_of_contents
             : (existingLocalNovels.get(n.id)?.tableOfContents || undefined),
+          seo: (n.seo && typeof n.seo === 'object')
+            ? n.seo
+            : (existingLocalNovels.get(n.id)?.seo || undefined),
         };
         cleanNovelsMap.set(mappedNovel.id, mappedNovel);
       }
@@ -542,12 +545,18 @@ class SupabaseService {
         pdf_file_size: novel.pdfFileSize || '',
         download_button_text: novel.downloadButtonText || '',
         table_of_contents: novel.tableOfContents || [],
+        seo: novel.seo || null,
         created_at: novel.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
       let { error } = await client.from('novels').upsert(row);
-      if (error && (error.message?.includes('table_of_contents') || error.code === 'PGRST204')) {
-        delete row.table_of_contents;
+      if (error && (error.message?.includes('table_of_contents') || error.message?.includes('seo') || error.code === 'PGRST204')) {
+        if (error.message?.includes('seo')) {
+          delete row.seo;
+        }
+        if (error.message?.includes('table_of_contents')) {
+          delete row.table_of_contents;
+        }
         const retry = await client.from('novels').upsert(row);
         error = retry.error;
       }
