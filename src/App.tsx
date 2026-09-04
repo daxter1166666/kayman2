@@ -134,9 +134,14 @@ export default function App() {
   useEffect(() => {
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase
-    const doPull = () => {
-      supabaseService.pullAllFromSupabase().then(res => {
+    // Cross-browser cloud synchronization with Supabase (with client-side throttling to prevent socket exhaustion)
+    let lastPullAttempt = 0;
+    const doPull = (force = false) => {
+      const now = Date.now();
+      if (!force && now - lastPullAttempt < 20000) return;
+      lastPullAttempt = now;
+
+      supabaseService.pullAllFromSupabase(force).then(res => {
         if (res) {
           refreshData();
         }
@@ -145,17 +150,21 @@ export default function App() {
       });
     };
 
-    doPull();
+    doPull(true);
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        doPull();
+        doPull(false);
       }
     };
 
+    const handleFocus = () => {
+      doPull(false);
+    };
+
     window.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', doPull);
-    const syncInterval = setInterval(doPull, 45000);
+    window.addEventListener('focus', handleFocus);
+    const syncInterval = setInterval(() => doPull(false), 60000);
 
     // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
@@ -242,7 +251,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', doPull);
+      window.removeEventListener('focus', handleFocus);
       clearInterval(syncInterval);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };

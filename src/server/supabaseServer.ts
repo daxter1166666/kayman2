@@ -18,11 +18,32 @@ const DEFAULT_SUPABASE_KEY =
 
 let supabaseServerClient: SupabaseClient | null = null;
 
+const serverFetchWithTimeout = (url: RequestInfo | URL, options: RequestInit = {}) => {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  if (options.signal) {
+    options.signal.addEventListener('abort', () => {
+      controller.abort();
+      clearTimeout(timeoutId);
+    });
+  }
+  return fetch(url, {
+    ...options,
+    signal: controller.signal,
+  }).finally(() => {
+    clearTimeout(timeoutId);
+  });
+};
+
 export function getServerSupabase(): SupabaseClient {
   if (!supabaseServerClient) {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
     const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-    supabaseServerClient = createClient(url.trim(), key.trim());
+    supabaseServerClient = createClient(url.trim(), key.trim(), {
+      global: {
+        fetch: serverFetchWithTimeout,
+      },
+    });
   }
   return supabaseServerClient;
 }

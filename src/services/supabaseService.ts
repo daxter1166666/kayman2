@@ -14,9 +14,42 @@ import {
 } from '../types';
 import { storageService } from './storageService';
 
+/**
+ * Creates a Supabase client configured with a strict 8-second HTTP timeout.
+ * Prevents requests from hanging indefinitely and exhausting browser connection pools (ERR_CONNECTION_TIMED_OUT).
+ */
+const createSafeSupabaseClient = (url: string, key: string): SupabaseClient => {
+  const fetchWithTimeout = (input: RequestInfo | URL, init: RequestInit = {}) => {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    if (init.signal) {
+      init.signal.addEventListener('abort', () => {
+        controller.abort();
+        clearTimeout(timeoutId);
+      });
+    }
+    return fetch(input, {
+      ...init,
+      signal: controller.signal,
+    }).finally(() => {
+      clearTimeout(timeoutId);
+    });
+  };
+
+  return createClient(url, key, {
+    global: {
+      fetch: fetchWithTimeout,
+    },
+  });
+};
+
 class SupabaseService {
   private client: SupabaseClient | null = null;
   private currentConfig: SupabaseConfig | null = null;
+  private isPulling = false;
+  private lastPullTime = 0;
+  private activePullPromise: Promise<any> | null = null;
+  private isPushingUnsynced = false;
 
   /**
    * Sanitizes and cleans the Supabase project URL.
@@ -64,7 +97,7 @@ class SupabaseService {
         this.currentConfig = null;
         return null;
       }
-      this.client = createClient(sanitizedUrl, sanitizedKey);
+      this.client = createSafeSupabaseClient(sanitizedUrl, sanitizedKey);
       this.currentConfig = { ...config, enabled: true, url: sanitizedUrl, anonKey: sanitizedKey };
       return this.client;
     } catch (e) {
@@ -156,7 +189,52 @@ class SupabaseService {
    * Pulls all published novels, chapters, comments and settings from Supabase into local cache.
    * Enables seamless cross-browser synchronization for all readers and visitors.
    */
-  public async pullAllFromSupabase(): Promise<{
+  /**
+   * Pushes unsynced local records to the server or Supabase sequentially without saturating browser network sockets.
+   */
+  private async pushUnsyncedItems(novels: Novel[], chapters: Chapter[]): Promise<void> {
+    if (this.isPushingUnsynced) return;
+    if (novels.length === 0 && chapters.length === 0) return;
+    this.isPushingUnsynced = true;
+    try {
+      // 1. Try server sync push first if available (with 3s abort timeout)
+      try {
+        if (typeof window !== 'undefined') {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 3000);
+          const resp = await fetch('/api/sync/push', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ novels, chapters }),
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timeoutId));
+          const contentType = resp.headers.get('content-type') || '';
+          if (resp.ok && contentType.includes('application/json')) {
+            const res = await resp.json();
+            if (res?.success) return;
+          }
+        }
+      } catch {
+        // Fallback to sequential saves
+      }
+
+      // 2. Direct Supabase Client: Save one by one sequentially to avoid connection choking
+      for (const novel of novels) {
+        await this.saveNovelToSupabase(novel);
+      }
+      for (const chapter of chapters) {
+        await this.saveChapterToSupabase(chapter);
+      }
+    } finally {
+      this.isPushingUnsynced = false;
+    }
+  }
+
+  /**
+   * Pulls the absolute freshest data from Supabase.
+   * Features built-in concurrency lock (mutex) and 15-second debounce to prevent hanging or connection exhaustion.
+   */
+  public async pullAllFromSupabase(force: boolean = false): Promise<{
     novels: Novel[];
     chapters: Chapter[];
     comments: Comment[];
@@ -168,11 +246,44 @@ class SupabaseService {
     adSettings?: AdSettings;
     seoSettings?: SeoSettings;
   } | null> {
-    // 0. Primary High-Speed Path: Full-Stack Server Sync API (Runs in Node.js, zero CORS, completely unblocked)
+    const now = Date.now();
+    if (!force && this.lastPullTime && (now - this.lastPullTime < 15000)) {
+      return null;
+    }
+    if (this.isPulling && this.activePullPromise) {
+      return this.activePullPromise;
+    }
+
+    this.isPulling = true;
+    this.activePullPromise = this.internalPullAllFromSupabase().finally(() => {
+      this.isPulling = false;
+      this.activePullPromise = null;
+      this.lastPullTime = Date.now();
+    });
+
+    return this.activePullPromise;
+  }
+
+  private async internalPullAllFromSupabase(): Promise<{
+    novels: Novel[];
+    chapters: Chapter[];
+    comments: Comment[];
+    authorProfile?: AuthorProfile;
+    siteBranding?: SiteBranding;
+    donationSettings?: DonationSettings;
+    categories?: Category[];
+    legalDocuments?: LegalDocuments;
+    adSettings?: AdSettings;
+    seoSettings?: SeoSettings;
+  } | null> {
+    // 0. Primary High-Speed Path: Full-Stack Server Sync API (Runs in Node.js, zero CORS, with 2.5s timeout)
     try {
       if (typeof window !== 'undefined') {
-        const resp = await fetch('/api/sync');
-        if (resp.ok) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const resp = await fetch('/api/sync', { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.ok && contentType.includes('application/json')) {
           const syncData = await resp.json();
           if (syncData.success) {
             // Merge with local novels to ensure newly added novels are NEVER dropped
@@ -225,13 +336,9 @@ class SupabaseService {
             const mergedChapters = Array.from(chaptersMap.values());
             storageService.saveChapters(mergedChapters);
 
-            // If any unsynced items were found locally, push them to server!
+            // If any unsynced items were found locally, safely push them!
             if (unsyncedNovels.length > 0 || unsyncedChapters.length > 0) {
-              fetch('/api/sync/push', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ novels: unsyncedNovels, chapters: unsyncedChapters }),
-              }).catch(e => console.warn('Background sync push warning:', e));
+              this.pushUnsyncedItems(unsyncedNovels, unsyncedChapters).catch(e => console.warn('Background sync push warning:', e));
             }
 
             if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
@@ -444,13 +551,6 @@ class SupabaseService {
       const mergedNovels = Array.from(remoteNovelsMap.values());
       storageService.saveNovels(mergedNovels);
 
-      // Background push any local novels not yet in Supabase
-      if (unsyncedLocalNovels.length > 0) {
-        unsyncedLocalNovels.forEach(un => {
-          this.saveNovelToSupabase(un).catch(e => console.warn('Background sync novel to Supabase:', e));
-        });
-      }
-
       // 2. Chapters sync: Bidirectional non-destructive merge
       const enrichedRemoteChapters: Chapter[] = chapters.map(rc => {
         const extra = chaptersMetaMap[rc.id];
@@ -488,9 +588,10 @@ class SupabaseService {
       const mergedChapters = Array.from(remoteChaptersMap.values());
       storageService.saveChapters(mergedChapters);
 
-      if (unsyncedLocalChapters.length > 0) {
-        unsyncedLocalChapters.forEach(uc => {
-          this.saveChapterToSupabase(uc).catch(e => console.warn('Background sync chapter to Supabase:', e));
+      // Push unsynced records safely in sequential queue to prevent ERR_CONNECTION_TIMED_OUT
+      if (unsyncedLocalNovels.length > 0 || unsyncedLocalChapters.length > 0) {
+        this.pushUnsyncedItems(unsyncedLocalNovels, unsyncedLocalChapters).catch(e => {
+          console.warn('Background sync items note:', e);
         });
       }
 
@@ -707,23 +808,27 @@ class SupabaseService {
   public async saveNovelToSupabase(novel: Novel): Promise<boolean> {
     storageService.unmarkNovelDeleted(novel.id);
 
-    // 1. Primary Full-Stack Path: Call server API (Express + Node.js - 100% reliable, zero CORS, no browser blocking)
+    // 1. Primary Full-Stack Path: Call server API (with 2s timeout and json check)
     try {
       if (typeof window !== 'undefined') {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         const resp = await fetch('/api/novels', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(novel),
-        });
-        if (resp.ok) {
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.ok && contentType.includes('application/json')) {
           const body = await resp.json();
-          if (body.success) {
+          if (body?.success) {
             return true;
           }
         }
       }
     } catch (apiErr) {
-      console.warn('/api/novels server save failed, trying direct Supabase client fallback:', apiErr);
+      // Fallback to direct Supabase client
     }
 
     const client = this.getClient();
@@ -826,19 +931,23 @@ class SupabaseService {
   public async deleteNovelFromSupabase(novelId: string): Promise<boolean> {
     storageService.markNovelDeleted(novelId);
 
-    // 1. Primary Full-Stack Path: Server API
+    // 1. Primary Full-Stack Path: Server API (with 2s timeout and json check)
     try {
       if (typeof window !== 'undefined') {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         const resp = await fetch(`/api/novels/${encodeURIComponent(novelId)}`, {
           method: 'DELETE',
-        });
-        if (resp.ok) {
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.ok && contentType.includes('application/json')) {
           const body = await resp.json();
-          if (body.success) return true;
+          if (body?.success) return true;
         }
       }
     } catch (apiErr) {
-      console.warn('/api/novels DELETE failed, trying direct Supabase client fallback:', apiErr);
+      // Fallback to direct client
     }
 
     const client = this.getClient();
@@ -899,21 +1008,25 @@ class SupabaseService {
   public async saveChapterToSupabase(chapter: Chapter): Promise<boolean> {
     storageService.unmarkChapterDeleted(chapter.id);
 
-    // 1. Primary Full-Stack Path: Server API
+    // 1. Primary Full-Stack Path: Server API (with 2s timeout and json check)
     try {
       if (typeof window !== 'undefined') {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2000);
         const resp = await fetch('/api/chapters', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(chapter),
-        });
-        if (resp.ok) {
+          signal: controller.signal,
+        }).finally(() => clearTimeout(timeoutId));
+        const contentType = resp.headers.get('content-type') || '';
+        if (resp.ok && contentType.includes('application/json')) {
           const body = await resp.json();
-          if (body.success) return true;
+          if (body?.success) return true;
         }
       }
     } catch (apiErr) {
-      console.warn('/api/chapters POST failed, trying direct Supabase client fallback:', apiErr);
+      // Fallback to direct client
     }
 
     const client = this.getClient();
@@ -1206,7 +1319,7 @@ class SupabaseService {
       const cleanUrl = this.cleanProjectUrl(url);
       const cleanKey = anonKey.trim();
 
-      const tempClient = createClient(cleanUrl, cleanKey);
+      const tempClient = createSafeSupabaseClient(cleanUrl, cleanKey);
       // Attempt a lightweight ping query on the 'novels' table
       const { data, error } = await tempClient.from('novels').select('id').limit(1);
 
@@ -1285,8 +1398,8 @@ class SupabaseService {
       return { success: false, message: 'يرجى إدخال رابط المشروع (Project URL) والمفتاح العام (anon key) أولاً.' };
     }
 
-    // Direct client creation with clean credentials
-    const client = createClient(cleanUrl, cleanKey);
+    // Direct client creation with clean credentials and strict timeout protection
+    const client = createSafeSupabaseClient(cleanUrl, cleanKey);
     this.client = client;
     this.currentConfig = { ...config, enabled: true, url: cleanUrl, anonKey: cleanKey };
 
