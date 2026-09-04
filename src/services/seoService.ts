@@ -471,6 +471,68 @@ class SeoService {
   }
 
   /**
+   * Updates head tags specifically for individual chapter view with custom Chapter-level SEO support.
+   */
+  public updateHeadForChapter(chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile): void {
+    const seoSettings = storageService.getSeoSettings();
+    const baseUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+
+    // 1. Chapter Title Tag (Custom or Template or Fallback)
+    const customTitle = chapter.seo?.metaTitle?.trim();
+    const pageTitle = customTitle || `${chapter.title} - رواية ${novel.title} | ${novel.author || 'أيمن كناني'}`;
+
+    // 2. Chapter Meta Description Tag (Custom with highlights/events, or clean excerpt)
+    const customDesc = chapter.seo?.metaDescription?.trim();
+    const cleanExcerpt = chapter.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) || '';
+    const pageDescription = customDesc || `قراءة ${chapter.title} من رواية ${novel.title} للكاتب ${novel.author || 'أيمن كناني'}. ${cleanExcerpt}`;
+
+    // 3. Keywords (Chapter focus keywords + Novel keywords)
+    const baseKeywords = [chapter.title, novel.title, novel.author || 'أيمن كناني', ...(novel.genres || [])];
+    let finalKeywords = baseKeywords;
+    if (chapter.seo?.focusKeywords?.trim()) {
+      const customKws = chapter.seo.focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean);
+      finalKeywords = [...customKws, ...baseKeywords];
+    }
+
+    // 4. Share Image (Chapter specific image or Novel banner/cover)
+    const shareImage = chapter.seo?.ogImage?.trim() || novel.bannerImage || novel.coverImage || seoSettings.ogDefaultImage || '';
+
+    // 5. Canonical URL
+    const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/?novel=${novel.id}&chapter=${chapter.id}`;
+
+    // 6. Robots / Indexing
+    const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
+    const robots = isNoIndex ? 'noindex, nofollow' : undefined;
+
+    // 7. Schema.org JSON-LD
+    const jsonLd = this.buildChapterJsonLd(chapter, novel, authorProfile, baseUrl);
+
+    this.updateHead({
+      title: pageTitle,
+      description: pageDescription,
+      keywords: finalKeywords,
+      ogType: 'article',
+      ogImage: shareImage,
+      url: `/?novel=${novel.id}&chapter=${chapter.id}`,
+      canonicalUrl,
+      author: novel.author || authorProfile?.name || 'أيمن كناني',
+      publishedTime: chapter.publishedAt,
+      section: novel.title,
+      robots,
+      structuredData: jsonLd,
+    });
+
+    this.trackEvent('view_chapter', {
+      novel_id: novel.id,
+      novel_title: novel.title,
+      chapter_id: chapter.id,
+      chapter_number: chapter.chapterNumber,
+      chapter_title: chapter.title,
+      has_custom_seo: Boolean(chapter.seo?.metaTitle || chapter.seo?.metaDescription),
+    });
+  }
+
+  /**
    * Generates Schema.org Article/Chapter JSON-LD for individual chapters.
    */
   public buildChapterJsonLd(chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
@@ -580,6 +642,7 @@ class SeoService {
     // 3. Dynamic Chapter Pages
     for (const chapter of chapters) {
       if (chapter.status === 'DRAFT') continue;
+      if (chapter.seo?.noIndex) continue;
       const parentNovel = novels.find(n => n.id === chapter.novelId);
       if (parentNovel?.seo?.noIndex) continue;
       const chLoc = `${rootUrl}/?novel=${chapter.novelId}&amp;chapter=${chapter.id}`;
@@ -589,6 +652,13 @@ class SeoService {
       xml += `    <lastmod>${chDate}</lastmod>\n`;
       xml += `    <changefreq>monthly</changefreq>\n`;
       xml += `    <priority>0.8</priority>\n`;
+      const chImg = chapter.seo?.ogImage || parentNovel?.bannerImage || parentNovel?.coverImage;
+      if (chImg) {
+        xml += `    <image:image>\n`;
+        xml += `      <image:loc>${chImg}</image:loc>\n`;
+        xml += `      <image:title>${(chapter.seo?.metaTitle || chapter.title).replace(/&/g, '&amp;')}</image:title>\n`;
+        xml += `    </image:image>\n`;
+      }
       xml += `  </url>\n`;
     }
 

@@ -1,4 +1,4 @@
-import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
+import { Novel, Chapter, ChapterSeoMeta, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
 
 const KEYS = {
@@ -12,6 +12,7 @@ const KEYS = {
   USER_LIKED_CHAPTERS: 'ayman_user_liked_chapters_v2',
   USER_LIKED_COMMENTS: 'ayman_user_liked_comments_v2',
   USER_RATINGS: 'ayman_user_ratings_v2',
+  USER_CHAPTER_RATINGS: 'ayman_user_chapter_ratings_v1',
   ADMIN_AUTH: 'ayman_admin_session_v4',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
   CATEGORIES: 'ayman_categories_v2',
@@ -176,6 +177,7 @@ export const storageService = {
     content: string;
     authorNote?: string;
     status?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
+    seo?: ChapterSeoMeta;
   }): Chapter {
     const chapters = this.getChapters();
     const novelChapters = chapters.filter(c => c.novelId === data.novelId);
@@ -196,8 +198,11 @@ export const storageService = {
       publishedAt: new Date().toISOString(),
       views: 0,
       likes: 0,
+      rating: 5.0,
+      ratingCount: 0,
       wordCount: words,
       status: data.status || 'PUBLISHED',
+      seo: data.seo,
     };
 
     chapters.push(newChapter);
@@ -504,6 +509,61 @@ export const storageService = {
       updatedAt: new Date().toISOString(),
     };
     this.saveNovels(novels);
+
+    return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
+  },
+
+  // --- Chapter Star Ratings ---
+  getUserChapterRatings(): Record<string, number> {
+    return getStored<Record<string, number>>(KEYS.USER_CHAPTER_RATINGS, {});
+  },
+
+  getUserRatingForChapter(chapterId: string): number | null {
+    const ratings = this.getUserChapterRatings();
+    return ratings[chapterId] || null;
+  },
+
+  rateChapter(chapterId: string, score: number): { rating: number; ratingCount: number; userRating: number } {
+    const clampedScore = Math.max(1, Math.min(5, score));
+    const userRatings = this.getUserChapterRatings();
+    const previousUserRating = userRatings[chapterId] || null;
+
+    const chapters = this.getChapters();
+    const chapterIndex = chapters.findIndex(c => c.id === chapterId);
+
+    if (chapterIndex === -1) {
+      return { rating: clampedScore, ratingCount: 1, userRating: clampedScore };
+    }
+
+    const chapter = chapters[chapterIndex];
+    const currentRating = typeof chapter.rating === 'number' && chapter.rating > 0 ? chapter.rating : 5.0;
+    const currentCount = typeof chapter.ratingCount === 'number' ? chapter.ratingCount : 0;
+
+    let newRating = currentRating;
+    let newRatingCount = currentCount;
+
+    if (previousUserRating !== null) {
+      // User changed their previous rating for this chapter
+      const totalPoints = (currentRating * (currentCount || 1)) - previousUserRating + clampedScore;
+      newRating = Number((totalPoints / Math.max(1, currentCount)).toFixed(1));
+    } else {
+      // New rating from user for this chapter
+      const totalPoints = currentCount === 0 ? clampedScore : (currentRating * currentCount) + clampedScore;
+      newRatingCount = currentCount + 1;
+      newRating = Number((totalPoints / newRatingCount).toFixed(1));
+    }
+
+    // Save user vote in local storage
+    userRatings[chapterId] = clampedScore;
+    setStored(KEYS.USER_CHAPTER_RATINGS, userRatings);
+
+    // Save updated chapter
+    chapters[chapterIndex] = {
+      ...chapter,
+      rating: newRating,
+      ratingCount: newRatingCount,
+    };
+    this.saveChapters(chapters);
 
     return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
   },

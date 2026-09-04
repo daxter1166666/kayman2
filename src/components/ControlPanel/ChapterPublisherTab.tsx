@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Novel, Chapter, ChapterStatus } from '../../types';
+import { Novel, Chapter, ChapterStatus, ChapterSeoMeta } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
+import { ChapterSeoStudio } from './ChapterSeoStudio';
 import {
   FilePlus,
   Edit3,
@@ -15,7 +16,11 @@ import {
   FileText,
   Undo2,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Search,
+  ChevronDown,
+  ChevronUp,
+  Globe
 } from 'lucide-react';
 
 interface ChapterPublisherTabProps {
@@ -51,6 +56,15 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
   const [chapterToDelete, setChapterToDelete] = useState<{ id: string; title: string } | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
+  // Chapter-Level SEO State
+  const [seoMetaTitle, setSeoMetaTitle] = useState<string>('');
+  const [seoMetaDescription, setSeoMetaDescription] = useState<string>('');
+  const [seoFocusKeywords, setSeoFocusKeywords] = useState<string>('');
+  const [seoCanonicalUrl, setSeoCanonicalUrl] = useState<string>('');
+  const [seoOgImage, setSeoOgImage] = useState<string>('');
+  const [seoNoIndex, setSeoNoIndex] = useState<boolean>(false);
+  const [isSeoStudioOpen, setIsSeoStudioOpen] = useState<boolean>(false);
+
   // Filtered chapters for current novel
   const currentNovelChapters = chapters
     .filter(c => c.novelId === selectedNovelId)
@@ -60,6 +74,9 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
   const nextChapterNumber = currentNovelChapters.length > 0
     ? Math.max(...currentNovelChapters.map(c => c.chapterNumber)) + 1
     : 1;
+
+  // Selected novel object
+  const currentNovel = novels.find(n => n.id === selectedNovelId);
 
   // Live metrics
   const plainText = content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
@@ -79,9 +96,16 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     setAuthorNote('');
     setStatus('PUBLISHED');
     setActiveView('editor');
+    setSeoMetaTitle('');
+    setSeoMetaDescription('');
+    setSeoFocusKeywords('');
+    setSeoCanonicalUrl('');
+    setSeoOgImage('');
+    setSeoNoIndex(false);
+    setIsSeoStudioOpen(false);
   };
 
-  const handleEditChapter = (ch: Chapter) => {
+  const handleEditChapter = (ch: Chapter, openSeo: boolean = false) => {
     setEditingChapterId(ch.id);
     setSelectedNovelId(ch.novelId);
     setTitle(ch.title);
@@ -89,6 +113,13 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     setAuthorNote(ch.authorNote || '');
     setStatus(ch.status);
     setActiveView('editor');
+    setSeoMetaTitle(ch.seo?.metaTitle || '');
+    setSeoMetaDescription(ch.seo?.metaDescription || '');
+    setSeoFocusKeywords(ch.seo?.focusKeywords || '');
+    setSeoCanonicalUrl(ch.seo?.canonicalUrl || '');
+    setSeoOgImage(ch.seo?.ogImage || '');
+    setSeoNoIndex(Boolean(ch.seo?.noIndex));
+    setIsSeoStudioOpen(openSeo || Boolean(ch.seo?.metaTitle || ch.seo?.metaDescription));
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -140,6 +171,23 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       return;
     }
 
+    const hasCustomSeo = Boolean(
+      seoMetaTitle.trim() ||
+      seoMetaDescription.trim() ||
+      seoFocusKeywords.trim() ||
+      seoCanonicalUrl.trim() ||
+      seoOgImage.trim() ||
+      seoNoIndex
+    );
+    const seoData: ChapterSeoMeta | undefined = hasCustomSeo ? {
+      metaTitle: seoMetaTitle.trim() || undefined,
+      metaDescription: seoMetaDescription.trim() || undefined,
+      focusKeywords: seoFocusKeywords.trim() || undefined,
+      canonicalUrl: seoCanonicalUrl.trim() || undefined,
+      ogImage: seoOgImage.trim() || undefined,
+      noIndex: seoNoIndex,
+    } : undefined;
+
     if (editingChapterId) {
       // Update existing
       storageService.updateChapter(editingChapterId, {
@@ -147,18 +195,19 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
         content: content.trim(),
         authorNote: authorNote.trim() || undefined,
         status,
+        seo: seoData,
       });
       const updatedCh = storageService.getChapters().find(c => c.id === editingChapterId);
       if (updatedCh) {
         supabaseService.saveChapterToSupabase(updatedCh).then(res => {
           if (res) {
-            showToast('تم تحديث بيانات الفصل ومزامنته سحابياً مع سوباباس!');
+            showToast('تم تحديث بيانات وسيو الفصل ومزامنته سحابياً مع سوباباس!');
           } else {
             showToast('تم التحديث محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
           }
         });
       } else {
-        showToast('تم تحديث وحفظ تعديلات الفصل بنجاح!');
+        showToast('تم تحديث وحفظ تعديلات الفصل وسيو محركات البحث بنجاح!');
       }
     } else {
       // Create new
@@ -168,11 +217,12 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
         content: content.trim(),
         authorNote: authorNote.trim() || undefined,
         status,
+        seo: seoData,
       });
       if (newlyAdded) {
         supabaseService.saveChapterToSupabase(newlyAdded).then(res => {
           if (res) {
-            showToast(`تم نشر الفصل ${nextChapterNumber} ومزامنته مع سوباباس!`);
+            showToast(`تم نشر الفصل ${nextChapterNumber} مع إعدادات السيو ومزامنته مع سوباباس!`);
           } else {
             showToast(`تم نشر الفصل ${nextChapterNumber} ومحفوظ بأمان محلياً وسيتزامن تلقائياً.`);
           }
@@ -388,6 +438,80 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                 minHeight="380px"
               />
             </div>
+
+            {/* Chapter-Level SEO Studio Section */}
+            <div className="pt-2 border-t border-[#E5E2D9]">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] mb-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-9 h-9 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center shrink-0">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-xs sm:text-sm text-[#2C2C2C]">
+                        سيو وأرشفة هذا الفصل في Google (Chapter-Level SEO)
+                      </span>
+                      {seoNoIndex ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          مستبعد NoIndex
+                        </span>
+                      ) : (seoMetaTitle.trim() || seoMetaDescription.trim()) ? (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>مخصص ونشط</span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]">
+                          تلقائي
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-[#6E6A64] mt-0.5">
+                      تخصيص عنوان ميتا ووصف مستقل وكلمات مفتاحية لأحداث هذا الفصل لجلب قراء مستهدفين
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsSeoStudioOpen(!isSeoStudioOpen)}
+                  className="px-3.5 py-1.5 rounded-xl bg-[#FFFFFF] hover:bg-[#FDFCF8] text-[#2C2C2C] border border-[#E5E2D9] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+                >
+                  <Search className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                  <span>{isSeoStudioOpen ? 'إخفاء استوديو السيو' : 'تخصيص السيو والمعاينة'}</span>
+                  {isSeoStudioOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+
+              {isSeoStudioOpen && (
+                <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+                  <ChapterSeoStudio
+                    metaTitle={seoMetaTitle}
+                    setMetaTitle={setSeoMetaTitle}
+                    metaDescription={seoMetaDescription}
+                    setMetaDescription={setSeoMetaDescription}
+                    focusKeywords={seoFocusKeywords}
+                    setFocusKeywords={setSeoFocusKeywords}
+                    canonicalUrl={seoCanonicalUrl}
+                    setCanonicalUrl={setSeoCanonicalUrl}
+                    ogImage={seoOgImage}
+                    setOgImage={setSeoOgImage}
+                    noIndex={seoNoIndex}
+                    setNoIndex={setSeoNoIndex}
+                    chapterNumber={editingChapterId ? (chapters.find(c => c.id === editingChapterId)?.chapterNumber || 1) : nextChapterNumber}
+                    chapterTitle={title}
+                    chapterContent={content}
+                    novelTitle={currentNovel?.title || ''}
+                    novelAuthor={currentNovel?.author || 'أيمن كناني'}
+                    novelSlug={currentNovel?.slug}
+                    novelCoverImage={currentNovel?.coverImage}
+                    novelBannerImage={currentNovel?.bannerImage}
+                    novelId={selectedNovelId}
+                    chapterId={editingChapterId || undefined}
+                  />
+                </div>
+              )}
+            </div>
           </>
         ) : (
           /* Live Reader Preview Pane */
@@ -488,6 +612,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                   <th className="py-2.5 px-3">#</th>
                   <th className="py-2.5 px-3">العنوان</th>
                   <th className="py-2.5 px-3">الحالة</th>
+                  <th className="py-2.5 px-3">سيو Google</th>
                   <th className="py-2.5 px-3">الكلمات</th>
                   <th className="py-2.5 px-3">المشاهدات</th>
                   <th className="py-2.5 px-3">الإعجابات</th>
@@ -508,6 +633,25 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                         {ch.status === 'PUBLISHED' ? 'منشور' : ch.status === 'DRAFT' ? 'مسودة' : 'مجدول'}
                       </span>
                     </td>
+                    <td className="py-3 px-3">
+                      {ch.seo?.noIndex ? (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          مستبعد
+                        </span>
+                      ) : (ch.seo?.metaTitle || ch.seo?.metaDescription) ? (
+                        <span
+                          className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1 w-fit"
+                          title={ch.seo.metaTitle || ch.seo.metaDescription}
+                        >
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          <span>سيو مخصص</span>
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#F7F5EE] text-[#6E6A64] border border-[#E5E2D9]">
+                          تلقائي
+                        </span>
+                      )}
+                    </td>
                     <td className="py-3 px-3 font-mono text-[#6E6A64]">
                       {ch.wordCount.toLocaleString()}
                     </td>
@@ -517,11 +661,20 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                     <td className="py-3 px-3 font-mono text-rose-500 font-bold">
                       {ch.likes.toLocaleString()}
                     </td>
-                    <td className="py-3 px-3 text-left space-x-2 space-x-reverse">
+                    <td className="py-3 px-3 text-left space-x-1.5 space-x-reverse">
+                      <button
+                        type="button"
+                        id={`seo-btn-${ch.id}`}
+                        onClick={() => handleEditChapter(ch, true)}
+                        className="px-2 py-1 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] border border-[#4A5D4E]/30 rounded-lg text-xs transition-colors cursor-pointer"
+                        title="تخصيص سيو هذا الفصل ومحركات البحث"
+                      >
+                        <Search className="w-3.5 h-3.5 inline" />
+                      </button>
                       <button
                         type="button"
                         id={`edit-btn-${ch.id}`}
-                        onClick={() => handleEditChapter(ch)}
+                        onClick={() => handleEditChapter(ch, false)}
                         className="px-2.5 py-1 bg-[#F7F5EE] hover:bg-[#E5E2D9] text-[#2C2C2C] border border-[#E5E2D9] rounded-lg text-xs transition-colors cursor-pointer"
                         title="تعديل الفصل"
                       >

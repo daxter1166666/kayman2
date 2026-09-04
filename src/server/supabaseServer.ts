@@ -326,5 +326,6 @@ function mapChapterRow(c: any): Chapter {
     likes: Number(c.likes || 0),
     wordCount: Number(c.word_count || (c.content ? c.content.trim().split(/\s+/).length : 0)),
     status: c.status || 'PUBLISHED',
+    seo: typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
   };
 }

@@ -3,6 +3,7 @@ import { Novel, Chapter, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
+import { ChapterShareModal } from './ChapterShareModal';
 import {
   ArrowRight,
   BookOpen,
@@ -45,6 +46,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [currentRating, setCurrentRating] = useState<number>(novel.rating);
   const [ratingCount, setRatingCount] = useState<number>(novel.ratingCount);
+  const [sharingChapter, setSharingChapter] = useState<Chapter | null>(null);
   const isNovelBookmarked = storageService.isBookmarked(novel.id);
 
   const handleRatingUpdated = (newRating: number, newCount: number) => {
@@ -463,11 +465,29 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                           <Heart className="w-3 h-3 text-rose-500" />
                           <span>{ch.likes} إعجاب</span>
                         </span>
+                        <span>·</span>
+                        <span className="flex items-center gap-1 text-[#C88A3B]">
+                          <Star className="w-3 h-3 fill-[#C88A3B]" />
+                          <span className="font-mono font-bold">{ch.rating ? ch.rating.toFixed(1) : '5.0'}</span>
+                          {ch.ratingCount ? <span className="opacity-75">({ch.ratingCount})</span> : null}
+                        </span>
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      id={`chapter-list-share-btn-${ch.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSharingChapter(ch);
+                      }}
+                      className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#C88A3B]/50 hover:bg-[#C88A3B]/10 text-[#6E6A64] hover:text-[#C88A3B] transition-all cursor-pointer"
+                      title="مشاركة هذا الفصل"
+                    >
+                      <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
                     <span className="text-xs font-bold text-[#4A5D4E] group-hover:-translate-x-1 transition-transform flex items-center gap-1">
                       <span>قراءة</span>
                       <ChevronLeft className="w-4 h-4" />
@@ -543,7 +563,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
           <div className="p-5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs">
             <h4 className="font-amiri font-bold text-base text-[#2C2C2C] mb-2 flex items-center gap-1.5">
               <Sparkles className="w-4 h-4 text-[#4A5D4E]" />
-              <span>ميزات تجربة القراءة في نوفيليا</span>
+              <span>ميزات تجربة القراءة في المنصة الرسمية</span>
             </h4>
             <p className="text-xs text-[#6E6A64] leading-relaxed mb-3">
               توفر منصة نوفيليا بيئة قراءة أدبية غامرة تحاكي الورق الطبيعي، مع خطوط عربية تراثية وحديثة وتخصيص كامل لحجم الخط ومسافات الأسطر.
@@ -565,6 +585,16 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Chapter Share Modal Dialog */}
+      {sharingChapter && (
+        <ChapterShareModal
+          isOpen={Boolean(sharingChapter)}
+          onClose={() => setSharingChapter(null)}
+          chapter={sharingChapter}
+          novel={novel}
+        />
+      )}
     </div>
   );
 };

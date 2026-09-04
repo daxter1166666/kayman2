@@ -225,8 +225,11 @@ class SupabaseService {
         publishedAt: c.published_at || new Date().toISOString(),
         views: Number(c.views) || 0,
         likes: Number(c.likes) || 0,
+        rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
+        ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
         wordCount: Number(c.word_count) || 0,
         status: c.status || 'PUBLISHED',
+        seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
       }));
 
       // 3. Fetch Comments
@@ -463,8 +466,11 @@ class SupabaseService {
           publishedAt: c.published_at || new Date().toISOString(),
           views: Number(c.views) || 0,
           likes: Number(c.likes) || 0,
+          rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
+          ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
           wordCount: Number(c.word_count) || 0,
           status: c.status || 'PUBLISHED',
+          seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
         };
         cleanChaptersMap.set(mappedChapter.id, mappedChapter);
       }
@@ -617,7 +623,7 @@ class SupabaseService {
     const client = this.getClient();
     if (!client) return false;
     try {
-      const row = {
+      const row: Record<string, any> = {
         id: chapter.id,
         novel_id: chapter.novelId,
         chapter_number: chapter.chapterNumber,
@@ -630,8 +636,14 @@ class SupabaseService {
         likes: chapter.likes || 0,
         word_count: chapter.wordCount || 0,
         status: chapter.status || 'PUBLISHED',
+        seo: chapter.seo || null,
       };
-      const { error } = await client.from('chapters').upsert(row);
+      let { error } = await client.from('chapters').upsert(row);
+      if (error && (error.message?.includes('seo') || error.code === 'PGRST204')) {
+        delete row.seo;
+        const retry = await client.from('chapters').upsert(row);
+        error = retry.error;
+      }
       if (error) {
         console.error('Supabase saveChapterToSupabase error:', error);
         return false;

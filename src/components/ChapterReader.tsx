@@ -3,6 +3,8 @@ import { Novel, Chapter, Comment, ReaderSettings, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
+import { ChapterRatingWidget } from './ChapterRatingWidget';
+import { ChapterShareModal } from './ChapterShareModal';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight,
@@ -29,6 +31,7 @@ import {
   Copy,
   Download,
   Check,
+  Star,
 } from 'lucide-react';
 
 interface ChapterReaderProps {
@@ -69,6 +72,9 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   // Reading Progress state
   const [readingProgress, setReadingProgress] = useState<number>(0);
   const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [chapterRating, setChapterRating] = useState<number>(chapter.rating || 5.0);
+  const [chapterRatingCount, setChapterRatingCount] = useState<number>(chapter.ratingCount || 0);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Initialize chapter state on mount or change
@@ -80,6 +86,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     setIsLiked(storageService.isChapterLikedByUser(chapter.id));
     setLikesCount(chapter.likes);
     setIsBookmarked(storageService.isBookmarked(novel.id, chapter.id));
+
+    // Update chapter rating state
+    const freshChapter = storageService.getChapterById(chapter.id);
+    setChapterRating(typeof freshChapter?.rating === 'number' ? freshChapter.rating : (chapter.rating || 5.0));
+    setChapterRatingCount(typeof freshChapter?.ratingCount === 'number' ? freshChapter.ratingCount : (chapter.ratingCount || 0));
 
     // Load comments
     setComments(storageService.getComments(chapter.id));
@@ -433,20 +444,16 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
-            {/* Share button (desktop only in header) */}
+            {/* Share button (header - opens rich share modal) */}
             <button
               type="button"
               id="reader-share-btn"
-              onClick={handleShare}
-              className={`hidden sm:flex p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all relative cursor-pointer`}
-              title="مشاركة رابط الفصل"
+              onClick={() => setIsShareModalOpen(true)}
+              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer text-[#4A5D4E]`}
+              title="مشاركة الفصل عبر واتساب، تليجرام ومنصات التواصل"
             >
               <Share2 className="w-4 h-4" />
-              {copiedNotification && (
-                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-[#4A5D4E] text-[#FDFCF8] text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap">
-                  تم نسخ الرابط!
-                </span>
-              )}
+              <span className="hidden md:inline">مشاركة</span>
             </button>
 
             {/* Customization Settings Drawer Toggle */}
@@ -739,11 +746,28 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               <span>{readingTimeMinutes} دقائق قراءة تقريبية ({chapter.wordCount} كلمة)</span>
             </span>
             <span>·</span>
+            <span className="flex items-center gap-1 text-[#C88A3B]">
+              <Star className="w-3.5 h-3.5 fill-[#C88A3B]" />
+              <span className="font-bold font-mono">{chapterRating.toFixed(1)}</span>
+              <span>({chapterRatingCount} {chapterRatingCount === 1 ? 'تقييم' : 'تقييمات'})</span>
+            </span>
+            <span>·</span>
             <span>بقلم المؤلف: {novel.author}</span>
           </div>
 
-          {/* Reader Quick Actions: Copy Chapter Text & Download PDF */}
+          {/* Reader Quick Actions: Share Chapter, Copy Chapter Text & Download PDF */}
           <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
+            <button
+              type="button"
+              id="header-quick-share-chapter-btn"
+              onClick={() => setIsShareModalOpen(true)}
+              className="px-3.5 py-1.5 rounded-xl border border-[#4A5D4E]/30 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="مشاركة هذا الفصل عبر واتساب وتليجرام وشبكات التواصل"
+            >
+              <Share2 className="w-3.5 h-3.5" />
+              <span>مشاركة الفصل</span>
+            </button>
+
             <button
               type="button"
               id="copy-chapter-text-btn"
@@ -889,19 +913,19 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         {/* Chapter End Ad Placement */}
         <AdSlot location="chapter_end" adSettings={adSettings} className="mb-8" />
 
-        {/* Interactive Reader Actions Bar (Like, Prev/Next Chapters) */}
+        {/* Interactive Reader Actions Bar (Like, Share, Prev/Next Chapters) */}
         <div
           id="reader-actions-footer"
-          className={`p-5 sm:p-6 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-lg mb-10`}
+          className={`p-5 sm:p-6 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-lg mb-8`}
         >
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Like Chapter Button */}
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
+            {/* Like & Share Chapter Buttons */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-center flex-wrap">
               <button
                 type="button"
                 id="like-chapter-button"
                 onClick={handleToggleLike}
-                className={`px-6 py-3 rounded-xl border flex items-center gap-2.5 font-bold text-sm transition-all transform active:scale-95 cursor-pointer shadow-md ${
+                className={`px-5 py-2.5 sm:py-3 rounded-xl border flex items-center gap-2 font-bold text-sm transition-all transform active:scale-95 cursor-pointer shadow-md ${
                   isLiked
                     ? 'bg-rose-600 text-white border-rose-500 shadow-rose-900/40'
                     : 'bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] border-[#4A5D4E]'
@@ -912,6 +936,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 <span className="px-2 py-0.5 rounded-full bg-black/20 text-xs font-mono">
                   {likesCount}
                 </span>
+              </button>
+
+              <button
+                type="button"
+                id="footer-share-chapter-button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="px-5 py-2.5 sm:py-3 rounded-xl border border-[#C88A3B]/40 bg-[#C88A3B]/10 hover:bg-[#C88A3B]/20 text-[#C88A3B] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
+                title="مشاركة الفصل مع الأصدقاء"
+              >
+                <Share2 className="w-5 h-5" />
+                <span>مشاركة الفصل</span>
               </button>
             </div>
 
@@ -955,14 +990,81 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </div>
           </div>
+
+          {/* Quick Social Share Strip */}
+          <div className="mt-4 pt-4 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+            <div className="flex items-center gap-1.5 font-bold text-[#6E6A64] dark:text-[#A0AEC0]">
+              <Share2 className="w-3.5 h-3.5 text-[#C88A3B]" />
+              <span>مشاركة فورية:</span>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني:\n${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold text-[11px] transition-colors"
+              >
+                واتساب
+              </a>
+              <a
+                href={`https://t.me/share/url?url=${encodeURIComponent(`${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&text=${encodeURIComponent(`الفصل ${chapter.chapterNumber}: ${chapter.title} | ${novel.title}`)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-[#0088cc]/15 hover:bg-[#0088cc]/25 text-[#0088cc] font-bold text-[11px] transition-colors"
+              >
+                تليجرام
+              </a>
+              <a
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}»`)}&url=${encodeURIComponent(`${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب')}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-2.5 py-1 rounded-lg bg-black/10 dark:bg-white/10 hover:bg-black/20 text-[11px] font-bold transition-colors"
+              >
+                منصة 𝕏
+              </a>
+              <button
+                type="button"
+                onClick={() => setIsShareModalOpen(true)}
+                className="px-2.5 py-1 rounded-lg border border-[#E5E2D9] dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-[11px] font-bold transition-colors cursor-pointer"
+              >
+                المزيد...
+              </button>
+            </div>
+          </div>
         </div>
 
-        {/* Reader Rating Box at Chapter End */}
-        <div className="mt-8">
+        {/* Chapter Star Rating Widget (Dedicated per Chapter) */}
+        <div className="mb-8" id="chapter-rating-section">
+          <ChapterRatingWidget
+            chapterId={chapter.id}
+            chapterNumber={chapter.chapterNumber}
+            chapterTitle={chapter.title}
+            novelId={novel.id}
+            currentRating={chapterRating}
+            ratingCount={chapterRatingCount}
+            themeMode={readerSettings.theme}
+            onRatingUpdated={(newRating, newCount) => {
+              setChapterRating(newRating);
+              setChapterRatingCount(newCount);
+              confetti({
+                particleCount: 50,
+                spread: 70,
+                origin: { y: 0.8 },
+              });
+            }}
+          />
+        </div>
+
+        {/* Compact Book-Level Rating Option */}
+        <div className="mb-10 opacity-90">
+          <div className="text-xs font-bold mb-2 text-[#6E6A64] dark:text-[#8892B0] px-1">
+            أو قيّم مجمل الكتاب «{novel.title}»:
+          </div>
           <StarRatingWidget
             novelId={novel.id}
             currentRating={novel.rating}
             ratingCount={novel.ratingCount}
+            compact
           />
         </div>
 
@@ -1253,6 +1355,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             <Settings2 className="w-4 h-4 text-amber-300" />
           </button>
 
+          {/* Quick Share on Mobile Floating Bar */}
+          <button
+            type="button"
+            id="mobile-float-share-btn"
+            onClick={() => setIsShareModalOpen(true)}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title="مشاركة الفصل"
+          >
+            <Share2 className="w-4 h-4 text-sky-300" />
+          </button>
+
           {nextChapter ? (
             <button
               type="button"
@@ -1278,6 +1391,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           )}
         </div>
       </div>
+
+      {/* Chapter Share Modal Dialog */}
+      <ChapterShareModal
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        chapter={chapter}
+        novel={novel}
+        themeMode={readerSettings.theme}
+      />
     </div>
   );
 };

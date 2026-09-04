@@ -271,20 +271,7 @@ export default function App() {
       const novel = novels.find(n => n.id === selectedNovelId);
       const chapter = chapters.find(c => c.id === selectedChapterId);
       if (novel && chapter) {
-        const jsonLd = seoService.buildChapterJsonLd(chapter, novel, authorProfile);
-        const excerpt = chapter.content?.slice(0, 160).replace(/\n/g, ' ') || '';
-        seoService.updateHead({
-          title: `${chapter.title} - رواية ${novel.title}`,
-          description: `قراءة ${chapter.title} من رواية ${novel.title} للكاتب ${novel.author}. ${excerpt}`,
-          keywords: [chapter.title, novel.title, novel.author, ...(novel.genres || [])],
-          ogType: 'article',
-          ogImage: novel.bannerImage || novel.coverImage,
-          url: `/?novel=${novel.id}&chapter=${chapter.id}`,
-          author: novel.author,
-          publishedTime: chapter.publishedAt,
-          section: novel.title,
-          structuredData: jsonLd,
-        });
+        seoService.updateHeadForChapter(chapter, novel, authorProfile);
         return;
       }
     }

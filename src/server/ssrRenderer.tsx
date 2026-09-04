@@ -330,16 +330,29 @@ export function generateChapterSeoTags({
   metaTags: string;
   jsonLd: string;
 } {
-  const pageTitle = `${chapter.title} - ${novel.title} | ${novel.author || 'أيمن كناني'}`;
-  const excerpt = cleanExcerpt(chapter.content, 180) || `${chapter.title} من رواية ${novel.title} بقلم ${novel.author}. قراءة مباشرة كاملة مجاناً.`;
-  const canonicalUrl = `${domain}${reqUrl}`;
-  const coverImage = novel.coverImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const pageTitle = chapter.seo?.metaTitle?.trim()
+    ? chapter.seo.metaTitle.trim()
+    : `${chapter.title} - ${novel.title} | ${novel.author || 'أيمن كناني'}`;
+  const excerpt = chapter.seo?.metaDescription?.trim()
+    || cleanExcerpt(chapter.content, 180)
+    || `${chapter.title} من رواية ${novel.title} بقلم ${novel.author}. قراءة مباشرة كاملة مجاناً.`;
+  const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const coverImage = chapter.seo?.ogImage?.trim()
+    || novel.bannerImage
+    || novel.coverImage
+    || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
+  const keywordsStr = chapter.seo?.focusKeywords?.trim()
+    ? chapter.seo.focusKeywords.trim()
+    : [chapter.title, novel.title, novel.author || 'أيمن كناني', ...(novel.genres || [])].join(', ');
 
   const metaTags = `
-    <!-- Dynamic SSR Meta Tags generated for Chapter ${chapter.chapterNumber} -->
+    <!-- Dynamic SSR Meta Tags generated for Chapter ${chapter.chapterNumber} (Custom Chapter-Level SEO) -->
     <meta name="description" content="${escapeHtml(excerpt)}" />
+    <meta name="keywords" content="${escapeHtml(keywordsStr)}" />
     <meta name="author" content="${escapeHtml(novel.author || 'أيمن كناني')}" />
     <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+    ${isNoIndex ? '<meta name="robots" content="noindex, nofollow" />' : '<meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />'}
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="article" />

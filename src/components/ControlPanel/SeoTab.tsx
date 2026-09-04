@@ -18,7 +18,8 @@ import {
   Star,
   TrendingUp,
   Lightbulb,
-  Compass
+  Compass,
+  FileText
 } from 'lucide-react';
 import { storageService } from '../../services/storageService';
 import { seoService } from '../../services/seoService';
@@ -38,6 +39,8 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
   const [selectedPreviewNovelId, setSelectedPreviewNovelId] = useState<string>(novels[0]?.id || '');
+  const [selectedChapterNovelId, setSelectedChapterNovelId] = useState<string>(novels[0]?.id || 'all');
+  const [inspectedChapterId, setInspectedChapterId] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -844,6 +847,187 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
           </div>
         )}
       </div>
+
+      {/* 5. Chapters SEO Registry & Inspector */}
+      {(() => {
+        const filteredChapters = chapters.filter(c => 
+          selectedChapterNovelId === 'all' ? true : c.novelId === selectedChapterNovelId
+        ).sort((a, b) => a.chapterNumber - b.chapterNumber);
+
+        const customSeoCount = chapters.filter(c => Boolean(c.seo?.metaTitle || c.seo?.metaDescription)).length;
+        const noIndexCount = chapters.filter(c => Boolean(c.seo?.noIndex)).length;
+        const inspectedChapter = chapters.find(c => c.id === inspectedChapterId);
+        const inspectedNovel = inspectedChapter ? novels.find(n => n.id === inspectedChapter.novelId) : null;
+
+        return (
+          <div className="rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] p-6 space-y-6 shadow-xs">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-[#E5E2D9] pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
+                  <FileText className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-amiri font-bold text-lg text-[#2C2C2C] flex items-center gap-2">
+                    <span>سجل أرشفة وسيو الفصول الفردية (Chapters SEO Inspector)</span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#4A5D4E]/15 text-[#4A5D4E] border border-[#4A5D4E]/30 font-cairo">
+                      {chapters.length} فصول
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#6E6A64] mt-0.5">
+                    متابعة جاهزية وسوم السيو لكل فصل، عناوين Google، الكلمات المفتاحية المستهدفة، وحالة الفهرسة
+                  </p>
+                </div>
+              </div>
+
+              {/* Novel Filter Dropdown */}
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-[#6E6A64] font-bold shrink-0">تصفية حسب الرواية:</span>
+                <select
+                  value={selectedChapterNovelId}
+                  onChange={e => setSelectedChapterNovelId(e.target.value)}
+                  className="px-3 py-1.5 rounded-xl border border-[#E5E2D9] bg-[#FDFCF8] text-xs font-bold text-[#2C2C2C] focus:ring-1 focus:ring-[#4A5D4E] outline-hidden cursor-pointer"
+                >
+                  <option value="all">كل الروايات والأعمال ({chapters.length} فصول)</option>
+                  {novels.map(n => (
+                    <option key={n.id} value={n.id}>
+                      {n.title} ({chapters.filter(c => c.novelId === n.id).length} فصل)
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Quick Metrics Bar */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="p-3 rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-center">
+                <div className="text-xl font-bold font-mono text-[#2C2C2C]">{chapters.length}</div>
+                <div className="text-[11px] text-[#6E6A64]">إجمالي الفصول</div>
+              </div>
+              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-center">
+                <div className="text-xl font-bold font-mono text-emerald-800">{customSeoCount}</div>
+                <div className="text-[11px] text-emerald-800 font-bold">فصول بسيو مخصص</div>
+              </div>
+              <div className="p-3 rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-center">
+                <div className="text-xl font-bold font-mono text-[#6E6A64]">{chapters.length - customSeoCount}</div>
+                <div className="text-[11px] text-[#6E6A64]">فصول بسيو تلقائي</div>
+              </div>
+              <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-center">
+                <div className="text-xl font-bold font-mono text-amber-800">{noIndexCount}</div>
+                <div className="text-[11px] text-amber-800">مستبعدة (noindex)</div>
+              </div>
+            </div>
+
+            {/* Inspected Chapter Modal / Box */}
+            {inspectedChapter && inspectedNovel && (
+              <div className="p-4 sm:p-5 rounded-2xl bg-[#F7F5EE] border-2 border-[#4A5D4E]/30 space-y-3 animate-in fade-in">
+                <div className="flex items-center justify-between border-b border-[#E5E2D9] pb-2">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#4A5D4E]" />
+                    <span className="font-bold text-xs text-[#2C2C2C]">
+                      معاينة نتيجة بحث Google للفصل {inspectedChapter.chapterNumber}: "{inspectedChapter.title}"
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setInspectedChapterId(null)}
+                    className="text-xs text-[#6E6A64] hover:text-[#2C2C2C] font-bold cursor-pointer"
+                  >
+                    إغلاق المعاينة ✕
+                  </button>
+                </div>
+
+                {/* Google Snippet */}
+                <div className="p-4 rounded-xl bg-white border border-[#E5E2D9] space-y-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <div className="w-5 h-5 rounded-full bg-[#4A5D4E] text-white flex items-center justify-center text-[10px] font-bold">
+                      أ
+                    </div>
+                    <div className="text-[11px] text-[#5f6368] font-mono truncate" dir="ltr">
+                      {currentBaseUrl.replace(/^https?:\/\//, '')}/?novel={inspectedNovel.id}&amp;chapter={inspectedChapter.id}
+                    </div>
+                  </div>
+                  <h4 className="text-[#1a0dab] hover:underline text-sm font-medium font-sans" dir="rtl">
+                    {inspectedChapter.seo?.metaTitle?.trim() || `${inspectedChapter.title} - رواية ${inspectedNovel.title} | ${inspectedNovel.author || 'أيمن كناني'}`}
+                  </h4>
+                  <p className="text-[12px] text-[#4d5156] leading-relaxed font-sans" dir="rtl">
+                    <span className="text-[#70757a] text-[11px] ml-1">قبل أيام — </span>
+                    {inspectedChapter.seo?.metaDescription?.trim() || `قراءة ${inspectedChapter.title} من رواية ${inspectedNovel.title} للكاتب ${inspectedNovel.author || 'أيمن كناني'}. ${inspectedChapter.content.replace(/<[^>]+>/g, ' ').slice(0, 130)}...`}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Chapters List */}
+            {filteredChapters.length === 0 ? (
+              <div className="text-center py-8 text-[#6E6A64] text-xs italic">
+                لا توجد فصول مطابقة لهذا الاختيار.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#E5E2D9]">
+                {filteredChapters.map(ch => {
+                  const parentNovel = novels.find(n => n.id === ch.novelId);
+                  const hasCustom = Boolean(ch.seo?.metaTitle || ch.seo?.metaDescription);
+                  const titleTag = ch.seo?.metaTitle?.trim() || `${ch.title} - رواية ${parentNovel?.title || ''} | ${parentNovel?.author || 'أيمن كناني'}`;
+                  const descTag = ch.seo?.metaDescription?.trim() || ch.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 140) + '...';
+
+                  return (
+                    <div key={ch.id} className="py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 hover:bg-[#FDFCF8] px-2 rounded-xl transition-colors">
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-mono font-bold text-xs text-[#4A5D4E] bg-[#4A5D4E]/10 px-2 py-0.5 rounded">
+                            فصل {ch.chapterNumber}
+                          </span>
+                          <h5 className="font-bold text-xs text-[#2C2C2C]">
+                            {ch.title}
+                          </h5>
+                          {parentNovel && (
+                            <span className="text-[11px] text-[#8E8A83]">
+                              ({parentNovel.title})
+                            </span>
+                          )}
+                          {ch.seo?.noIndex ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                              مستبعد noindex
+                            </span>
+                          ) : hasCustom ? (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                              <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                              <span>سيو مخصص</span>
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-medium bg-[#F7F5EE] text-[#6E6A64] border border-[#E5E2D9]">
+                              تلقائي
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="text-[11px] text-[#1a0dab] font-medium truncate">
+                          {titleTag}
+                        </div>
+                        <p className="text-[11px] text-[#6E6A64] line-clamp-1 leading-relaxed">
+                          {descTag}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-2 self-end md:self-center">
+                        <button
+                          type="button"
+                          onClick={() => setInspectedChapterId(inspectedChapterId === ch.id ? null : ch.id)}
+                          className="px-2.5 py-1 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 border border-[#E5E2D9] flex items-center gap-1 cursor-pointer transition-colors"
+                          title="معاينة شكل نتيجة هذا الفصل في محرك بحث Google"
+                        >
+                          <Search className="w-3 h-3" />
+                          <span>{inspectedChapterId === ch.id ? 'إخفاء' : 'معاينة Google'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </div>
   );
 };

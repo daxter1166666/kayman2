@@ -151,6 +151,15 @@ export interface TableOfContentItem {
   linkUrl?: string;
 }
 
+export interface ChapterSeoMeta {
+  metaTitle?: string; // عنوان مخصص للظهور في نتائج بحث Google (SEO Meta Title للفصل)
+  metaDescription?: string; // وصف تعريفي مخصص للفصل وأحداثه البارزة في Google (140-160 حرف)
+  focusKeywords?: string; // كلمات مفتاحية خاصة بأحداث الفصل وشخصياته
+  canonicalUrl?: string; // رابط أساسي مخصص
+  ogImage?: string; // صورة مشاركة مخصصة لهذا الفصل
+  noIndex?: boolean; // استبعاد هذا الفصل تحديداً من محركات البحث
+}
+
 export interface Chapter {
   id: string;
   novelId: string;
@@ -162,8 +171,11 @@ export interface Chapter {
   publishedAt: string;
   views: number;
   likes: number;
+  rating?: number; // معدل تقييم الفصل (1-5 نجوم)
+  ratingCount?: number; // إجمالي عدد تقييمات هذا الفصل
   wordCount: number;
   status: ChapterStatus;
+  seo?: ChapterSeoMeta; // إعدادات وسوم السيو المخصصة لهذا الفصل
 }
 
 export interface Comment {
