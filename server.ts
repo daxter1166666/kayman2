@@ -17,6 +17,7 @@ import {
   serverDeleteChapter,
   serverFetchAllChapters,
   serverFetchAllSyncData,
+  serverIncrementView,
 } from './src/server/supabaseServer';
 
 import {
@@ -33,7 +34,7 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const distPath = path.resolve(process.cwd(), 'dist');
 
-  app.use(express.json({ limit: '25mb' }));
+  app.use(express.json());
 
   // Setup Vite in development or static serving in production
   let vite: any = null;
@@ -262,6 +263,19 @@ async function startServer() {
     }
   });
 
+  app.post('/api/views/increment', async (req, res) => {
+    try {
+      const { novelId, chapterId } = req.body || {};
+      if (!novelId && !chapterId) {
+        return res.status(400).json({ success: false, error: 'novelId or chapterId is required' });
+      }
+      const result = await serverIncrementView(novelId, chapterId);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
   // ==========================================
   // 2. SEO Files: robots.txt & Dynamic sitemap.xml
   // ==========================================
@@ -343,6 +357,25 @@ ${urlsXml.join('\n')}
   // 3. SERVER-SIDE RENDERING (SSR) HANDLERS
   // ==========================================
 
+  // Helper to prevent database timeouts from blocking SSR responses
+  async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3500): Promise<T | null> {
+    let timer: NodeJS.Timeout;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timer = setTimeout(() => {
+        console.warn(`[SSR Timeout] Database request exceeded ${timeoutMs}ms, falling back to client SPA.`);
+        resolve(null);
+      }, timeoutMs);
+    });
+    try {
+      const result = await Promise.race([promise, timeoutPromise]);
+      clearTimeout(timer!);
+      return result;
+    } catch (err) {
+      clearTimeout(timer!);
+      return null;
+    }
+  }
+
   /**
    * SSR Chapter Handler for:
    * - /novel/:novelId/chapter/:chapterId
@@ -361,8 +394,8 @@ ${urlsXml.join('\n')}
       const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
       const domain = `${protocol}://${host}`;
 
-      // 1. Fetch from Supabase
-      const ssrData = await fetchChapterFromSupabaseForSSR(novelIdentifier, chapterIdentifier);
+      // 1. Fetch from Supabase with safe 3.5s timeout to prevent hung requests
+      const ssrData = await withTimeout(fetchChapterFromSupabaseForSSR(novelIdentifier, chapterIdentifier), 3500);
 
       if (!ssrData) {
         // Fallback or 404
@@ -453,7 +486,7 @@ ${urlsXml.join('\n')}
       const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
       const domain = `${protocol}://${host}`;
 
-      const novelData = await fetchNovelFromSupabaseForSSR(novelIdentifier);
+      const novelData = await withTimeout(fetchNovelFromSupabaseForSSR(novelIdentifier), 3500);
 
       if (!novelData) {
         const template = await getBaseTemplate(req.originalUrl);

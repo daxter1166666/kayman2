@@ -134,16 +134,8 @@ export default function App() {
   useEffect(() => {
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase (throttled & non-blocking)
-    let lastPullTime = 0;
-    const doPull = (force = false) => {
-      const now = Date.now();
-      // Minimum 4 minutes cooldown between automatic pulls unless forced
-      if (!force && now - lastPullTime < 240000) {
-        return;
-      }
-      lastPullTime = now;
-
+    // Cross-browser cloud synchronization with Supabase
+    const doPull = () => {
       supabaseService.pullAllFromSupabase().then(res => {
         if (res) {
           refreshData();
@@ -153,18 +145,45 @@ export default function App() {
       });
     };
 
-    // Initial pull on mount
-    doPull(true);
+    doPull();
 
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        doPull(false);
+        doPull();
       }
     };
 
     window.addEventListener('visibilitychange', handleVisibility);
-    // Relaxed 5-minute background check
-    const syncInterval = setInterval(() => doPull(false), 300000);
+    window.addEventListener('focus', doPull);
+    const syncInterval = setInterval(doPull, 45000);
+
+    const handleViewIncremented = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.novelId) {
+        setNovels(prev =>
+          prev.map(n => {
+            if (n.id === detail.novelId) {
+              const updatedViews = detail.novelViews !== undefined ? detail.novelViews : (n.totalViews || 0) + 1;
+              return { ...n, totalViews: Math.max(n.totalViews || 0, updatedViews) };
+            }
+            return n;
+          })
+        );
+      }
+      if (detail.chapterId) {
+        setChapters(prev =>
+          prev.map(c => {
+            if (c.id === detail.chapterId) {
+              const updatedViews = detail.chapterViews !== undefined ? detail.chapterViews : (c.views || 0) + 1;
+              return { ...c, views: Math.max(c.views || 0, updatedViews) };
+            }
+            return c;
+          })
+        );
+      }
+    };
+    window.addEventListener('novel-view-incremented', handleViewIncremented);
 
     // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
@@ -251,6 +270,8 @@ export default function App() {
 
     return () => {
       window.removeEventListener('visibilitychange', handleVisibility);
+      window.removeEventListener('focus', doPull);
+      window.removeEventListener('novel-view-incremented', handleViewIncremented);
       clearInterval(syncInterval);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };

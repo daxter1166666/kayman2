@@ -250,19 +250,79 @@ export const storageService = {
     setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
   },
 
+  incrementNovelView(novelId: string): void {
+    let updatedNovelViews = 0;
+    const novels = this.getNovels();
+    const novel = novels.find(n => n.id === novelId);
+    if (novel) {
+      novel.totalViews = (novel.totalViews || 0) + 1;
+      updatedNovelViews = novel.totalViews;
+      this.saveNovels(novels);
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        fetch('/api/views/increment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ novelId }),
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('novel-view-incremented', {
+          detail: {
+            novelId,
+            novelViews: updatedNovelViews,
+          },
+        })
+      );
+    }
+  },
+
   incrementChapterView(chapterId: string, novelId: string): void {
+    let updatedNovelViews = 0;
+    let updatedChapterViews = 0;
+
     const chapters = this.getChapters();
     const chapter = chapters.find(c => c.id === chapterId);
     if (chapter) {
-      chapter.views += 1;
+      chapter.views = (chapter.views || 0) + 1;
+      updatedChapterViews = chapter.views;
       this.saveChapters(chapters);
     }
 
     const novels = this.getNovels();
     const novel = novels.find(n => n.id === novelId);
     if (novel) {
-      novel.totalViews += 1;
+      novel.totalViews = (novel.totalViews || 0) + 1;
+      updatedNovelViews = novel.totalViews;
       this.saveNovels(novels);
+    }
+
+    if (typeof window !== 'undefined') {
+      try {
+        fetch('/api/views/increment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ novelId, chapterId }),
+        }).catch(() => {});
+      } catch {
+        // ignore
+      }
+
+      window.dispatchEvent(
+        new CustomEvent('novel-view-incremented', {
+          detail: {
+            novelId,
+            chapterId,
+            novelViews: updatedNovelViews,
+            chapterViews: updatedChapterViews,
+          },
+        })
+      );
     }
   },
 

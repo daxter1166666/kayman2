@@ -1056,28 +1056,111 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       <html lang="ar" dir="rtl">
         <head>
           <meta charset="utf-8">
-          <title>${chapterTitle} - ${novelTitle}</title>
-          <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+          <title>${chapterTitle} - ${novelTitle} - ${authorName}</title>
+          <link rel="preconnect" href="https://fonts.googleapis.com">
+          <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+          <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400;1,700&family=Cairo:wght@400;600;700;800&family=Readex+Pro:wght@400;600;700&family=Scheherazade+New:wght@400;700&family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
           <style>
-            body { font-family: 'Amiri', serif; font-size: 16pt; line-height: 2; margin: 3cm 2cm; color: #111; direction: rtl; }
-            h1 { font-size: 22pt; text-align: center; margin-bottom: 0.5cm; }
-            .header-meta { text-align: center; font-size: 11pt; color: #555; margin-bottom: 1.5cm; border-bottom: 1px solid #ccc; padding-bottom: 0.5cm; }
-            .book-poetry-couplet { margin: 1.5cm auto; text-align: center; max-width: 80%; border: 1px solid #aaa; padding: 0.5cm; border-radius: 8px; }
-            .book-quote-block { margin: 1cm 0; padding: 0.5cm; border-right: 4px solid #333; background: #f9f9f9; font-style: italic; }
-            .book-divider { text-align: center; margin: 1cm 0; font-size: 14pt; }
-            @page { size: A4; margin: 2cm; }
+            @page {
+              size: A4 portrait;
+              margin: 16mm 16mm 18mm 16mm;
+            }
+            @media print {
+              body {
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+              }
+            }
+            body {
+              font-family: 'Amiri', 'Scheherazade New', serif;
+              font-size: 16pt;
+              line-height: 2.1;
+              color: #1A1A1A;
+              direction: rtl;
+              text-align: justify;
+              text-justify: inter-word;
+              background: #fff;
+              margin: 0;
+              padding: 10px;
+            }
+            h1 {
+              font-size: 24pt;
+              text-align: center;
+              margin-top: 10px;
+              margin-bottom: 8px;
+              color: #111;
+              font-weight: 700;
+              page-break-after: avoid;
+            }
+            .header-meta {
+              text-align: center;
+              font-size: 11pt;
+              color: #555;
+              margin-bottom: 24px;
+              border-bottom: 1.5px solid #D6D2C4;
+              padding-bottom: 14px;
+            }
+            .book-poetry-couplet {
+              margin: 20px auto;
+              text-align: center;
+              max-width: 86%;
+              border: 1px solid #D6D2C4;
+              background: #FAF8F2;
+              padding: 12px 18px;
+              border-radius: 8px;
+              font-size: 14pt;
+              line-height: 2.2;
+              page-break-inside: avoid;
+            }
+            .book-quote-block {
+              margin: 16px 0;
+              padding: 12px 16px;
+              border-right: 4px solid #3C4C3F;
+              background: #FAF8F2;
+              font-style: italic;
+              page-break-inside: avoid;
+            }
+            .book-divider {
+              text-align: center;
+              margin: 20px 0;
+              font-size: 14pt;
+              color: #A36A18;
+            }
+            .print-doc-footer {
+              margin-top: 36px;
+              padding-top: 16px;
+              border-top: 1.5px solid #D6D2C4;
+              text-align: center;
+              font-size: 10pt;
+              color: #555;
+              page-break-inside: avoid;
+            }
           </style>
         </head>
         <body>
+          <div style="text-align:center; font-size:11pt; color:#3C4C3F; font-weight:bold; margin-bottom:4px;">❖ المنصة الرسمية لنشر المؤلفات والكتب الأدبية ❖</div>
+          <div style="text-align:center; margin-bottom:10px;"><span style="background:#FAF8F2; border:1px solid #D6D2C4; padding:3px 12px; border-radius:15px; font-size:10.5pt;">من كتاب: ${novelTitle}</span></div>
           <h1>${chapterTitle}</h1>
           <div class="header-meta">
-            <span>من كتاب: ${novelTitle}</span> |
-            <span>بقلم: ${authorName}</span> |
+            <span>بقلم الكاتب: <strong>${authorName}</strong></span> •
             <span>أيمن كناني</span>
           </div>
           <div>${htmlContent}</div>
+          <div class="print-doc-footer">
+            <div style="color:#A36A18; font-size:13pt; margin-bottom:8px; letter-spacing:6px;">❖ ❖ ❖</div>
+            <p style="margin:4px 0; font-weight:600;">جميع الحقوق محفوظة © للكاتب ${authorName} • مرخّص برخصة المشاع الإبداعي CC BY-NC 4.0</p>
+            <p style="margin:2px 0; font-size:9.5pt; color:#777;">تم تنزيل هذا الفصل من المنصة الرسمية المعتمدة لنشر الروايات والكتب الأدبية</p>
+          </div>
           <script>
-            window.onload = function() { window.print(); window.close(); }
+            window.addEventListener('load', function() {
+              if (document.fonts && document.fonts.ready) {
+                document.fonts.ready.then(function() {
+                  setTimeout(function() { window.focus(); window.print(); }, 300);
+                });
+              } else {
+                setTimeout(function() { window.focus(); window.print(); }, 600);
+              }
+            });
           </script>
         </body>
       </html>

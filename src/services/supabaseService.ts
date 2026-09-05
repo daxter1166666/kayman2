@@ -17,9 +17,6 @@ import { storageService } from './storageService';
 class SupabaseService {
   private client: SupabaseClient | null = null;
   private currentConfig: SupabaseConfig | null = null;
-  private isSyncing = false;
-  private lastPullResult: any = null;
-  private lastPullTime = 0;
 
   /**
    * Sanitizes and cleans the Supabase project URL.
@@ -171,125 +168,110 @@ class SupabaseService {
     adSettings?: AdSettings;
     seoSettings?: SeoSettings;
   } | null> {
-    // 1. Prevent concurrent overlapping sync operations
-    if (this.isSyncing) {
-      return this.lastPullResult;
-    }
-
-    const now = Date.now();
-    // 2. Return fresh in-memory cache if pulled within the last 60 seconds
-    if (this.lastPullResult && now - this.lastPullTime < 60000) {
-      return this.lastPullResult;
-    }
-
-    this.isSyncing = true;
-
     // 0. Primary High-Speed Path: Full-Stack Server Sync API (Runs in Node.js, zero CORS, completely unblocked)
     try {
       if (typeof window !== 'undefined') {
-          const resp = await fetch('/api/sync');
-          const contentType = resp.headers.get('content-type') || '';
-          // Ensure we received valid JSON, not static HTML fallback from SPA routers (e.g. Vercel)
-          if (resp.ok && contentType.includes('application/json')) {
-            const syncData = await resp.json();
-            if (syncData.success) {
-              // Merge with local novels to ensure newly added novels are NEVER dropped
-              const localNovels = storageService.getNovels();
-              const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
-              const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
+        const resp = await fetch('/api/sync');
+        if (resp.ok) {
+          const syncData = await resp.json();
+          if (syncData.success) {
+            // Merge with local novels to ensure newly added novels are NEVER dropped
+            const localNovels = storageService.getNovels();
+            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
+            const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
 
-              const novelsMap = new Map<string, Novel>();
-              remoteNovels.forEach((rn: Novel) => {
-                if (!deletedNovelIds.has(rn.id)) {
-                  novelsMap.set(rn.id, rn);
-                }
-              });
-
-              const unsyncedNovels: Novel[] = [];
-              localNovels.forEach(ln => {
-                if (!deletedNovelIds.has(ln.id)) {
-                  if (!novelsMap.has(ln.id)) {
-                    novelsMap.set(ln.id, ln);
-                    unsyncedNovels.push(ln);
-                  }
-                }
-              });
-
-              const mergedNovels = Array.from(novelsMap.values());
-              storageService.saveNovels(mergedNovels);
-
-              // Chapters merge
-              const localChapters = storageService.getChapters();
-              const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
-              const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
-
-              const chaptersMap = new Map<string, Chapter>();
-              remoteChapters.forEach((rc: Chapter) => {
-                if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
-                  chaptersMap.set(rc.id, rc);
-                }
-              });
-
-              const unsyncedChapters: Chapter[] = [];
-              localChapters.forEach(lc => {
-                if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
-                  if (!chaptersMap.has(lc.id)) {
-                    chaptersMap.set(lc.id, lc);
-                    unsyncedChapters.push(lc);
-                  }
-                }
-              });
-
-              const mergedChapters = Array.from(chaptersMap.values());
-              storageService.saveChapters(mergedChapters);
-
-              // CRITICAL: Only an authenticated ADMIN may push local drafts/items to server!
-              const isAdmin = storageService.isAdminLoggedIn();
-              if (isAdmin && (unsyncedNovels.length > 0 || unsyncedChapters.length > 0)) {
-                fetch('/api/sync/push', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({ novels: unsyncedNovels, chapters: unsyncedChapters }),
-                }).catch(e => console.warn('Background sync push warning:', e));
+            const novelsMap = new Map<string, Novel>();
+            const localNovelViewsMap = new Map(localNovels.map(ln => [ln.id, ln.totalViews || 0]));
+            remoteNovels.forEach((rn: Novel) => {
+              if (!deletedNovelIds.has(rn.id)) {
+                novelsMap.set(rn.id, {
+                  ...rn,
+                  totalViews: Math.max(rn.totalViews || 0, localNovelViewsMap.get(rn.id) || 0),
+                });
               }
+            });
 
-              if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
-              if (syncData.authorProfile) storageService.saveAuthorProfile(syncData.authorProfile);
-              if (syncData.siteBranding) storageService.saveSiteBranding(syncData.siteBranding);
-              if (syncData.donationSettings) storageService.saveDonationSettings(syncData.donationSettings);
-              if (Array.isArray(syncData.categories)) storageService.saveCategories(syncData.categories);
-              if (syncData.legalDocuments) storageService.saveLegalDocuments(syncData.legalDocuments);
-              if (syncData.adSettings) storageService.saveAdSettings(syncData.adSettings);
-              if (syncData.seoSettings) storageService.saveSeoSettings(syncData.seoSettings);
+            const unsyncedNovels: Novel[] = [];
+            localNovels.forEach(ln => {
+              if (!deletedNovelIds.has(ln.id)) {
+                if (!novelsMap.has(ln.id)) {
+                  novelsMap.set(ln.id, ln);
+                  unsyncedNovels.push(ln);
+                }
+              }
+            });
 
-              const result = {
-                novels: mergedNovels,
-                chapters: mergedChapters,
-                comments: syncData.comments || [],
-                authorProfile: syncData.authorProfile,
-                siteBranding: syncData.siteBranding,
-                donationSettings: syncData.donationSettings,
-                categories: syncData.categories,
-                legalDocuments: syncData.legalDocuments,
-                adSettings: syncData.adSettings,
-                seoSettings: syncData.seoSettings,
-              };
+            const mergedNovels = Array.from(novelsMap.values());
+            storageService.saveNovels(mergedNovels);
 
-              this.lastPullResult = result;
-              this.lastPullTime = Date.now();
-              return result;
+            // Chapters merge
+            const localChapters = storageService.getChapters();
+            const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
+            const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
+            const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
+
+            const chaptersMap = new Map<string, Chapter>();
+            remoteChapters.forEach((rc: Chapter) => {
+              if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
+                chaptersMap.set(rc.id, {
+                  ...rc,
+                  views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
+                });
+              }
+            });
+
+            const unsyncedChapters: Chapter[] = [];
+            localChapters.forEach(lc => {
+              if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
+                if (!chaptersMap.has(lc.id)) {
+                  chaptersMap.set(lc.id, lc);
+                  unsyncedChapters.push(lc);
+                }
+              }
+            });
+
+            const mergedChapters = Array.from(chaptersMap.values());
+            storageService.saveChapters(mergedChapters);
+
+            // If any unsynced items were found locally, push them to server!
+            if (unsyncedNovels.length > 0 || unsyncedChapters.length > 0) {
+              fetch('/api/sync/push', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ novels: unsyncedNovels, chapters: unsyncedChapters }),
+              }).catch(e => console.warn('Background sync push warning:', e));
             }
+
+            if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
+            if (syncData.authorProfile) storageService.saveAuthorProfile(syncData.authorProfile);
+            if (syncData.siteBranding) storageService.saveSiteBranding(syncData.siteBranding);
+            if (syncData.donationSettings) storageService.saveDonationSettings(syncData.donationSettings);
+            if (Array.isArray(syncData.categories)) storageService.saveCategories(syncData.categories);
+            if (syncData.legalDocuments) storageService.saveLegalDocuments(syncData.legalDocuments);
+            if (syncData.adSettings) storageService.saveAdSettings(syncData.adSettings);
+            if (syncData.seoSettings) storageService.saveSeoSettings(syncData.seoSettings);
+
+            return {
+              novels: mergedNovels,
+              chapters: mergedChapters,
+              comments: syncData.comments || [],
+              authorProfile: syncData.authorProfile,
+              siteBranding: syncData.siteBranding,
+              donationSettings: syncData.donationSettings,
+              categories: syncData.categories,
+              legalDocuments: syncData.legalDocuments,
+              adSettings: syncData.adSettings,
+              seoSettings: syncData.seoSettings,
+            };
           }
         }
-      } catch (serverSyncErr) {
-        console.warn('Server sync API fallback to direct Supabase client:', serverSyncErr);
       }
+    } catch (serverSyncErr) {
+      console.warn('Server sync API fallback to direct Supabase client:', serverSyncErr);
+    }
 
     const client = this.getClient();
-    if (!client) {
-      this.isSyncing = false;
-      return null;
-    }
+    if (!client) return null;
 
     try {
       // 1. Fetch Novels
@@ -303,6 +285,9 @@ class SupabaseService {
         return null;
       }
 
+      const existingLocalNovelsForViews = storageService.getNovels();
+      const localNovelViewsMap = new Map(existingLocalNovelsForViews.map(ln => [ln.id, ln.totalViews || 0]));
+
       const novels: Novel[] = (rawNovels || []).map((n: any) => ({
         id: n.id,
         title: n.title,
@@ -315,7 +300,7 @@ class SupabaseService {
         genres: Array.isArray(n.genres) ? n.genres : [],
         tags: Array.isArray(n.tags) ? n.tags : [],
         status: n.status || 'ONGOING',
-        totalViews: Number(n.total_views) || 0,
+        totalViews: Math.max(Number(n.total_views) || 0, localNovelViewsMap.get(n.id) || 0),
         totalLikes: Number(n.total_likes) || 0,
         rating: Number(n.rating) || 5.0,
         ratingCount: Number(n.rating_count) || 1,
@@ -334,6 +319,9 @@ class SupabaseService {
         .select('*')
         .order('chapter_number', { ascending: true });
 
+      const existingLocalChaptersForViews = storageService.getChapters();
+      const localChapterViewsMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.views || 0]));
+
       const chapters: Chapter[] = (rawChapters || []).map((c: any) => ({
         id: c.id,
         novelId: c.novel_id,
@@ -343,7 +331,7 @@ class SupabaseService {
         content: c.content || '',
         authorNote: c.author_note || undefined,
         publishedAt: c.published_at || new Date().toISOString(),
-        views: Number(c.views) || 0,
+        views: Math.max(Number(c.views) || 0, localChapterViewsMap.get(c.id) || 0),
         likes: Number(c.likes) || 0,
         rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
         ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
@@ -470,12 +458,11 @@ class SupabaseService {
       const mergedNovels = Array.from(remoteNovelsMap.values());
       storageService.saveNovels(mergedNovels);
 
-      // Background push any local novels not yet in Supabase (ONLY FOR LOGGED-IN ADMIN)
-      const isAdmin = storageService.isAdminLoggedIn();
-      if (isAdmin && unsyncedLocalNovels.length > 0) {
-        for (const un of unsyncedLocalNovels.slice(0, 5)) {
+      // Background push any local novels not yet in Supabase
+      if (unsyncedLocalNovels.length > 0) {
+        unsyncedLocalNovels.forEach(un => {
           this.saveNovelToSupabase(un).catch(e => console.warn('Background sync novel to Supabase:', e));
-        }
+        });
       }
 
       // 2. Chapters sync: Bidirectional non-destructive merge
@@ -515,10 +502,10 @@ class SupabaseService {
       const mergedChapters = Array.from(remoteChaptersMap.values());
       storageService.saveChapters(mergedChapters);
 
-      if (isAdmin && unsyncedLocalChapters.length > 0) {
-        for (const uc of unsyncedLocalChapters.slice(0, 5)) {
+      if (unsyncedLocalChapters.length > 0) {
+        unsyncedLocalChapters.forEach(uc => {
           this.saveChapterToSupabase(uc).catch(e => console.warn('Background sync chapter to Supabase:', e));
-        }
+        });
       }
 
       // 3. Comments merge
@@ -535,7 +522,7 @@ class SupabaseService {
       if (adSettings) storageService.saveAdSettings(adSettings);
       if (seoSettings) storageService.saveSeoSettings(seoSettings);
 
-      const finalResult = {
+      return {
         novels: mergedNovels,
         chapters: mergedChapters,
         comments,
@@ -547,15 +534,9 @@ class SupabaseService {
         adSettings,
         seoSettings,
       };
-
-      this.lastPullResult = finalResult;
-      this.lastPullTime = Date.now();
-      return finalResult;
     } catch (e) {
       console.warn('pullAllFromSupabase failed:', e);
       return null;
-    } finally {
-      this.isSyncing = false;
     }
   }
 
@@ -1087,6 +1068,82 @@ class SupabaseService {
     } catch (e) {
       console.warn('Supabase deleteChapterFromSupabase exception:', e);
       return false;
+    }
+  }
+
+  /**
+   * Increments view counters for a novel and optionally a chapter both in database and server
+   */
+  public async incrementView(
+    novelId: string,
+    chapterId?: string
+  ): Promise<{ totalViews?: number; chapterViews?: number }> {
+    try {
+      // 1. Try server API endpoint
+      const resp = await fetch('/api/views/increment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ novelId, chapterId }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        if (data && data.success) {
+          return { totalViews: data.totalViews, chapterViews: data.chapterViews };
+        }
+      }
+    } catch {
+      // Server endpoint not reachable or running in static context
+    }
+
+    // 2. Direct Supabase Client fallback
+    try {
+      const client = this.getClient();
+      if (!client) return {};
+
+      let totalViews: number | undefined;
+      let chapterViews: number | undefined;
+
+      if (novelId) {
+        const { data: nRow } = await client
+          .from('novels')
+          .select('total_views')
+          .eq('id', novelId)
+          .maybeSingle();
+
+        const currentNViews = Number(nRow?.total_views || 0);
+        totalViews = currentNViews + 1;
+
+        await client
+          .from('novels')
+          .update({
+            total_views: totalViews,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', novelId);
+      }
+
+      if (chapterId) {
+        const { data: cRow } = await client
+          .from('chapters')
+          .select('views')
+          .eq('id', chapterId)
+          .maybeSingle();
+
+        const currentCViews = Number(cRow?.views || 0);
+        chapterViews = currentCViews + 1;
+
+        await client
+          .from('chapters')
+          .update({
+            views: chapterViews,
+          })
+          .eq('id', chapterId);
+      }
+
+      return { totalViews, chapterViews };
+    } catch (fallbackErr) {
+      console.warn('incrementView fallback exception:', fallbackErr);
+      return {};
     }
   }
 

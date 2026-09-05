@@ -1,12 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Novel, Chapter, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
-import { ChapterPrintModal } from './ChapterPrintModal';
-import { downloadChapterPdf } from '../utils/chapterPdfGenerator';
-import confetti from 'canvas-confetti';
+import { ChapterDownloadPdfModal } from './ChapterDownloadPdfModal';
 import {
   ArrowRight,
   BookOpen,
@@ -23,7 +21,6 @@ import {
   CheckCircle2,
   Tag,
   Download,
-  Printer,
   ListOrdered,
   ExternalLink,
   FileText,
@@ -50,30 +47,38 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   const [copied, setCopied] = useState<boolean>(false);
   const [currentRating, setCurrentRating] = useState<number>(novel.rating);
   const [ratingCount, setRatingCount] = useState<number>(novel.ratingCount);
+  const [totalViewsCount, setTotalViewsCount] = useState<number>(novel.totalViews || 0);
   const [sharingChapter, setSharingChapter] = useState<Chapter | null>(null);
-  const [printingChapter, setPrintingChapter] = useState<Chapter | null>(null);
-  const [downloadingChapterId, setDownloadingChapterId] = useState<string | null>(null);
+  const [pdfChapter, setPdfChapter] = useState<Chapter | null>(null);
+  const [isFullBookPdfModalOpen, setIsFullBookPdfModalOpen] = useState<boolean>(false);
   const isNovelBookmarked = storageService.isBookmarked(novel.id);
 
-  const handleDownloadChapter = async (chapterToDownload: Chapter) => {
-    if (downloadingChapterId) return;
-    setDownloadingChapterId(chapterToDownload.id);
-    try {
-      await downloadChapterPdf(novel, chapterToDownload);
-      confetti({
-        particleCount: 30,
-        spread: 60,
-        origin: { y: 0.6 },
-      });
-    } catch (error) {
-      console.error('Failed to download chapter PDF:', error);
-      alert('تعذر تنزيل الفصل كملف PDF. يرجى المحاولة مرة أخرى.');
-    } finally {
-      setTimeout(() => {
-        setDownloadingChapterId(null);
-      }, 1200);
+  // Sync state if novel prop updates
+  useEffect(() => {
+    setTotalViewsCount(prev => Math.max(prev, novel.totalViews || 0));
+  }, [novel.totalViews]);
+
+  // Record novel view once per session
+  useEffect(() => {
+    if (!novel?.id) return;
+    const sessionKey = `viewed_novel_${novel.id}`;
+    if (!sessionStorage.getItem(sessionKey)) {
+      sessionStorage.setItem(sessionKey, '1');
+      storageService.incrementNovelView(novel.id);
     }
-  };
+  }, [novel?.id]);
+
+  // Listen to live view increment events
+  useEffect(() => {
+    const handleView = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (detail && detail.novelId === novel.id) {
+        setTotalViewsCount(prev => Math.max(prev, detail.novelViews ?? (prev + 1)));
+      }
+    };
+    window.addEventListener('novel-view-incremented', handleView);
+    return () => window.removeEventListener('novel-view-incremented', handleView);
+  }, [novel.id]);
 
   const handleRatingUpdated = (newRating: number, newCount: number) => {
     setCurrentRating(newRating);
@@ -208,7 +213,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 </div>
                 <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
                   <Eye className="w-4 h-4 text-[#4A5D4E] shrink-0" />
-                  <span className="truncate">{novel.totalViews.toLocaleString()} قراءة</span>
+                  <span className="truncate">{totalViewsCount.toLocaleString()} قراءة</span>
                 </div>
                 <div className="flex items-center gap-1.5 p-1.5 bg-white/70 sm:bg-transparent rounded-lg">
                   <Heart className="w-4 h-4 text-[#8C5E45] shrink-0" />
@@ -269,8 +274,21 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                       title={`تحميل الكتاب (${novel.pdfFileSize || 'نسخة إلكترونية'})`}
                     >
                       <Download className="w-4 h-4" />
-                      <span>تحميل PDF</span>
+                      <span>تحميل النسخة الجاهزة</span>
                     </a>
+                  )}
+
+                  {chapters.length > 0 && (
+                    <button
+                      type="button"
+                      id="download-full-book-formatted-pdf-btn"
+                      onClick={() => setIsFullBookPdfModalOpen(true)}
+                      className="flex-1 sm:flex-initial px-5 py-3 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
+                      title="تنزيل الكتاب كاملاً بصيغة PDF مع الفهرس وجميع الفصول"
+                    >
+                      <Download className="w-4 h-4 text-amber-200" />
+                      <span>تنزيل الكتاب كاملاً (PDF)</span>
+                    </button>
                   )}
                 </div>
               </div>
@@ -504,35 +522,16 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
-                      id={`chapter-list-print-btn-${ch.id}`}
+                      id={`chapter-list-pdf-btn-${ch.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        setPrintingChapter(ch);
+                        setPdfChapter(ch);
                       }}
                       className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer"
-                      title="معاينة وطباعة هذا الفصل أو حفظه كـ PDF متصل الحروف"
+                      title="تنزيل هذا الفصل بصيغة PDF"
                     >
-                      <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#4A5D4E]" />
                     </button>
-
-                    <button
-                      type="button"
-                      id={`chapter-list-download-btn-${ch.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDownloadChapter(ch);
-                      }}
-                      disabled={downloadingChapterId === ch.id}
-                      className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer"
-                      title="تحميل هذا الفصل كملف PDF"
-                    >
-                      {downloadingChapterId === ch.id ? (
-                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#4A5D4E] border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      )}
-                    </button>
-
                     <button
                       type="button"
                       id={`chapter-list-share-btn-${ch.id}`}
@@ -653,13 +652,26 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
         />
       )}
 
-      {/* Chapter Print & High-Fidelity PDF Modal */}
-      {printingChapter && (
-        <ChapterPrintModal
-          isOpen={Boolean(printingChapter)}
-          onClose={() => setPrintingChapter(null)}
-          chapter={printingChapter}
+      {/* Chapter Download PDF Modal Dialog */}
+      {pdfChapter && (
+        <ChapterDownloadPdfModal
+          isOpen={Boolean(pdfChapter)}
+          onClose={() => setPdfChapter(null)}
+          chapter={pdfChapter}
           novel={novel}
+          allChapters={chapters}
+          initialMode="single"
+        />
+      )}
+
+      {/* Full Book Download PDF Modal Dialog */}
+      {isFullBookPdfModalOpen && (
+        <ChapterDownloadPdfModal
+          isOpen={isFullBookPdfModalOpen}
+          onClose={() => setIsFullBookPdfModalOpen(false)}
+          novel={novel}
+          allChapters={chapters}
+          initialMode="full"
         />
       )}
     </div>

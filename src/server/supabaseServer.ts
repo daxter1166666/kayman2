@@ -18,43 +18,27 @@ const DEFAULT_SUPABASE_KEY =
 
 let supabaseServerClient: SupabaseClient | null = null;
 
-const ssrCache = new Map<string, { data: any; expiry: number }>();
-
-function getFromCache<T>(key: string): T | null {
-  const cached = ssrCache.get(key);
-  if (cached && cached.expiry > Date.now()) {
-    return cached.data;
-  }
-  return null;
-}
-
-function setInCache(key: string, data: any, ttlMs: number = 60000): void {
-  if (ssrCache.size > 200) {
-    const oldestKey = ssrCache.keys().next().value;
-    if (oldestKey) ssrCache.delete(oldestKey);
-  }
-  ssrCache.set(key, { data, expiry: Date.now() + ttlMs });
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3500, fallback: T): Promise<T> {
-  let timer: any;
-  const timeoutPromise = new Promise<T>((resolve) => {
-    timer = setTimeout(() => resolve(fallback), timeoutMs);
-  });
-  return Promise.race([
-    promise.then((res) => {
-      clearTimeout(timer);
-      return res;
-    }),
-    timeoutPromise,
-  ]);
-}
-
 export function getServerSupabase(): SupabaseClient {
   if (!supabaseServerClient) {
     const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL;
     const key = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-    supabaseServerClient = createClient(url.trim(), key.trim());
+    supabaseServerClient = createClient(url.trim(), key.trim(), {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false,
+      },
+      global: {
+        fetch: (input, init) => {
+          // Prevent hung connections in serverless environments (Vercel / Node)
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 6000);
+          return fetch(input, {
+            ...init,
+            signal: controller.signal,
+          }).finally(() => clearTimeout(timeoutId));
+        },
+      },
+    });
   }
   return supabaseServerClient;
 }
@@ -88,15 +72,10 @@ export async function fetchChapterFromSupabaseForSSR(
   novelIdentifier?: string | null,
   chapterIdentifier?: string | null
 ): Promise<ChapterWithSurroundings | null> {
+  const client = getServerSupabase();
   if (!chapterIdentifier) return null;
-  const cacheKey = `ssr_ch_${novelIdentifier || 'all'}_${chapterIdentifier}`;
-  const cached = getFromCache<ChapterWithSurroundings>(cacheKey);
-  if (cached) return cached;
 
-  return withTimeout(
-    (async () => {
-      const client = getServerSupabase();
-      try {
+  try {
     const cleanChapterIdent = decodeURIComponent(chapterIdentifier).trim();
     const parsedNum = parseChapterNumber(cleanChapterIdent);
 
@@ -206,23 +185,17 @@ export async function fetchChapterFromSupabaseForSSR(
     // 3. Fetch surrounding chapters for pagination
     const surroundings = await fetchSurroundingChapters(client, chapter.novelId, chapter.chapterNumber);
 
-        const result = {
-          chapter,
-          novel: targetNovel,
-          prevChapter: surroundings.prev,
-          nextChapter: surroundings.next,
-          totalChapters: surroundings.total,
-        };
-        setInCache(cacheKey, result, 60000);
-        return result;
-      } catch (err) {
-        console.error('fetchChapterFromSupabaseForSSR error:', err);
-        return null;
-      }
-    })(),
-    3500,
-    null
-  );
+    return {
+      chapter,
+      novel: targetNovel,
+      prevChapter: surroundings.prev,
+      nextChapter: surroundings.next,
+      totalChapters: surroundings.total,
+    };
+  } catch (err) {
+    console.error('fetchChapterFromSupabaseForSSR error:', err);
+    return null;
+  }
 }
 
 /**
@@ -269,44 +242,32 @@ async function fetchSurroundingChapters(
 export async function fetchNovelFromSupabaseForSSR(
   novelIdentifier: string
 ): Promise<{ novel: Novel; chapters: Chapter[] } | null> {
-  if (!novelIdentifier) return null;
-  const cacheKey = `ssr_novel_${novelIdentifier}`;
-  const cached = getFromCache<{ novel: Novel; chapters: Chapter[] }>(cacheKey);
-  if (cached) return cached;
+  const client = getServerSupabase();
+  try {
+    const cleanIdent = decodeURIComponent(novelIdentifier).trim();
+    const { data: nRow, error } = await client
+      .from('novels')
+      .select('*')
+      .or(`id.eq.${cleanIdent},slug.eq.${cleanIdent}`)
+      .maybeSingle();
 
-  return withTimeout(
-    (async () => {
-      const client = getServerSupabase();
-      try {
-        const cleanIdent = decodeURIComponent(novelIdentifier).trim();
-        const { data: nRow, error } = await client
-          .from('novels')
-          .select('*')
-          .or(`id.eq.${cleanIdent},slug.eq.${cleanIdent}`)
-          .maybeSingle();
+    if (error || !nRow) return null;
 
-        if (error || !nRow) return null;
+    const novel = mapNovelRow(nRow);
 
-        const novel = mapNovelRow(nRow);
+    const { data: cRows } = await client
+      .from('chapters')
+      .select('*')
+      .eq('novel_id', novel.id)
+      .order('chapter_number', { ascending: true });
 
-        const { data: cRows } = await client
-          .from('chapters')
-          .select('id, novel_id, chapter_number, title, slug, published_at, word_count, views, likes')
-          .eq('novel_id', novel.id)
-          .order('chapter_number', { ascending: true });
+    const chapters = (cRows || []).map(mapChapterRow);
 
-        const chapters = (cRows || []).map(mapChapterRow);
-        const result = { novel, chapters };
-        setInCache(cacheKey, result, 60000);
-        return result;
-      } catch (err) {
-        console.error('fetchNovelFromSupabaseForSSR error:', err);
-        return null;
-      }
-    })(),
-    3500,
-    null
-  );
+    return { novel, chapters };
+  } catch (err) {
+    console.error('fetchNovelFromSupabaseForSSR error:', err);
+    return null;
+  }
 }
 
 /**
@@ -845,5 +806,62 @@ export async function serverFetchAllSyncData() {
   } catch (err) {
     console.error('serverFetchAllSyncData exception:', err);
     return null;
+  }
+}
+
+export async function serverIncrementView(
+  novelId: string,
+  chapterId?: string
+): Promise<{ success: boolean; totalViews?: number; chapterViews?: number; error?: string }> {
+  try {
+    const client = getServerSupabase();
+    let updatedTotalViews: number | undefined;
+    let updatedChapterViews: number | undefined;
+
+    if (novelId) {
+      const { data: novelRow } = await client
+        .from('novels')
+        .select('total_views')
+        .eq('id', novelId)
+        .maybeSingle();
+
+      const currentTotal = Number(novelRow?.total_views || 0);
+      updatedTotalViews = currentTotal + 1;
+
+      await client
+        .from('novels')
+        .update({
+          total_views: updatedTotalViews,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', novelId);
+    }
+
+    if (chapterId) {
+      const { data: chapterRow } = await client
+        .from('chapters')
+        .select('views')
+        .eq('id', chapterId)
+        .maybeSingle();
+
+      const currentChapter = Number(chapterRow?.views || 0);
+      updatedChapterViews = currentChapter + 1;
+
+      await client
+        .from('chapters')
+        .update({
+          views: updatedChapterViews,
+        })
+        .eq('id', chapterId);
+    }
+
+    return {
+      success: true,
+      totalViews: updatedTotalViews,
+      chapterViews: updatedChapterViews,
+    };
+  } catch (err: any) {
+    console.warn('serverIncrementView exception:', err);
+    return { success: false, error: err?.message || String(err) };
   }
 }

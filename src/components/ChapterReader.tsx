@@ -5,7 +5,7 @@ import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterRatingWidget } from './ChapterRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
-import { ChapterPdfModal } from './ChapterPdfModal';
+import { ChapterDownloadPdfModal } from './ChapterDownloadPdfModal';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight,
@@ -33,8 +33,6 @@ import {
   Download,
   Check,
   Star,
-  FileText,
-  Printer,
 } from 'lucide-react';
 
 interface ChapterReaderProps {
@@ -83,8 +81,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
   // Initialize chapter state on mount or change
   useEffect(() => {
-    // Record view counter
-    storageService.incrementChapterView(chapter.id, novel.id);
+    // Record view counter reliably once per session
+    const sessionKey = `viewed_chapter_${chapter.id}`;
+    if (!sessionStorage.getItem(sessionKey)) {
+      sessionStorage.setItem(sessionKey, '1');
+      storageService.incrementChapterView(chapter.id, novel.id);
+    }
     
     // Check if liked & bookmarked
     setIsLiked(storageService.isChapterLikedByUser(chapter.id));
@@ -414,18 +416,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </div>
 
-            {/* Download Chapter as PDF */}
-            <button
-              type="button"
-              id="reader-download-chapter-pdf-header-btn"
-              onClick={() => setIsPdfModalOpen(true)}
-              className="hidden sm:inline-flex px-2.5 py-1.5 rounded-xl border border-[#4A5D4E]/30 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-xs font-bold transition-all items-center gap-1 cursor-pointer shadow-xs"
-              title="تحميل هذا الفصل بصيغة PDF بالخط والتنسيق المعتمد"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>تحميل الفصل PDF</span>
-            </button>
-
             {novel.pdfDownloadUrl && (
               <a
                 href={novel.pdfDownloadUrl}
@@ -470,6 +460,18 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             >
               <Share2 className="w-4 h-4" />
               <span className="hidden md:inline">مشاركة</span>
+            </button>
+
+            {/* Download Chapter PDF button */}
+            <button
+              type="button"
+              id="reader-header-download-pdf-btn"
+              onClick={() => setIsPdfModalOpen(true)}
+              className="px-3 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs active:scale-95"
+              title="تنزيل هذا الفصل بصيغة PDF بالخط والتنسيق الأدبي"
+            >
+              <Download className="w-4 h-4 text-amber-200" />
+              <span className="hidden md:inline">تنزيل الفصل PDF</span>
             </button>
 
             {/* Customization Settings Drawer Toggle */}
@@ -809,16 +811,15 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
-            {/* Download Current Chapter as PDF */}
             <button
               type="button"
-              id="chapter-download-pdf-btn"
+              id="chapter-quick-download-pdf-btn"
               onClick={() => setIsPdfModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-              title="تحميل هذا الفصل بصيغة PDF بالخط والتنسيق المعتمد بدون إعلانات أو تشويش"
+              className="px-3.5 py-1.5 rounded-xl border border-[#4A5D4E] bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="تنزيل وتنسيق هذا الفصل كملف PDF بالخط المختار"
             >
-              <Download className="w-3.5 h-3.5" />
-              <span>تحميل هذا الفصل PDF</span>
+              <Download className="w-3.5 h-3.5 text-amber-200" />
+              <span>تنزيل هذا الفصل PDF</span>
             </button>
 
             {novel.pdfDownloadUrl && (
@@ -827,12 +828,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 target="_blank"
                 rel="noopener noreferrer"
                 download
-                id="book-full-download-pdf-btn"
+                id="chapter-download-pdf-btn"
                 className="px-3.5 py-1.5 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
                 title="تحميل الكتاب كاملاً بصيغة PDF"
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>تحميل الكتاب كاملاً PDF {novel.pdfFileSize ? `(${novel.pdfFileSize})` : ''}</span>
+                <span>تحميل الكتاب PDF {novel.pdfFileSize ? `(${novel.pdfFileSize})` : ''}</span>
               </a>
             )}
           </div>
@@ -934,7 +935,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         {/* Decorative Section Separator */}
         <div className="flex items-center justify-center gap-3 my-12 opacity-40">
           <span className="h-px w-16 bg-current" />
-          <span className="text-[#C88A3B]">❖ ❖ ❖</span>
+          <span className="text-[#C88A3B]">✦ ✦ ✦</span>
           <span className="h-px w-16 bg-current" />
         </div>
 
@@ -982,10 +983,10 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 id="footer-download-chapter-pdf-btn"
                 onClick={() => setIsPdfModalOpen(true)}
                 className="px-5 py-2.5 sm:py-3 rounded-xl border border-[#4A5D4E]/40 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
-                title="تحميل هذا الفصل بصيغة PDF للطباعة والقراءة أوفلاين"
+                title="تنزيل هذا الفصل كملف PDF"
               >
-                <Download className="w-5 h-5" />
-                <span>تحميل الفصل PDF</span>
+                <Download className="w-5 h-5 text-[#4A5D4E]" />
+                <span>تنزيل الفصل PDF</span>
               </button>
             </div>
 
@@ -1405,6 +1406,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             <Share2 className="w-4 h-4 text-sky-300" />
           </button>
 
+          {/* Quick PDF Download on Mobile Floating Bar */}
+          <button
+            type="button"
+            id="mobile-float-download-pdf-btn"
+            onClick={() => setIsPdfModalOpen(true)}
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
+            title="تنزيل الفصل PDF"
+          >
+            <Download className="w-4 h-4 text-amber-300" />
+          </button>
+
           {nextChapter ? (
             <button
               type="button"
@@ -1440,13 +1452,14 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         themeMode={readerSettings.theme}
       />
 
-      {/* Chapter PDF Download & Print Modal Dialog */}
-      <ChapterPdfModal
+      {/* Chapter & Full Book Download PDF Modal Dialog */}
+      <ChapterDownloadPdfModal
         isOpen={isPdfModalOpen}
         onClose={() => setIsPdfModalOpen(false)}
         chapter={chapter}
         novel={novel}
-        readerSettings={readerSettings}
+        allChapters={allChapters}
+        currentReaderFont={readerSettings.fontFamily}
       />
     </div>
   );
