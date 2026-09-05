@@ -5,7 +5,7 @@ import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterRatingWidget } from './ChapterRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
-import { downloadChapterPdf } from '../utils/chapterPdfGenerator';
+import { downloadChapterPdf, printChapterDocument } from '../utils/chapterPdfGenerator';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight,
@@ -31,6 +31,7 @@ import {
   ExternalLink,
   Copy,
   Download,
+  Printer,
   Check,
   Star,
 } from 'lucide-react';
@@ -865,6 +866,18 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
+            {/* Print / Save to Native PDF Button */}
+            <button
+              type="button"
+              id="header-print-chapter-btn"
+              onClick={() => printChapterDocument(novel, chapter)}
+              className="px-3.5 py-2 rounded-xl border border-[#4A5D4E]/30 bg-white/60 dark:bg-black/20 hover:bg-[#4A5D4E]/10 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
+              title="طباعة الفصل أو حفظ كملف PDF عالي الدقة عبر المتصفح"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              <span>طباعة الفصل</span>
+            </button>
+
             {novel.pdfDownloadUrl && (
               <a
                 href={novel.pdfDownloadUrl}
@@ -1042,6 +1055,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                     <span>تحميل الفصل PDF</span>
                   </>
                 )}
+              </button>
+
+              <button
+                type="button"
+                id="footer-print-chapter-btn"
+                onClick={() => printChapterDocument(novel, chapter)}
+                className="px-4 py-2.5 sm:py-3 rounded-xl border border-[#4A5D4E]/30 bg-white/60 dark:bg-black/20 hover:bg-[#4A5D4E]/10 text-[#4A5D4E] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
+                title="طباعة الفصل أو حفظ كملف PDF عالي الدقة عبر المتصفح"
+              >
+                <Printer className="w-4 h-4" />
+                <span>طباعة الفصل</span>
               </button>
             </div>
 
