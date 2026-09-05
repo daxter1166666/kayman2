@@ -559,6 +559,23 @@ export const storageService = {
     });
   },
 
+  async syncAdminCredentialsFromServer(): Promise<void> {
+    try {
+      const res = await fetch('/api/admin/credentials');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.username && data?.passwordHash) {
+          setStored(KEYS.ADMIN_CREDS, {
+            username: String(data.username).trim(),
+            passwordHash: String(data.passwordHash).trim(),
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore background fetch error
+    }
+  },
+
   isAdminLoggedIn(): boolean {
     return getStored<boolean>(KEYS.ADMIN_AUTH, false);
   },
@@ -579,16 +596,56 @@ export const storageService = {
     return false;
   },
 
+  async loginAdminAsync(usernameInput: string, passwordInput: string): Promise<boolean> {
+    // 1. Check local storage first
+    if (this.loginAdmin(usernameInput, passwordInput)) {
+      return true;
+    }
+
+    // 2. Check server-side centralized credentials in case changed from another browser/device
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput, password: passwordInput }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authorized) {
+          setStored(KEYS.ADMIN_CREDS, {
+            username: usernameInput.trim(),
+            passwordHash: passwordInput.trim(),
+          });
+          setStored(KEYS.ADMIN_AUTH, true);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('Server verify note:', err);
+    }
+
+    return false;
+  },
+
   logoutAdmin(): void {
     setStored(KEYS.ADMIN_AUTH, false);
   },
 
   updateAdminCredentials(newUsername: string, newPassword: string): boolean {
     if (!newUsername.trim() || !newPassword.trim()) return false;
-    setStored(KEYS.ADMIN_CREDS, {
+    const creds = {
       username: newUsername.trim(),
       passwordHash: newPassword.trim(),
-    });
+    };
+    setStored(KEYS.ADMIN_CREDS, creds);
+
+    // Sync to centralized server so other browsers/devices get updated automatically
+    fetch('/api/admin/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(creds),
+    }).catch(err => console.warn('Could not sync admin creds to server:', err));
+
     return true;
   },
 

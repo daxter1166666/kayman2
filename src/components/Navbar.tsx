@@ -18,6 +18,7 @@ interface NavbarProps {
   onSearchChange: (query: string) => void;
   onNavigateHome: () => void;
   onOpenControlPanel: () => void;
+  onOpenEditor?: () => void;
   onOpenBookmarks: () => void;
   bookmarkCount: number;
   isControlPanelOpen: boolean;
@@ -35,6 +36,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSearchChange,
   onNavigateHome,
   onOpenControlPanel,
+  onOpenEditor,
   onOpenBookmarks,
   bookmarkCount,
   isControlPanelOpen,
@@ -169,6 +171,20 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <Smartphone className="w-3.5 h-3.5" />
                 <span>تثبيت التطبيق</span>
+              </button>
+            )}
+
+            {/* Direct Rich Text Editor Access Button */}
+            {onOpenEditor && (
+              <button
+                type="button"
+                id="nav-rich-editor-btn"
+                onClick={onOpenEditor}
+                className="px-3.5 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-[#8C5E45] border border-amber-300/80 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                title="فتح محرر النصوص الأدبي المباشر (WYSIWYG) لتنسيق الفصول والكتب"
+              >
+                <Feather className="w-3.5 h-3.5 text-[#C88A3B]" />
+                <span>محرر النصوص الأدبي</span>
               </button>
             )}
 
@@ -317,6 +333,22 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Smartphone className="w-4 h-4" />
                   <span>تثبيت تطبيق المنصة على هاتفك</span>
+                </button>
+              )}
+
+              {/* Mobile Direct Rich Text Editor Access Button */}
+              {onOpenEditor && (
+                <button
+                  type="button"
+                  id="mobile-nav-rich-editor-btn"
+                  onClick={() => {
+                    onOpenEditor();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="col-span-2 p-3 rounded-xl bg-amber-50 text-[#8C5E45] border border-amber-300 text-center font-bold flex items-center justify-center gap-2 shadow-xs active:bg-amber-100"
+                >
+                  <Feather className="w-4 h-4 text-[#C88A3B]" />
+                  <span>محرر الكتب والنصوص الأدبي (WYSIWYG)</span>
                 </button>
               )}
 
