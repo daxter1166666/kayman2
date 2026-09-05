@@ -4,6 +4,8 @@ import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
+import { downloadChapterPdf } from '../utils/chapterPdfGenerator';
+import confetti from 'canvas-confetti';
 import {
   ArrowRight,
   BookOpen,
@@ -47,7 +49,28 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   const [currentRating, setCurrentRating] = useState<number>(novel.rating);
   const [ratingCount, setRatingCount] = useState<number>(novel.ratingCount);
   const [sharingChapter, setSharingChapter] = useState<Chapter | null>(null);
+  const [downloadingChapterId, setDownloadingChapterId] = useState<string | null>(null);
   const isNovelBookmarked = storageService.isBookmarked(novel.id);
+
+  const handleDownloadChapter = async (chapterToDownload: Chapter) => {
+    if (downloadingChapterId) return;
+    setDownloadingChapterId(chapterToDownload.id);
+    try {
+      await downloadChapterPdf(novel, chapterToDownload);
+      confetti({
+        particleCount: 30,
+        spread: 60,
+        origin: { y: 0.6 },
+      });
+    } catch (error) {
+      console.error('Failed to download chapter PDF:', error);
+      alert('تعذر تنزيل الفصل كملف PDF. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setTimeout(() => {
+        setDownloadingChapterId(null);
+      }, 1200);
+    }
+  };
 
   const handleRatingUpdated = (newRating: number, newCount: number) => {
     setCurrentRating(newRating);
@@ -476,6 +499,24 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      id={`chapter-list-download-btn-${ch.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDownloadChapter(ch);
+                      }}
+                      disabled={downloadingChapterId === ch.id}
+                      className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer"
+                      title="تحميل هذا الفصل كملف PDF منسق"
+                    >
+                      {downloadingChapterId === ch.id ? (
+                        <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#4A5D4E] border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      )}
+                    </button>
+
                     <button
                       type="button"
                       id={`chapter-list-share-btn-${ch.id}`}

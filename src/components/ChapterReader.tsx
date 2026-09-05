@@ -5,6 +5,7 @@ import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterRatingWidget } from './ChapterRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
+import { downloadChapterPdf } from '../utils/chapterPdfGenerator';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight,
@@ -75,7 +76,33 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
   const [chapterRating, setChapterRating] = useState<number>(chapter.rating || 5.0);
   const [chapterRatingCount, setChapterRatingCount] = useState<number>(chapter.ratingCount || 0);
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
+  const [pdfProgressText, setPdfProgressText] = useState<string>('');
   const contentRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadChapterPdf = async () => {
+    if (isDownloadingPdf) return;
+    setIsDownloadingPdf(true);
+    setPdfProgressText('جاري تجهيز الفصل...');
+    try {
+      await downloadChapterPdf(novel, chapter, {
+        onProgress: (status) => setPdfProgressText(status),
+      });
+      confetti({
+        particleCount: 40,
+        spread: 70,
+        origin: { y: 0.7 },
+      });
+    } catch (error) {
+      console.error('Failed to generate chapter PDF:', error);
+      alert('حدث خطأ أثناء إعداد ملف الـ PDF. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setTimeout(() => {
+        setIsDownloadingPdf(false);
+        setPdfProgressText('');
+      }, 1500);
+    }
+  };
 
   // Initialize chapter state on mount or change
   useEffect(() => {
@@ -409,6 +436,27 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Download Chapter PDF Button (Header) */}
+            <button
+              type="button"
+              id="reader-download-chapter-pdf-btn"
+              onClick={handleDownloadChapterPdf}
+              disabled={isDownloadingPdf}
+              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-[#4A5D4E]/10 hover:border-[#4A5D4E]/40 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer text-[#4A5D4E] ${
+                isDownloadingPdf ? 'opacity-70 cursor-wait' : ''
+              }`}
+              title="تحميل هذا الفصل كملف PDF منسق وجاهز للقراءة والطباعة"
+            >
+              {isDownloadingPdf ? (
+                <div className="w-4 h-4 border-2 border-[#4A5D4E] border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Download className="w-4 h-4 text-[#4A5D4E]" />
+              )}
+              <span className="hidden lg:inline">
+                {isDownloadingPdf ? 'جاري التجهيز...' : 'تحميل الفصل PDF'}
+              </span>
+            </button>
 
             {novel.pdfDownloadUrl && (
               <a
@@ -793,6 +841,30 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
+            {/* Direct Chapter PDF Download Button */}
+            <button
+              type="button"
+              id="header-download-chapter-pdf-btn"
+              onClick={handleDownloadChapterPdf}
+              disabled={isDownloadingPdf}
+              className={`px-4 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-sm active:scale-95 ${
+                isDownloadingPdf ? 'opacity-85 cursor-wait' : ''
+              }`}
+              title="تحميل وتنسيق هذا الفصل تلقائياً داخل ملف PDF عالي الجودة"
+            >
+              {isDownloadingPdf ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-[#FDFCF8] border-t-transparent rounded-full animate-spin" />
+                  <span>{pdfProgressText || 'جاري تجهيز الـ PDF...'}</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  <span>تحميل الفصل PDF</span>
+                </>
+              )}
+            </button>
+
             {novel.pdfDownloadUrl && (
               <a
                 href={novel.pdfDownloadUrl}
@@ -947,6 +1019,29 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               >
                 <Share2 className="w-5 h-5" />
                 <span>مشاركة الفصل</span>
+              </button>
+
+              <button
+                type="button"
+                id="footer-download-chapter-pdf-btn"
+                onClick={handleDownloadChapterPdf}
+                disabled={isDownloadingPdf}
+                className={`px-5 py-2.5 sm:py-3 rounded-xl border border-[#4A5D4E]/40 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs ${
+                  isDownloadingPdf ? 'opacity-85 cursor-wait' : ''
+                }`}
+                title="تحميل هذا الفصل كملف PDF منسق وجاهز للقراءة والطباعة"
+              >
+                {isDownloadingPdf ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-[#4A5D4E] border-t-transparent rounded-full animate-spin" />
+                    <span>{pdfProgressText || 'جاري تجهيز الـ PDF...'}</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4" />
+                    <span>تحميل الفصل PDF</span>
+                  </>
+                )}
               </button>
             </div>
 
