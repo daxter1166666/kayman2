@@ -4,6 +4,7 @@ import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
+import { ChapterPrintModal } from './ChapterPrintModal';
 import { downloadChapterPdf } from '../utils/chapterPdfGenerator';
 import confetti from 'canvas-confetti';
 import {
@@ -22,6 +23,7 @@ import {
   CheckCircle2,
   Tag,
   Download,
+  Printer,
   ListOrdered,
   ExternalLink,
   FileText,
@@ -49,6 +51,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   const [currentRating, setCurrentRating] = useState<number>(novel.rating);
   const [ratingCount, setRatingCount] = useState<number>(novel.ratingCount);
   const [sharingChapter, setSharingChapter] = useState<Chapter | null>(null);
+  const [printingChapter, setPrintingChapter] = useState<Chapter | null>(null);
   const [downloadingChapterId, setDownloadingChapterId] = useState<string | null>(null);
   const isNovelBookmarked = storageService.isBookmarked(novel.id);
 
@@ -501,6 +504,19 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                   <div className="flex items-center gap-2 shrink-0">
                     <button
                       type="button"
+                      id={`chapter-list-print-btn-${ch.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPrintingChapter(ch);
+                      }}
+                      className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer"
+                      title="معاينة وطباعة هذا الفصل أو حفظه كـ PDF متصل الحروف"
+                    >
+                      <Printer className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </button>
+
+                    <button
+                      type="button"
                       id={`chapter-list-download-btn-${ch.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -508,7 +524,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                       }}
                       disabled={downloadingChapterId === ch.id}
                       className="p-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer"
-                      title="تحميل هذا الفصل كملف PDF منسق"
+                      title="تحميل هذا الفصل كملف PDF"
                     >
                       {downloadingChapterId === ch.id ? (
                         <div className="w-3.5 h-3.5 sm:w-4 sm:h-4 border-2 border-[#4A5D4E] border-t-transparent rounded-full animate-spin" />
@@ -633,6 +649,16 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
           isOpen={Boolean(sharingChapter)}
           onClose={() => setSharingChapter(null)}
           chapter={sharingChapter}
+          novel={novel}
+        />
+      )}
+
+      {/* Chapter Print & High-Fidelity PDF Modal */}
+      {printingChapter && (
+        <ChapterPrintModal
+          isOpen={Boolean(printingChapter)}
+          onClose={() => setPrintingChapter(null)}
+          chapter={printingChapter}
           novel={novel}
         />
       )}

@@ -5,6 +5,7 @@ import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterRatingWidget } from './ChapterRatingWidget';
 import { ChapterShareModal } from './ChapterShareModal';
+import { ChapterPrintModal } from './ChapterPrintModal';
 import { downloadChapterPdf, printChapterDocument } from '../utils/chapterPdfGenerator';
 import confetti from 'canvas-confetti';
 import {
@@ -75,6 +76,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [readingProgress, setReadingProgress] = useState<number>(0);
   const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
   const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
+  const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
   const [chapterRating, setChapterRating] = useState<number>(chapter.rating || 5.0);
   const [chapterRatingCount, setChapterRatingCount] = useState<number>(chapter.ratingCount || 0);
   const [isDownloadingPdf, setIsDownloadingPdf] = useState<boolean>(false);
@@ -870,7 +872,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             <button
               type="button"
               id="header-print-chapter-btn"
-              onClick={() => printChapterDocument(novel, chapter)}
+              onClick={() => setIsPrintModalOpen(true)}
               className="px-3.5 py-2 rounded-xl border border-[#4A5D4E]/30 bg-white/60 dark:bg-black/20 hover:bg-[#4A5D4E]/10 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
               title="طباعة الفصل أو حفظ كملف PDF عالي الدقة عبر المتصفح"
             >
@@ -1060,7 +1062,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               <button
                 type="button"
                 id="footer-print-chapter-btn"
-                onClick={() => printChapterDocument(novel, chapter)}
+                onClick={() => setIsPrintModalOpen(true)}
                 className="px-4 py-2.5 sm:py-3 rounded-xl border border-[#4A5D4E]/30 bg-white/60 dark:bg-black/20 hover:bg-[#4A5D4E]/10 text-[#4A5D4E] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
                 title="طباعة الفصل أو حفظ كملف PDF عالي الدقة عبر المتصفح"
               >
@@ -1518,6 +1520,14 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         chapter={chapter}
         novel={novel}
         themeMode={readerSettings.theme}
+      />
+
+      {/* Chapter Print & Pristine PDF Modal Dialog */}
+      <ChapterPrintModal
+        isOpen={isPrintModalOpen}
+        onClose={() => setIsPrintModalOpen(false)}
+        chapter={chapter}
+        novel={novel}
       />
     </div>
   );
