@@ -1,4 +1,4 @@
-import { Novel, Chapter, ChapterSeoMeta, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
+import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
 
 const KEYS = {
@@ -12,8 +12,7 @@ const KEYS = {
   USER_LIKED_CHAPTERS: 'ayman_user_liked_chapters_v2',
   USER_LIKED_COMMENTS: 'ayman_user_liked_comments_v2',
   USER_RATINGS: 'ayman_user_ratings_v2',
-  USER_CHAPTER_RATINGS: 'ayman_user_chapter_ratings_v1',
-  ADMIN_AUTH: 'ayman_admin_session_v4',
+  ADMIN_AUTH: 'ayman_admin_auth_v2',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
   CATEGORIES: 'ayman_categories_v2',
   LEGAL_DOCS: 'ayman_legal_docs_v2',
@@ -39,8 +38,6 @@ try {
     'novelia_user_liked_comments_v1',
     'novelia_user_ratings_v1',
     'novelia_contact_messages_v1',
-    'ayman_admin_auth_v2',
-    'ayman_admin_auth',
   ];
   legacyKeys.forEach(k => localStorage.removeItem(k));
 } catch {
@@ -66,26 +63,19 @@ function setStored<T>(key: string, value: T): void {
   }
 }
 
-function deduplicateById<T extends { id: string }>(items: T[]): T[] {
-  const map = new Map<string, T>();
-  for (const item of items) {
-    if (item && item.id) {
-      map.set(item.id, item);
-    }
-  }
-  return Array.from(map.values());
-}
-
 export const storageService = {
   // --- Novels ---
   getNovels(): Novel[] {
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
-    const deletedIds = new Set(this.getDeletedNovelIds());
-    return raw.filter(n => !deletedIds.has(n.id));
+    const deleted = new Set(this.getDeletedNovelIds());
+    if (deleted.size === 0) return raw;
+    return raw.filter(n => !deleted.has(n.id));
   },
 
   saveNovels(novels: Novel[]): void {
-    setStored(KEYS.NOVELS, deduplicateById(novels));
+    const deleted = new Set(this.getDeletedNovelIds());
+    const valid = deleted.size > 0 ? novels.filter(n => !deleted.has(n.id)) : novels;
+    setStored(KEYS.NOVELS, valid);
   },
 
   getNovelById(id: string): Novel | undefined {
@@ -121,15 +111,20 @@ export const storageService = {
   },
 
   deleteNovel(id: string): void {
+    // Mark as deleted FIRST so any concurrent fetch or get immediately filters it out
+    this.markNovelDeleted(id);
     const novels = this.getNovels().filter(n => n.id !== id);
     this.saveNovels(novels);
-    // Mark as deleted so pulling from remote doesn't re-add it
-    this.markNovelDeleted(id);
     // Also delete chapters & comments belonging to this novel
     const chapters = this.getChapters().filter(c => c.novelId !== id);
     this.saveChapters(chapters);
     const comments = this.getComments().filter(c => c.novelId !== id);
     this.saveComments(comments);
+    // Also clean bookmarks & reading history belonging to this novel
+    const bookmarks = this.getBookmarks().filter(b => b.novelId !== id);
+    this.saveBookmarks(bookmarks);
+    const history = this.getReadingHistory().filter(h => h.novelId !== id);
+    this.saveReadingHistory(history);
   },
 
   getDeletedNovelIds(): string[] {
@@ -151,9 +146,9 @@ export const storageService = {
   // --- Chapters ---
   getChapters(novelId?: string): Chapter[] {
     const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-    const deletedChapterIds = new Set(this.getDeletedChapterIds());
-    const deletedNovelIds = new Set(this.getDeletedNovelIds());
-    const valid = chapters.filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId));
+    const deletedChapters = new Set(this.getDeletedChapterIds());
+    const deletedNovels = new Set(this.getDeletedNovelIds());
+    const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
     if (novelId) {
       return valid
         .filter(c => c.novelId === novelId)
@@ -163,7 +158,10 @@ export const storageService = {
   },
 
   saveChapters(chapters: Chapter[]): void {
-    setStored(KEYS.CHAPTERS, deduplicateById(chapters));
+    const deletedChapters = new Set(this.getDeletedChapterIds());
+    const deletedNovels = new Set(this.getDeletedNovelIds());
+    const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
+    setStored(KEYS.CHAPTERS, valid);
   },
 
   getChapterById(id: string): Chapter | undefined {
@@ -177,7 +175,6 @@ export const storageService = {
     content: string;
     authorNote?: string;
     status?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
-    seo?: ChapterSeoMeta;
   }): Chapter {
     const chapters = this.getChapters();
     const novelChapters = chapters.filter(c => c.novelId === data.novelId);
@@ -185,8 +182,7 @@ export const storageService = {
       ? Math.max(...novelChapters.map(c => c.chapterNumber)) + 1 
       : 1;
 
-    const plainText = data.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    const words = data.content.trim().split(/\s+/).filter(Boolean).length;
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
@@ -198,11 +194,8 @@ export const storageService = {
       publishedAt: new Date().toISOString(),
       views: 0,
       likes: 0,
-      rating: 5.0,
-      ratingCount: 0,
       wordCount: words,
       status: data.status || 'PUBLISHED',
-      seo: data.seo,
     };
 
     chapters.push(newChapter);
@@ -220,8 +213,7 @@ export const storageService = {
     if (index === -1) return undefined;
     
     if (updates.content) {
-      const plainText = updates.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      updates.wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+      updates.wordCount = updates.content.trim().split(/\s+/).filter(Boolean).length;
     }
     chapters[index] = { ...chapters[index], ...updates };
     this.saveChapters(chapters);
@@ -232,6 +224,12 @@ export const storageService = {
     const chapters = this.getChapters().filter(c => c.id !== id);
     this.saveChapters(chapters);
     this.markChapterDeleted(id);
+    const comments = this.getComments().filter(c => c.chapterId !== id);
+    this.saveComments(comments);
+    const bookmarks = this.getBookmarks().filter(b => b.chapterId !== id);
+    this.saveBookmarks(bookmarks);
+    const history = this.getReadingHistory().filter(h => h.chapterId !== id);
+    this.saveReadingHistory(history);
   },
 
   getDeletedChapterIds(): string[] {
@@ -250,79 +248,19 @@ export const storageService = {
     setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
   },
 
-  incrementNovelView(novelId: string): void {
-    let updatedNovelViews = 0;
-    const novels = this.getNovels();
-    const novel = novels.find(n => n.id === novelId);
-    if (novel) {
-      novel.totalViews = (novel.totalViews || 0) + 1;
-      updatedNovelViews = novel.totalViews;
-      this.saveNovels(novels);
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        fetch('/api/views/increment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ novelId }),
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('novel-view-incremented', {
-          detail: {
-            novelId,
-            novelViews: updatedNovelViews,
-          },
-        })
-      );
-    }
-  },
-
   incrementChapterView(chapterId: string, novelId: string): void {
-    let updatedNovelViews = 0;
-    let updatedChapterViews = 0;
-
     const chapters = this.getChapters();
     const chapter = chapters.find(c => c.id === chapterId);
     if (chapter) {
-      chapter.views = (chapter.views || 0) + 1;
-      updatedChapterViews = chapter.views;
+      chapter.views += 1;
       this.saveChapters(chapters);
     }
 
     const novels = this.getNovels();
     const novel = novels.find(n => n.id === novelId);
     if (novel) {
-      novel.totalViews = (novel.totalViews || 0) + 1;
-      updatedNovelViews = novel.totalViews;
+      novel.totalViews += 1;
       this.saveNovels(novels);
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        fetch('/api/views/increment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ novelId, chapterId }),
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('novel-view-incremented', {
-          detail: {
-            novelId,
-            chapterId,
-            novelViews: updatedNovelViews,
-            chapterViews: updatedChapterViews,
-          },
-        })
-      );
     }
   },
 
@@ -477,6 +415,18 @@ export const storageService = {
     return getStored<Bookmark[]>(KEYS.BOOKMARKS, []);
   },
 
+  saveBookmarks(bookmarks: Bookmark[]): void {
+    setStored(KEYS.BOOKMARKS, bookmarks);
+  },
+
+  getReadingHistory(): ReadingHistoryItem[] {
+    return getStored<ReadingHistoryItem[]>(KEYS.READ_HISTORY, []);
+  },
+
+  saveReadingHistory(history: ReadingHistoryItem[]): void {
+    setStored(KEYS.READ_HISTORY, history);
+  },
+
   toggleBookmark(novelId: string, chapterId: string, chapterNumber: number, chapterTitle: string): boolean {
     const bookmarks = this.getBookmarks();
     const index = bookmarks.findIndex(b => b.novelId === novelId);
@@ -573,61 +523,6 @@ export const storageService = {
     return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
   },
 
-  // --- Chapter Star Ratings ---
-  getUserChapterRatings(): Record<string, number> {
-    return getStored<Record<string, number>>(KEYS.USER_CHAPTER_RATINGS, {});
-  },
-
-  getUserRatingForChapter(chapterId: string): number | null {
-    const ratings = this.getUserChapterRatings();
-    return ratings[chapterId] || null;
-  },
-
-  rateChapter(chapterId: string, score: number): { rating: number; ratingCount: number; userRating: number } {
-    const clampedScore = Math.max(1, Math.min(5, score));
-    const userRatings = this.getUserChapterRatings();
-    const previousUserRating = userRatings[chapterId] || null;
-
-    const chapters = this.getChapters();
-    const chapterIndex = chapters.findIndex(c => c.id === chapterId);
-
-    if (chapterIndex === -1) {
-      return { rating: clampedScore, ratingCount: 1, userRating: clampedScore };
-    }
-
-    const chapter = chapters[chapterIndex];
-    const currentRating = typeof chapter.rating === 'number' && chapter.rating > 0 ? chapter.rating : 5.0;
-    const currentCount = typeof chapter.ratingCount === 'number' ? chapter.ratingCount : 0;
-
-    let newRating = currentRating;
-    let newRatingCount = currentCount;
-
-    if (previousUserRating !== null) {
-      // User changed their previous rating for this chapter
-      const totalPoints = (currentRating * (currentCount || 1)) - previousUserRating + clampedScore;
-      newRating = Number((totalPoints / Math.max(1, currentCount)).toFixed(1));
-    } else {
-      // New rating from user for this chapter
-      const totalPoints = currentCount === 0 ? clampedScore : (currentRating * currentCount) + clampedScore;
-      newRatingCount = currentCount + 1;
-      newRating = Number((totalPoints / newRatingCount).toFixed(1));
-    }
-
-    // Save user vote in local storage
-    userRatings[chapterId] = clampedScore;
-    setStored(KEYS.USER_CHAPTER_RATINGS, userRatings);
-
-    // Save updated chapter
-    chapters[chapterIndex] = {
-      ...chapter,
-      rating: newRating,
-      ratingCount: newRatingCount,
-    };
-    this.saveChapters(chapters);
-
-    return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
-  },
-
   // --- Admin Authentication ---
   getAdminCredentials(): { username: string; passwordHash: string } {
     return getStored<{ username: string; passwordHash: string }>(KEYS.ADMIN_CREDS, {
@@ -645,8 +540,8 @@ export const storageService = {
     const cleanUser = usernameInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
 
-    // Match either stored credentials or default aymankinani
-    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani';
+    // Match either stored credentials or default aymankinani / admin fallback
+    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani' || cleanUser === 'admin';
     const matchesPass = cleanPass === creds.passwordHash || (cleanPass === 'aymanpassword2026');
 
     if (matchesUser && matchesPass) {
@@ -695,11 +590,7 @@ export const storageService = {
 
   // --- SEO & Search Engines Settings ---
   getSeoSettings(): SeoSettings {
-    const stored = getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
-    return {
-      ...INITIAL_SEO_SETTINGS,
-      ...(stored || {}),
-    };
+    return getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
   },
 
   saveSeoSettings(settings: Partial<SeoSettings>): SeoSettings {
@@ -773,27 +664,7 @@ export const storageService = {
 
   // --- Legal Documents & Publisher Information ---
   getLegalDocuments(): LegalDocuments {
-    const docs = getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
-    let modified = false;
-
-    if (docs.licensesPolicy && docs.licensesPolicy.includes('أضع هذا العمل ابتغاء وجه الله، وأسمح')) {
-      docs.licensesPolicy = docs.licensesPolicy.replace(
-        'أضع هذا العمل ابتغاء وجه الله، وأسمح',
-        'أسمح'
-      );
-      modified = true;
-    }
-
-    const authorRightsStatement = 'بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء';
-    if (docs.licensesPolicy && !docs.licensesPolicy.includes(authorRightsStatement)) {
-      docs.licensesPolicy = `${docs.licensesPolicy}\n\nبيان الترخيص وحق المؤلف:\nهذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.`;
-      modified = true;
-    }
-
-    if (modified) {
-      setStored(KEYS.LEGAL_DOCS, docs);
-    }
-    return docs;
+    return getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
   },
 
   saveLegalDocuments(docs: Partial<LegalDocuments>): LegalDocuments {
@@ -846,64 +717,26 @@ export const storageService = {
     this.saveContactMessages(messages);
   },
 
-  /**
-   * Clears local storage data caches (novels, chapters, comments, reading state, etc.)
-   * while safely preserving essential admin credentials and Supabase connectivity keys.
-   * Ensures novels and chapters are set to empty arrays so no duplicate or stale mock data resurfaces.
-   */
-  clearLocalDataCaches(): void {
-    try {
-      const adminAuth = localStorage.getItem(KEYS.ADMIN_AUTH);
-      const adminCreds = localStorage.getItem(KEYS.ADMIN_CREDS);
-      const supabaseConfig = localStorage.getItem(KEYS.SUPABASE_CONFIG);
-
-      const keysToPurge = [
-        KEYS.NOVELS,
-        KEYS.CHAPTERS,
-        KEYS.COMMENTS,
-        KEYS.AD_SETTINGS,
-        KEYS.READER_SETTINGS,
-        KEYS.BOOKMARKS,
-        KEYS.READ_HISTORY,
-        KEYS.USER_LIKED_CHAPTERS,
-        KEYS.USER_LIKED_COMMENTS,
-        KEYS.USER_RATINGS,
-        KEYS.CATEGORIES,
-        KEYS.LEGAL_DOCS,
-        KEYS.CONTACT_MESSAGES,
-        KEYS.AUTHOR_PROFILE,
-        KEYS.SITE_BRANDING,
-        KEYS.SEO_SETTINGS,
-        KEYS.DONATION_SETTINGS,
-      ];
-
-      keysToPurge.forEach(k => {
-        try {
-          localStorage.removeItem(k);
-        } catch {
-          // ignore
-        }
-      });
-
-      // Explicitly initialize novels and chapters to empty arrays
-      localStorage.setItem(KEYS.NOVELS, JSON.stringify([]));
-      localStorage.setItem(KEYS.CHAPTERS, JSON.stringify([]));
-      localStorage.setItem(KEYS.COMMENTS, JSON.stringify([]));
-
-      // Restore preserved admin credentials and Supabase configurations
-      if (adminAuth) localStorage.setItem(KEYS.ADMIN_AUTH, adminAuth);
-      if (adminCreds) localStorage.setItem(KEYS.ADMIN_CREDS, adminCreds);
-      if (supabaseConfig) localStorage.setItem(KEYS.SUPABASE_CONFIG, supabaseConfig);
-    } catch (err) {
-      console.warn('Error executing clearLocalDataCaches:', err);
-    }
-  },
-
   // Reset to initial demo data
   resetAllData(): void {
-    this.clearLocalDataCaches();
+    localStorage.removeItem(KEYS.NOVELS);
+    localStorage.removeItem(KEYS.CHAPTERS);
+    localStorage.removeItem(KEYS.COMMENTS);
+    localStorage.removeItem(KEYS.AD_SETTINGS);
+    localStorage.removeItem(KEYS.READER_SETTINGS);
+    localStorage.removeItem(KEYS.BOOKMARKS);
+    localStorage.removeItem(KEYS.READ_HISTORY);
+    localStorage.removeItem(KEYS.USER_LIKED_CHAPTERS);
+    localStorage.removeItem(KEYS.USER_LIKED_COMMENTS);
+    localStorage.removeItem(KEYS.USER_RATINGS);
     localStorage.removeItem(KEYS.ADMIN_AUTH);
     localStorage.removeItem(KEYS.ADMIN_CREDS);
+    localStorage.removeItem(KEYS.CATEGORIES);
+    localStorage.removeItem(KEYS.LEGAL_DOCS);
+    localStorage.removeItem(KEYS.CONTACT_MESSAGES);
+    localStorage.removeItem(KEYS.AUTHOR_PROFILE);
+    localStorage.removeItem(KEYS.SITE_BRANDING);
+    localStorage.removeItem(KEYS.DONATION_SETTINGS);
     localStorage.removeItem(KEYS.SUPABASE_CONFIG);
     localStorage.removeItem(KEYS.DELETED_NOVEL_IDS);
     localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);

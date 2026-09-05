@@ -238,7 +238,7 @@ export const ImageUploadInput: React.FC<ImageUploadInputProps> = ({
       )}
 
       {/* Live Preview & Clear Thumbnail */}
-      {value && (
+      {Boolean(value?.trim()) && (
         <div className="p-3 rounded-2xl bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-between gap-3 animate-in fade-in">
           <div className="flex items-center gap-3">
             <div className={`rounded-lg overflow-hidden border border-[#E5E2D9] shadow-xs bg-black/10 shrink-0 ${aspectClass}`}>

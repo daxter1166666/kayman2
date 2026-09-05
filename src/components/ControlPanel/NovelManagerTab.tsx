@@ -1,10 +1,9 @@
 import React, { useState } from 'react';
-import { Novel, NovelStatus, Genre, Category, TableOfContentItem, NovelSeoMeta } from '../../types';
+import { Novel, NovelStatus, Genre, Category } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
-import { DEFAULT_BOOK_COVER } from '../../data/initialData';
 import { ImageUploadInput } from '../ImageUploadInput';
-import { NovelSeoStudio } from './NovelSeoStudio';
+import { ConfirmModal } from '../ConfirmModal';
 import {
   BookOpen,
   Plus,
@@ -17,18 +16,8 @@ import {
   Heart,
   Download,
   ExternalLink,
-  FileText,
-  RotateCcw,
-  ListOrdered,
-  ArrowUp,
-  ArrowDown,
-  FileCode,
-  Layers,
-  Bookmark,
-  Search,
-  RefreshCw
+  FileText
 } from 'lucide-react';
-import { ResetDataModal } from './ResetDataModal';
 
 interface NovelManagerTabProps {
   novels: Novel[];
@@ -41,7 +30,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
 }) => {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [editingNovelId, setEditingNovelId] = useState<string | null>(null);
-  const [isSavingNovel, setIsSavingNovel] = useState<boolean>(false);
+  const [novelToDelete, setNovelToDelete] = useState<Novel | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
 
   const categories: Category[] = storageService.getCategories();
 
@@ -60,29 +50,6 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   const [pdfFileSize, setPdfFileSize] = useState<string>('');
   const [downloadButtonText, setDownloadButtonText] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
-
-  // Novel SEO states
-  const [seoMetaTitle, setSeoMetaTitle] = useState<string>('');
-  const [seoMetaDescription, setSeoMetaDescription] = useState<string>('');
-  const [seoFocusKeywords, setSeoFocusKeywords] = useState<string>('');
-  const [seoCanonicalUrl, setSeoCanonicalUrl] = useState<string>('');
-  const [seoOgImage, setSeoOgImage] = useState<string>('');
-  const [seoNoIndex, setSeoNoIndex] = useState<boolean>(false);
-  const [seoAuthorName, setSeoAuthorName] = useState<string>('');
-
-  // Table of Contents state
-  const [tableOfContents, setTableOfContents] = useState<TableOfContentItem[]>([]);
-  const [tocItemTitle, setTocItemTitle] = useState<string>('');
-  const [tocItemPage, setTocItemPage] = useState<string>('');
-  const [tocItemDesc, setTocItemDesc] = useState<string>('');
-  const [tocItemUrl, setTocItemUrl] = useState<string>('');
-  const [showBulkTocInput, setShowBulkTocInput] = useState<boolean>(false);
-  const [tocBulkText, setTocBulkText] = useState<string>('');
-
-  // Delete modal state
-  const [novelToDelete, setNovelToDelete] = useState<{ id: string; title: string } | null>(null);
-  const [isDeleting, setIsDeleting] = useState<boolean>(false);
-  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -104,19 +71,6 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl('');
     setPdfFileSize('');
     setDownloadButtonText('');
-    setTableOfContents([]);
-    setTocItemTitle('');
-    setTocItemPage('');
-    setTocItemDesc('');
-    setTocItemUrl('');
-    // Reset SEO
-    setSeoMetaTitle('');
-    setSeoMetaDescription('');
-    setSeoFocusKeywords('');
-    setSeoCanonicalUrl('');
-    setSeoOgImage('');
-    setSeoNoIndex(false);
-    setSeoAuthorName('');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -136,82 +90,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl(novel.pdfDownloadUrl || '');
     setPdfFileSize(novel.pdfFileSize || '');
     setDownloadButtonText(novel.downloadButtonText || '');
-    setTableOfContents(novel.tableOfContents || []);
-    setTocItemTitle('');
-    setTocItemPage('');
-    setTocItemDesc('');
-    setTocItemUrl('');
-    // Populate SEO
-    setSeoMetaTitle(novel.seo?.metaTitle || '');
-    setSeoMetaDescription(novel.seo?.metaDescription || '');
-    setSeoFocusKeywords(novel.seo?.focusKeywords || '');
-    setSeoCanonicalUrl(novel.seo?.canonicalUrl || '');
-    setSeoOgImage(novel.seo?.ogImage || '');
-    setSeoNoIndex(novel.seo?.noIndex || false);
-    setSeoAuthorName(novel.seo?.authorName || '');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  // Table of Contents Handlers
-  const handleAddTocItem = () => {
-    if (!tocItemTitle.trim()) return;
-    const newItem: TableOfContentItem = {
-      id: `toc-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
-      title: tocItemTitle.trim(),
-      pageNumber: tocItemPage.trim() || undefined,
-      description: tocItemDesc.trim() || undefined,
-      linkUrl: tocItemUrl.trim() || undefined,
-    };
-    setTableOfContents([...tableOfContents, newItem]);
-    setTocItemTitle('');
-    setTocItemPage('');
-    setTocItemDesc('');
-    setTocItemUrl('');
-  };
-
-  const handleRemoveTocItem = (id: string) => {
-    setTableOfContents(tableOfContents.filter(item => item.id !== id));
-  };
-
-  const handleMoveTocItem = (index: number, direction: 'up' | 'down') => {
-    const targetIndex = direction === 'up' ? index - 1 : index + 1;
-    if (targetIndex < 0 || targetIndex >= tableOfContents.length) return;
-    const updated = [...tableOfContents];
-    const temp = updated[index];
-    updated[index] = updated[targetIndex];
-    updated[targetIndex] = temp;
-    setTableOfContents(updated);
-  };
-
-  const handleBulkParseToc = () => {
-    if (!tocBulkText.trim()) return;
-    const lines = tocBulkText.split('\n').map(l => l.trim()).filter(Boolean);
-    const parsed: TableOfContentItem[] = [];
-
-    lines.forEach((line, idx) => {
-      let pageNumber = '';
-      let title = line;
-
-      const match = line.match(/(?:[-|–—:]\s*(?:ص|صفحة|page|p\.?)?\s*(\d+))|(?:(?:ص|صفحة)\s*(\d+))/i);
-      if (match) {
-        pageNumber = `ص ${match[1] || match[2]}`;
-        title = line.replace(match[0], '').replace(/[-|–—:]\s*$/, '').trim();
-      }
-
-      parsed.push({
-        id: `toc-${Date.now()}-${idx}-${Math.random().toString(36).substring(2, 6)}`,
-        title: title || line,
-        pageNumber: pageNumber || undefined,
-      });
-    });
-
-    if (parsed.length > 0) {
-      setTableOfContents([...tableOfContents, ...parsed]);
-      setTocBulkText('');
-      setShowBulkTocInput(false);
-      showToast(`تمت إضافة ${parsed.length} بنداً إلى فهرس الكتاب بنجاح!`);
-    }
   };
 
   const handleGenreToggle = (genreName: string) => {
@@ -224,7 +104,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     }
   };
 
-  const handleSaveNovel = async (e: React.FormEvent) => {
+  const handleSaveNovel = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim()) {
       alert('يرجى إدخال عنوان الكتاب أو المؤلف');
@@ -235,132 +115,103 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
       return;
     }
 
-    setIsSavingNovel(true);
-    try {
-      const tags = tagsInput
-        .split(/[,،]/)
-        .map(t => t.trim())
-        .filter(Boolean);
+    const tags = tagsInput
+      .split(/[,،]/)
+      .map(t => t.trim())
+      .filter(Boolean);
 
-      const slug = title.toLowerCase().replace(/[^a-z0-9\u0621-\u064A]+/g, '-');
+    const slug = title.toLowerCase().replace(/[^a-z0-9\u0621-\u064A]+/g, '-');
 
-      const novelSeo: NovelSeoMeta | undefined = (
-        seoMetaTitle.trim() ||
-        seoMetaDescription.trim() ||
-        seoFocusKeywords.trim() ||
-        seoCanonicalUrl.trim() ||
-        seoOgImage.trim() ||
-        seoNoIndex ||
-        seoAuthorName.trim()
-      ) ? {
-        metaTitle: seoMetaTitle.trim() || undefined,
-        metaDescription: seoMetaDescription.trim() || undefined,
-        focusKeywords: seoFocusKeywords.trim() || undefined,
-        canonicalUrl: seoCanonicalUrl.trim() || undefined,
-        ogImage: seoOgImage.trim() || undefined,
-        noIndex: seoNoIndex || undefined,
-        authorName: seoAuthorName.trim() || undefined,
-      } : undefined;
-
-      if (editingNovelId) {
-        storageService.updateNovel(editingNovelId, {
-          title: title.trim(),
-          slug,
-          author: author.trim(),
-          authorBio: authorBio.trim(),
-          synopsis: synopsis.trim(),
-          coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd4?q=80&w=800&auto=format&fit=crop',
-          bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
-          genres: selectedGenres as any,
-          tags,
-          status,
-          isFeatured,
-          pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
-          pdfFileSize: pdfFileSize.trim() || undefined,
-          downloadButtonText: downloadButtonText.trim() || undefined,
-          tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
-          seo: novelSeo,
-        });
-        const updated = storageService.getNovels().find(n => n.id === editingNovelId);
-        if (updated) {
-          const res = await supabaseService.saveNovelToSupabase(updated);
+    if (editingNovelId) {
+      storageService.updateNovel(editingNovelId, {
+        title: title.trim(),
+        slug,
+        author: author.trim(),
+        authorBio: authorBio.trim(),
+        synopsis: synopsis.trim(),
+        coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1532012164546-f432f2e3edd4?q=80&w=800&auto=format&fit=crop',
+        bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?q=80&w=1600&auto=format&fit=crop',
+        genres: selectedGenres as any,
+        tags,
+        status,
+        isFeatured,
+        pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
+        pdfFileSize: pdfFileSize.trim() || undefined,
+        downloadButtonText: downloadButtonText.trim() || undefined,
+      });
+      const updated = storageService.getNovels().find(n => n.id === editingNovelId);
+      if (updated) {
+        supabaseService.saveNovelToSupabase(updated).then(res => {
           if (res) {
-            showToast('تم تحديث بيانات وسيو الكتاب ومزامنته سحابياً بنجاح!');
+            showToast('تم تحديث بيانات الكتاب ومزامنته سحابياً مع سوباباس!');
           } else {
-            showToast('تم الحفظ محلياً بنجاح!');
+            showToast('تم الحفظ محلياً. تنبيه: لم يتم التحديث في سوباباس (تأكد من كود الصلاحيات).');
           }
-        } else {
-          showToast('تم تحديث بيانات الكتاب بنجاح!');
-        }
+        });
       } else {
-        const created = storageService.addNovel({
-          title: title.trim(),
-          slug,
-          author: author.trim() || 'أيمن كناني',
-          authorBio: authorBio.trim() || 'مؤلف معتمد على المنصة',
-          synopsis: synopsis.trim(),
-          coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop',
-          bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop',
-          genres: selectedGenres as any,
-          tags: tags.length > 0 ? tags : ['فكر', 'مؤلفات'],
-          status,
-          isFeatured,
-          pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
-          pdfFileSize: pdfFileSize.trim() || undefined,
-          downloadButtonText: downloadButtonText.trim() || undefined,
-          tableOfContents: tableOfContents.length > 0 ? tableOfContents : undefined,
-          seo: novelSeo,
-        });
-        if (created) {
-          const res = await supabaseService.saveNovelToSupabase(created);
-          if (res) {
-            showToast('تم نشر الكتاب وتثبيته سحابياً في سوباباس بنجاح!');
-          } else {
-            showToast('تمت إضافة الكتاب بنجاح ومحفوظ بأمان!');
-          }
-        } else {
-          showToast('تمت إضافة الكتاب الجديد بنجاح!');
-        }
+        showToast('تم تحديث بيانات الكتاب بنجاح!');
       }
-
-      setIsCreating(false);
-      onRefreshData();
-    } catch (err: any) {
-      console.error('Error saving novel:', err);
-      showToast('حدث خطأ أثناء حفظ الكتاب: ' + (err?.message || err));
-    } finally {
-      setIsSavingNovel(false);
+    } else {
+      const created = storageService.addNovel({
+        title: title.trim(),
+        slug,
+        author: author.trim() || 'أيمن كناني',
+        authorBio: authorBio.trim() || 'مؤلف معتمد على المنصة',
+        synopsis: synopsis.trim(),
+        coverImage: coverImage.trim() || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop',
+        bannerImage: bannerImage.trim() || 'https://images.unsplash.com/photo-1509198397868-475647b2a1e5?q=80&w=1600&auto=format&fit=crop',
+        genres: selectedGenres as any,
+        tags: tags.length > 0 ? tags : ['فكر', 'مؤلفات'],
+        status,
+        isFeatured,
+        pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
+        pdfFileSize: pdfFileSize.trim() || undefined,
+        downloadButtonText: downloadButtonText.trim() || undefined,
+      });
+      if (created) {
+        supabaseService.saveNovelToSupabase(created).then(res => {
+          if (res) {
+            showToast('تمت إضافة الكتاب ومزامنته بنجاح مع سوباباس!');
+          } else {
+            showToast('تمت الإضافة ومحفوظ بأمان محلياً، وسيتزامن تلقائياً مع السحابة.');
+          }
+        });
+      } else {
+        showToast('تمت إضافة الكتاب الجديد بنجاح!');
+      }
     }
-  };
 
-  const handleDeleteNovel = (id: string, novelTitle: string) => {
-    setNovelToDelete({ id, title: novelTitle });
+    setIsCreating(false);
+    onRefreshData();
   };
 
   const handleConfirmDelete = async () => {
     if (!novelToDelete) return;
+    const target = novelToDelete;
     setIsDeleting(true);
-    const { id, title: delTitle } = novelToDelete;
-    
-    try {
-      // 1. Immediately delete locally and refresh UI
-      storageService.deleteNovel(id);
-      onRefreshData();
 
-      // 2. Delete permanently from Supabase
-      showToast(`جاري حذف "${delTitle}" من قاعدة البيانات السحابية...`);
-      const cloudSuccess = await supabaseService.deleteNovelFromSupabase(id);
+    try {
+      // 1. Immediately delete locally from storage & purge cache
+      storageService.deleteNovel(target.id);
+      window.dispatchEvent(new Event('storage'));
+      onRefreshData();
+      showToast(`جاري حذف "${target.title}" من واجهة القراء وسوباباس...`);
+
+      // 2. Permanently delete from Supabase and register tombstone
+      const cloudSuccess = await supabaseService.deleteNovelFromSupabase(target.id);
+      window.dispatchEvent(new Event('storage'));
       if (cloudSuccess) {
-        showToast(`تم حذف كتاب "${delTitle}" وفصوله نهائياً من المتصفح وقاعدة البيانات السحابية!`);
+        showToast(`تم حذف "${target.title}" وفصوله نهائياً من واجهة القراء وقاعدة البيانات السحابية!`);
       } else {
-        showToast(`تم الحذف من المتصفح. تنبيه: لم يتم الحذف السحابي.`);
+        showToast(`تم حذف "${target.title}" من واجهة القراء محلياً.`);
       }
     } catch (err) {
-      console.error('Delete error:', err);
-      showToast('حدث خطأ أثناء محاولة الحذف.');
+      console.warn('Delete novel error:', err);
+      showToast(`تم حذف "${target.title}" من واجهة القراء محلياً.`);
     } finally {
       setIsDeleting(false);
       setNovelToDelete(null);
+      window.dispatchEvent(new Event('storage'));
       onRefreshData();
     }
   };
@@ -387,28 +238,15 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
           </p>
         </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            type="button"
-            id="novel-manager-reset-btn"
-            onClick={() => setIsResetModalOpen(true)}
-            className="px-3.5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 font-bold text-xs rounded-xl shadow-2xs transition-all flex items-center gap-1.5 cursor-pointer"
-            title="مسح التخزين المحلي وإعادة سحب الكتب المحدثة فقط من سوباباس"
-          >
-            <RotateCcw className="w-4 h-4 text-rose-600" />
-            <span>إعادة ضبط وتحديث الكتب</span>
-          </button>
-
-          <button
-            type="button"
-            id="create-new-novel-btn"
-            onClick={handleStartCreate}
-            className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>إضافة مؤلف / كتاب جديد</span>
-          </button>
-        </div>
+        <button
+          type="button"
+          id="create-new-novel-btn"
+          onClick={handleStartCreate}
+          className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+        >
+          <Plus className="w-4 h-4" />
+          <span>إضافة مؤلف / كتاب جديد</span>
+        </button>
       </div>
 
       {/* Create / Edit Form Modal / Panel */}
@@ -685,228 +523,6 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             />
           </div>
 
-          {/* Manual Table of Contents (فهرس محتويات الكتاب) */}
-          <div className="p-4 sm:p-5 rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] space-y-4 shadow-2xs">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E2D9] pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
-                  <ListOrdered className="w-4 h-4" />
-                </div>
-                <div>
-                  <h4 className="text-xs sm:text-sm font-bold text-[#2C2C2C] flex items-center gap-2">
-                    <span>فهرس محتويات وأبواب الكتاب (يدوي)</span>
-                    <span className="text-[11px] font-mono px-2 py-0.5 rounded-full bg-[#4A5D4E]/15 text-[#4A5D4E] font-bold">
-                      {tableOfContents.length} بند
-                    </span>
-                  </h4>
-                  <p className="text-[11px] text-[#6E6A64]">
-                    مخصص للكتب التي لا تعتمد نظام الفصول (كتب كاملة، دراسات، إصدارات PDF، أو مؤلفات مقسمة لأبواب ومباحث).
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={() => setShowBulkTocInput(!showBulkTocInput)}
-                className="px-3 py-1.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[11px] font-bold text-[#4A5D4E] transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs self-start sm:self-auto"
-              >
-                <FileCode className="w-3.5 h-3.5" />
-                <span>{showBulkTocInput ? 'إدخال بند ببند' : 'إضافة سريعة بالنسخ واللصق'}</span>
-              </button>
-            </div>
-
-            {/* Bulk Mode vs Single Add Mode */}
-            {showBulkTocInput ? (
-              <div className="space-y-2 p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9]">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-[#2C2C2C]">
-                    الصق سطور الفهرس هنا (كل سطر يمثل بنداً أو فصلاً):
-                  </label>
-                  <span className="text-[10px] text-[#6E6A64]">
-                    مثال: المقدمة - ص 5
-                  </span>
-                </div>
-                <textarea
-                  rows={4}
-                  value={tocBulkText}
-                  onChange={e => setTocBulkText(e.target.value)}
-                  placeholder={`المقدمة: مدخل عام - ص 7&#10;الباب الأول: تطور المفهوم والأصل التاريخي - ص 21&#10;الباب الثاني: النظريات والتحليل الفلسفي - ص 58&#10;خاتمة وتوصيات - ص 115`}
-                  className="w-full p-3 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono leading-relaxed"
-                />
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={handleBulkParseToc}
-                    disabled={!tocBulkText.trim()}
-                    className="px-4 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-[#FDFCF8] text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>تحويل النص إلى بنود الفهرس</span>
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-3">
-                <span className="text-xs font-bold text-[#2C2C2C] block">
-                  إضافة بند جديد للفهرس:
-                </span>
-                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2.5">
-                  <div className="sm:col-span-6">
-                    <input
-                      type="text"
-                      value={tocItemTitle}
-                      onChange={e => setTocItemTitle(e.target.value)}
-                      placeholder="عنوان الباب / الفصل / المبحث (مثال: المقدمة العامة)"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-                      onKeyDown={e => {
-                        if (e.key === 'Enter') {
-                          e.preventDefault();
-                          handleAddTocItem();
-                        }
-                      }}
-                    />
-                  </div>
-                  <div className="sm:col-span-3">
-                    <input
-                      type="text"
-                      value={tocItemPage}
-                      onChange={e => setTocItemPage(e.target.value)}
-                      placeholder="رقم الصفحة (مثال: ص 15)"
-                      className="w-full px-3 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-                    />
-                  </div>
-                  <div className="sm:col-span-3 flex">
-                    <button
-                      type="button"
-                      onClick={handleAddTocItem}
-                      disabled={!tocItemTitle.trim()}
-                      className="w-full px-3 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-[#FDFCF8] text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-2xs"
-                    >
-                      <Plus className="w-4 h-4" />
-                      <span>إضافة للفهرس</span>
-                    </button>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-1">
-                  <input
-                    type="text"
-                    value={tocItemDesc}
-                    onChange={e => setTocItemDesc(e.target.value)}
-                    placeholder="نبذة موجزة عن هذا البند (اختياري)"
-                    className="w-full px-3 py-1.5 text-[11px] rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-                  />
-                  <input
-                    type="url"
-                    value={tocItemUrl}
-                    onChange={e => setTocItemUrl(e.target.value)}
-                    placeholder="رابط خارجي أو مرجع (اختياري)"
-                    className="w-full px-3 py-1.5 text-[11px] rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* TOC Items List */}
-            {tableOfContents.length === 0 ? (
-              <div className="text-center py-6 px-4 rounded-xl border border-dashed border-[#E5E2D9] bg-[#FFFFFF]/60">
-                <Bookmark className="w-8 h-8 text-[#D0CCC2] mx-auto mb-2" />
-                <p className="text-xs font-bold text-[#6E6A64]">
-                  لا يوجد بنود في فهرس هذا الكتاب حتى الآن
-                </p>
-                <p className="text-[11px] text-[#8E8A83] mt-0.5">
-                  أضف بنود الفهرس (الأبواب، المباحث، المقالات، أو أرقام الصفحات) لتظهر للقراء بوضوح وتسهل تصفح الكتاب.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
-                {tableOfContents.map((item, index) => (
-                  <div
-                    key={item.id}
-                    className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] hover:border-[#4A5D4E]/40 transition-all shadow-2xs group"
-                  >
-                    <div className="flex items-center gap-2.5 truncate min-w-0 flex-1">
-                      <span className="w-6 h-6 rounded-lg bg-[#F7F5EE] text-[#6E6A64] text-[11px] font-mono font-bold flex items-center justify-center shrink-0 border border-[#E5E2D9]">
-                        {index + 1}
-                      </span>
-                      <div className="truncate min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-[#2C2C2C] truncate">
-                            {item.title}
-                          </span>
-                          {item.pageNumber && (
-                            <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-[#C88A3B]/10 text-[#965A15] shrink-0 border border-[#C88A3B]/20 font-mono">
-                              {item.pageNumber}
-                            </span>
-                          )}
-                        </div>
-                        {item.description && (
-                          <p className="text-[11px] text-[#6E6A64] truncate">
-                            {item.description}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => handleMoveTocItem(index, 'up')}
-                        disabled={index === 0}
-                        className="p-1 rounded-lg hover:bg-[#F7F5EE] disabled:opacity-30 text-[#6E6A64] cursor-pointer"
-                        title="تحريك لأعلى"
-                      >
-                        <ArrowUp className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleMoveTocItem(index, 'down')}
-                        disabled={index === tableOfContents.length - 1}
-                        className="p-1 rounded-lg hover:bg-[#F7F5EE] disabled:opacity-30 text-[#6E6A64] cursor-pointer"
-                        title="تحريك لأسفل"
-                      >
-                        <ArrowDown className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleRemoveTocItem(item.id)}
-                        className="p-1 rounded-lg hover:bg-rose-50 text-rose-600 cursor-pointer transition-colors"
-                        title="حذف هذا البند"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Novel SEO Studio (إعدادات سيو وفهرسة هذه الرواية) */}
-          <NovelSeoStudio
-            metaTitle={seoMetaTitle}
-            setMetaTitle={setSeoMetaTitle}
-            metaDescription={seoMetaDescription}
-            setMetaDescription={setSeoMetaDescription}
-            focusKeywords={seoFocusKeywords}
-            setFocusKeywords={setSeoFocusKeywords}
-            canonicalUrl={seoCanonicalUrl}
-            setCanonicalUrl={setSeoCanonicalUrl}
-            ogImage={seoOgImage}
-            setOgImage={setSeoOgImage}
-            noIndex={seoNoIndex}
-            setNoIndex={setSeoNoIndex}
-            authorName={seoAuthorName}
-            setAuthorName={setSeoAuthorName}
-            novelTitle={title}
-            novelAuthor={author}
-            novelSynopsis={synopsis}
-            novelGenres={selectedGenres}
-            novelCoverImage={coverImage}
-            novelId={editingNovelId || undefined}
-            pdfDownloadUrl={pdfDownloadUrl}
-          />
-
           <div className="flex justify-end gap-3 pt-3 border-t border-[#E5E2D9]">
             <button
               type="button"
@@ -918,17 +534,9 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             <button
               type="submit"
               id="save-novel-submit-btn"
-              disabled={isSavingNovel}
-              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-2"
+              className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold rounded-xl shadow-xs transition-all cursor-pointer"
             >
-              {isSavingNovel && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-              <span>
-                {isSavingNovel
-                  ? 'جاري حفظ ونشر العمل سحابياً...'
-                  : editingNovelId
-                  ? 'حفظ التعديلات'
-                  : 'نشر العمل في المكتبة'}
-              </span>
+              {editingNovelId ? 'حفظ التعديلات' : 'نشر العمل في المكتبة'}
             </button>
           </div>
         </form>
@@ -963,34 +571,18 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
               <div>
                 <div className="flex gap-4 mb-4">
                   <img
-                    src={novel.coverImage?.trim() || DEFAULT_BOOK_COVER}
+                    src={novel.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
                     alt={novel.title}
                     className="w-20 h-28 object-cover rounded-xl border border-[#E5E2D9] shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                    <div className="flex items-center gap-1.5 mb-1">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]">
                         {novel.status === 'ONGOING' ? 'مستمر' : 'مكتمل'}
                       </span>
                       {novel.isFeatured && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C88A3B] text-white">
                           مميز
-                        </span>
-                      )}
-                      {novel.seo?.metaTitle || novel.seo?.metaDescription || novel.seo?.focusKeywords ? (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
-                          <Search className="w-2.5 h-2.5 text-emerald-600" />
-                          <span>سيو مخصص</span>
-                        </span>
-                      ) : (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#6E6A64] border border-[#E5E2D9] flex items-center gap-1">
-                          <Search className="w-2.5 h-2.5 text-[#8E8A83]" />
-                          <span>سيو تلقائي</span>
-                        </span>
-                      )}
-                      {novel.seo?.noIndex && (
-                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                          noindex
                         </span>
                       )}
                     </div>
@@ -1022,20 +614,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E2D9]">
                 <button
-                  type="button"
-                  onClick={() => {
-                    handleStartEdit(novel);
-                    setTimeout(() => {
-                      document.getElementById('novel-seo-meta-title')?.focus();
-                    }, 150);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#C88A3B] hover:bg-[#C88A3B]/10 flex items-center gap-1 cursor-pointer transition-colors"
-                  title="تعديل وسوم سيو الرواية ومعاينة مظهرها في Google"
-                >
-                  <Search className="w-3.5 h-3.5" />
-                  <span>السيو</span>
-                </button>
-                <button
+                  id={`edit-novel-btn-${novel.id}`}
                   type="button"
                   onClick={() => handleStartEdit(novel)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 flex items-center gap-1 cursor-pointer transition-colors"
@@ -1044,8 +623,9 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
                   <span>تعديل</span>
                 </button>
                 <button
+                  id={`delete-novel-btn-${novel.id}`}
                   type="button"
-                  onClick={() => handleDeleteNovel(novel.id, novel.title)}
+                  onClick={() => setNovelToDelete(novel)}
                   className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-50 flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -1057,62 +637,27 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
-      {novelToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#FFFFFF] border border-[#E5E2D9] rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in zoom-in-95 font-cairo">
-            <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto mb-4">
-              <Trash2 className="w-6 h-6" />
-            </div>
-            <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] text-center mb-2">
-              تأكيد حذف الكتاب نهائياً
-            </h3>
-            <p className="text-xs text-[#6E6A64] text-center leading-relaxed mb-6">
-              هل أنت متأكد من رغبتك في حذف عمل <strong className="text-[#2C2C2C]">"{novelToDelete.title}"</strong> وجميع فصوله ومراجعاته نهائياً؟
-              <br />
-              <span className="text-rose-600 font-semibold block mt-1.5">
-                سيتم حذفه من قاعدة البيانات السحابية والمتصفح ولن يتمكن القراء من رؤيته بعد الآن.
-              </span>
-            </p>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={() => setNovelToDelete(null)}
-                className="flex-1 py-2.5 px-4 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] text-xs font-bold hover:bg-[#F7F5EE] transition-colors cursor-pointer"
-              >
-                إلغاء
-              </button>
-              <button
-                type="button"
-                disabled={isDeleting}
-                onClick={handleConfirmDelete}
-                className="flex-1 py-2.5 px-4 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
-              >
-                {isDeleting ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    <span>جاري الحذف...</span>
-                  </>
-                ) : (
-                  <>
-                    <Trash2 className="w-4 h-4" />
-                    <span>نعم، احذف نهائياً</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reset Data Confirmation & Execution Modal */}
-      <ResetDataModal
-        isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
-        onSuccess={() => {
-          onRefreshData();
-          showToast('تمت إعادة ضبط البيانات بنجاح وسحب الكتب المحدثة فقط!');
+      {/* Confirmation Modal for Novel Deletion */}
+      <ConfirmModal
+        isOpen={Boolean(novelToDelete)}
+        title="حذف الرواية / الكتاب نهائياً"
+        message={`هل أنت متأكد من رغبتك في حذف عمل "${novelToDelete?.title}" وجميع فصوله ومراجعاته وتعليقاته نهائياً؟ سيتم حذفه من واجهة القراء والكتالوج وقاعدة البيانات السحابية فوراً.`}
+        confirmText="نعم، حذف الرواية نهائياً"
+        cancelText="تراجع"
+        isDestructive={true}
+        isLoading={isDeleting}
+        itemDetails={
+          novelToDelete
+            ? {
+                title: novelToDelete.title,
+                subtitle: `بقلم: ${novelToDelete.author}`,
+                image: novelToDelete.coverImage,
+              }
+            : undefined
+        }
+        onConfirm={handleConfirmDelete}
+        onCancel={() => {
+          if (!isDeleting) setNovelToDelete(null);
         }}
       />
     </div>

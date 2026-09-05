@@ -55,16 +55,21 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="أيمن كناني" />
+    <meta name="application-name" content="أيمن كناني" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/pwa-512.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/pwa-192.png" />
+    <link rel="shortcut icon" href="/favicon.ico" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="manifest" href="/manifest.json" />
     
     <script>
-      // Automatically clear old Service Worker and any stale cache that holds old index-*.js hashes
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.getRegistrations().then(function(registrations) {
-          for (var reg of registrations) {
-            reg.unregister();
-          }
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js', { scope: '/' })
+            .catch(function(err) {
+              console.warn('PWA service worker registration notice:', err);
+            });
         });
       }
     </script>

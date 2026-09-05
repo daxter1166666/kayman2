@@ -168,108 +168,6 @@ class SupabaseService {
     adSettings?: AdSettings;
     seoSettings?: SeoSettings;
   } | null> {
-    // 0. Primary High-Speed Path: Full-Stack Server Sync API (Runs in Node.js, zero CORS, completely unblocked)
-    try {
-      if (typeof window !== 'undefined') {
-        const resp = await fetch('/api/sync');
-        if (resp.ok) {
-          const syncData = await resp.json();
-          if (syncData.success) {
-            // Merge with local novels to ensure newly added novels are NEVER dropped
-            const localNovels = storageService.getNovels();
-            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
-            const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
-
-            const novelsMap = new Map<string, Novel>();
-            const localNovelViewsMap = new Map(localNovels.map(ln => [ln.id, ln.totalViews || 0]));
-            remoteNovels.forEach((rn: Novel) => {
-              if (!deletedNovelIds.has(rn.id)) {
-                novelsMap.set(rn.id, {
-                  ...rn,
-                  totalViews: Math.max(rn.totalViews || 0, localNovelViewsMap.get(rn.id) || 0),
-                });
-              }
-            });
-
-            const unsyncedNovels: Novel[] = [];
-            localNovels.forEach(ln => {
-              if (!deletedNovelIds.has(ln.id)) {
-                if (!novelsMap.has(ln.id)) {
-                  novelsMap.set(ln.id, ln);
-                  unsyncedNovels.push(ln);
-                }
-              }
-            });
-
-            const mergedNovels = Array.from(novelsMap.values());
-            storageService.saveNovels(mergedNovels);
-
-            // Chapters merge
-            const localChapters = storageService.getChapters();
-            const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
-            const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
-            const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
-
-            const chaptersMap = new Map<string, Chapter>();
-            remoteChapters.forEach((rc: Chapter) => {
-              if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
-                chaptersMap.set(rc.id, {
-                  ...rc,
-                  views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
-                });
-              }
-            });
-
-            const unsyncedChapters: Chapter[] = [];
-            localChapters.forEach(lc => {
-              if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
-                if (!chaptersMap.has(lc.id)) {
-                  chaptersMap.set(lc.id, lc);
-                  unsyncedChapters.push(lc);
-                }
-              }
-            });
-
-            const mergedChapters = Array.from(chaptersMap.values());
-            storageService.saveChapters(mergedChapters);
-
-            // If any unsynced items were found locally, push them to server!
-            if (unsyncedNovels.length > 0 || unsyncedChapters.length > 0) {
-              fetch('/api/sync/push', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ novels: unsyncedNovels, chapters: unsyncedChapters }),
-              }).catch(e => console.warn('Background sync push warning:', e));
-            }
-
-            if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
-            if (syncData.authorProfile) storageService.saveAuthorProfile(syncData.authorProfile);
-            if (syncData.siteBranding) storageService.saveSiteBranding(syncData.siteBranding);
-            if (syncData.donationSettings) storageService.saveDonationSettings(syncData.donationSettings);
-            if (Array.isArray(syncData.categories)) storageService.saveCategories(syncData.categories);
-            if (syncData.legalDocuments) storageService.saveLegalDocuments(syncData.legalDocuments);
-            if (syncData.adSettings) storageService.saveAdSettings(syncData.adSettings);
-            if (syncData.seoSettings) storageService.saveSeoSettings(syncData.seoSettings);
-
-            return {
-              novels: mergedNovels,
-              chapters: mergedChapters,
-              comments: syncData.comments || [],
-              authorProfile: syncData.authorProfile,
-              siteBranding: syncData.siteBranding,
-              donationSettings: syncData.donationSettings,
-              categories: syncData.categories,
-              legalDocuments: syncData.legalDocuments,
-              adSettings: syncData.adSettings,
-              seoSettings: syncData.seoSettings,
-            };
-          }
-        }
-      }
-    } catch (serverSyncErr) {
-      console.warn('Server sync API fallback to direct Supabase client:', serverSyncErr);
-    }
-
     const client = this.getClient();
     if (!client) return null;
 
@@ -285,9 +183,6 @@ class SupabaseService {
         return null;
       }
 
-      const existingLocalNovelsForViews = storageService.getNovels();
-      const localNovelViewsMap = new Map(existingLocalNovelsForViews.map(ln => [ln.id, ln.totalViews || 0]));
-
       const novels: Novel[] = (rawNovels || []).map((n: any) => ({
         id: n.id,
         title: n.title,
@@ -300,7 +195,7 @@ class SupabaseService {
         genres: Array.isArray(n.genres) ? n.genres : [],
         tags: Array.isArray(n.tags) ? n.tags : [],
         status: n.status || 'ONGOING',
-        totalViews: Math.max(Number(n.total_views) || 0, localNovelViewsMap.get(n.id) || 0),
+        totalViews: Number(n.total_views) || 0,
         totalLikes: Number(n.total_likes) || 0,
         rating: Number(n.rating) || 5.0,
         ratingCount: Number(n.rating_count) || 1,
@@ -310,7 +205,6 @@ class SupabaseService {
         pdfDownloadUrl: n.pdf_download_url || undefined,
         pdfFileSize: n.pdf_file_size || undefined,
         downloadButtonText: n.download_button_text || undefined,
-        tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
       }));
 
       // 2. Fetch Chapters
@@ -318,9 +212,6 @@ class SupabaseService {
         .from('chapters')
         .select('*')
         .order('chapter_number', { ascending: true });
-
-      const existingLocalChaptersForViews = storageService.getChapters();
-      const localChapterViewsMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.views || 0]));
 
       const chapters: Chapter[] = (rawChapters || []).map((c: any) => ({
         id: c.id,
@@ -331,13 +222,10 @@ class SupabaseService {
         content: c.content || '',
         authorNote: c.author_note || undefined,
         publishedAt: c.published_at || new Date().toISOString(),
-        views: Math.max(Number(c.views) || 0, localChapterViewsMap.get(c.id) || 0),
+        views: Number(c.views) || 0,
         likes: Number(c.likes) || 0,
-        rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
-        ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
         wordCount: Number(c.word_count) || 0,
         status: c.status || 'PUBLISHED',
-        seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
       }));
 
       // 3. Fetch Comments
@@ -398,114 +286,83 @@ class SupabaseService {
 
       const isDatabaseActive = (rawSettings && rawSettings.length > 0) || !!rawProfile?.data || (rawNovels && rawNovels.length > 0);
 
-      // Extract deleted records from site_settings (cloud-wide blacklist of deleted books and chapters)
-      const delRow = rawSettings?.find((r: any) => r.id === 'deleted_records');
-      const cloudDeletedNovelIds = new Set<string>(Array.isArray(delRow?.data?.novels) ? delRow.data.novels : []);
-      const cloudDeletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
+      // 0. Extract globally recorded deleted novel and chapter IDs (tombstones)
+      let remoteDeletedNovelIds: string[] = [];
+      let remoteDeletedChapterIds: string[] = [];
+      if (rawSettings && Array.isArray(rawSettings)) {
+        const delRow = rawSettings.find((r: any) => r.id === 'deleted_records');
+        if (delRow?.data) {
+          const rawNovels = [
+            ...(Array.isArray(delRow.data.deletedNovelIds) ? delRow.data.deletedNovelIds : []),
+            ...(Array.isArray(delRow.data.novels) ? delRow.data.novels : []),
+          ];
+          remoteDeletedNovelIds = Array.from(new Set(rawNovels));
 
-      // Also merge with locally deleted IDs
-      storageService.getDeletedNovelIds().forEach(id => cloudDeletedNovelIds.add(id));
-      storageService.getDeletedChapterIds().forEach(id => cloudDeletedChapterIds.add(id));
-
-      // Persist all deleted IDs so local storage never attempts to use or display them
-      Array.from(cloudDeletedNovelIds).forEach(id => storageService.markNovelDeleted(id));
-      Array.from(cloudDeletedChapterIds).forEach(id => storageService.markChapterDeleted(id));
-
-      // Extract extra metadata stored in site_settings
-      const metaRow = rawSettings?.find((r: any) => r.id === 'novels_metadata');
-      const novelsMetaMap: Record<string, any> = metaRow?.data && typeof metaRow.data === 'object' ? metaRow.data : {};
-      const chMetaRow = rawSettings?.find((r: any) => r.id === 'chapters_metadata');
-      const chaptersMetaMap: Record<string, any> = chMetaRow?.data && typeof chMetaRow.data === 'object' ? chMetaRow.data : {};
-
-      // 1. Novels sync: Bidirectional non-destructive merge
-      // Remote novels enriched with metadata
-      const enrichedRemoteNovels: Novel[] = novels.map(rn => {
-        const extra = novelsMetaMap[rn.id];
-        return {
-          ...rn,
-          tableOfContents: rn.tableOfContents || extra?.tableOfContents || undefined,
-          seo: rn.seo || extra?.seo || undefined,
-        };
-      });
-
-      const localNovels = storageService.getNovels();
-      const remoteNovelsMap = new Map<string, Novel>();
-      enrichedRemoteNovels.forEach(rn => {
-        if (!cloudDeletedNovelIds.has(rn.id)) {
-          remoteNovelsMap.set(rn.id, rn);
+          const rawChapters = [
+            ...(Array.isArray(delRow.data.deletedChapterIds) ? delRow.data.deletedChapterIds : []),
+            ...(Array.isArray(delRow.data.chapters) ? delRow.data.chapters : []),
+          ];
+          remoteDeletedChapterIds = Array.from(new Set(rawChapters));
         }
-      });
-
-      const unsyncedLocalNovels: Novel[] = [];
-      localNovels.forEach(localN => {
-        if (!cloudDeletedNovelIds.has(localN.id)) {
-          if (!remoteNovelsMap.has(localN.id)) {
-            // Local novel not in Supabase yet -> preserve and push to Supabase!
-            remoteNovelsMap.set(localN.id, localN);
-            unsyncedLocalNovels.push(localN);
-          } else {
-            // Keep local richer fields if remote does not have them yet
-            const remoteN = remoteNovelsMap.get(localN.id)!;
-            remoteNovelsMap.set(localN.id, {
-              ...remoteN,
-              tableOfContents: localN.tableOfContents || remoteN.tableOfContents,
-              seo: localN.seo || remoteN.seo,
-            });
-          }
-        }
-      });
-
-      const mergedNovels = Array.from(remoteNovelsMap.values());
-      storageService.saveNovels(mergedNovels);
-
-      // Background push any local novels not yet in Supabase
-      if (unsyncedLocalNovels.length > 0) {
-        unsyncedLocalNovels.forEach(un => {
-          this.saveNovelToSupabase(un).catch(e => console.warn('Background sync novel to Supabase:', e));
-        });
       }
 
-      // 2. Chapters sync: Bidirectional non-destructive merge
-      const enrichedRemoteChapters: Chapter[] = chapters.map(rc => {
-        const extra = chaptersMetaMap[rc.id];
-        return {
-          ...rc,
-          seo: rc.seo || extra || undefined,
-        };
-      });
+      // Sync tombstone IDs into local storage so local storage permanently knows they are deleted
+      remoteDeletedNovelIds.forEach(id => storageService.markNovelDeleted(id));
+      remoteDeletedChapterIds.forEach(id => storageService.markChapterDeleted(id));
 
-      const localChapters = storageService.getChapters();
-      const remoteChaptersMap = new Map<string, Chapter>();
-      enrichedRemoteChapters.forEach(rc => {
-        if (!cloudDeletedChapterIds.has(rc.id) && !cloudDeletedNovelIds.has(rc.novelId)) {
-          remoteChaptersMap.set(rc.id, rc);
+      const allDeletedNovelIds = new Set([
+        ...storageService.getDeletedNovelIds(),
+        ...remoteDeletedNovelIds,
+      ]);
+      const allDeletedChapterIds = new Set([
+        ...storageService.getDeletedChapterIds(),
+        ...remoteDeletedChapterIds,
+      ]);
+
+      // Self-healing: If any remote row still exists in Supabase for a deleted novel or chapter, purge it immediately
+      const staleRemoteNovelIds = (rawNovels || []).map((n: any) => n.id).filter((id: string) => allDeletedNovelIds.has(id));
+      if (staleRemoteNovelIds.length > 0) {
+        try {
+          await client.from('comments').delete().in('novel_id', staleRemoteNovelIds);
+          await client.from('chapters').delete().in('novel_id', staleRemoteNovelIds);
+          await client.from('novels').delete().in('id', staleRemoteNovelIds);
+        } catch (e) {
+          console.warn('Self-healing cleanup for remote novels error:', e);
         }
-      });
+      }
 
-      const unsyncedLocalChapters: Chapter[] = [];
-      localChapters.forEach(localC => {
-        if (!cloudDeletedChapterIds.has(localC.id) && !cloudDeletedNovelIds.has(localC.novelId)) {
-          if (!remoteChaptersMap.has(localC.id)) {
-            remoteChaptersMap.set(localC.id, localC);
-            unsyncedLocalChapters.push(localC);
-          } else {
-            const remoteC = remoteChaptersMap.get(localC.id)!;
-            remoteChaptersMap.set(localC.id, {
-              ...remoteC,
-              content: localC.content || remoteC.content,
-              seo: localC.seo || remoteC.seo,
-            });
-          }
+      const staleRemoteChapterIds = (rawChapters || []).map((c: any) => c.id).filter((id: string) => allDeletedChapterIds.has(id));
+      if (staleRemoteChapterIds.length > 0) {
+        try {
+          await client.from('comments').delete().in('chapter_id', staleRemoteChapterIds);
+          await client.from('chapters').delete().in('id', staleRemoteChapterIds);
+        } catch (e) {
+          console.warn('Self-healing cleanup for remote chapters error:', e);
         }
-      });
+      }
 
-      const mergedChapters = Array.from(remoteChaptersMap.values());
-      storageService.saveChapters(mergedChapters);
+      // 1. Novels merge: Filter out deleted novels and sync state
+      let mergedNovels: Novel[] = novels.filter(rn => !allDeletedNovelIds.has(rn.id));
+      if (!nErr && Array.isArray(rawNovels)) {
+        storageService.saveNovels(mergedNovels);
+      }
 
-      if (unsyncedLocalChapters.length > 0) {
-        unsyncedLocalChapters.forEach(uc => {
-          this.saveChapterToSupabase(uc).catch(e => console.warn('Background sync chapter to Supabase:', e));
-        });
+      // 2. Chapters merge: Filter out deleted chapters and chapters of deleted novels
+      let mergedChapters: Chapter[] = chapters.filter(
+        rc => !allDeletedChapterIds.has(rc.id) && !allDeletedNovelIds.has(rc.novelId)
+      );
+      if (!cErr && Array.isArray(rawChapters)) {
+        storageService.saveChapters(mergedChapters);
+      }
+
+      // Clean bookmarks and reading history for deleted items
+      try {
+        const bookmarks = storageService.getBookmarks().filter(b => !allDeletedNovelIds.has(b.novelId));
+        storageService.saveBookmarks(bookmarks);
+        const history = storageService.getReadingHistory().filter(h => !allDeletedNovelIds.has(h.novelId));
+        storageService.saveReadingHistory(history);
+      } catch (e) {
+        console.warn('Error purging bookmarks/history for deleted items:', e);
       }
 
       // 3. Comments merge
@@ -540,229 +397,13 @@ class SupabaseService {
     }
   }
 
-  /**
-   * Reset data feature requested by the author:
-   * 1. Clears local storage (localStorage) while preserving essential credentials and config.
-   * 2. Initializes local novels & chapters to empty arrays.
-   * 3. Connects directly to Supabase to pull only the fresh authoritative data.
-   * 4. Deduplicates and filters out any deleted records, completely solving duplicate books.
-   */
-  public async forceResetAndPullFromSupabase(): Promise<{
-    success: boolean;
-    message: string;
-    novelsCount: number;
-    chaptersCount: number;
-  }> {
-    try {
-      // 1. Wipe local data caches
-      storageService.clearLocalDataCaches();
-
-      const client = this.getClient();
-      if (!client) {
-        return {
-          success: false,
-          message: 'تعذر الاتصال بسوباباس: يرجى التحقق من صحة رابط المشروع والمفتاح العام في إعدادات الربط.',
-          novelsCount: 0,
-          chaptersCount: 0,
-        };
-      }
-
-      // 2. Query all remote records from Supabase in parallel
-      const [nRes, cRes, comRes, pRes, sRes] = await Promise.all([
-        client.from('novels').select('*').order('created_at', { ascending: false }),
-        client.from('chapters').select('*').order('chapter_number', { ascending: true }),
-        client.from('comments').select('*').order('created_at', { ascending: false }),
-        client.from('author_profile').select('data').eq('id', 'main_author').maybeSingle(),
-        client.from('site_settings').select('id, data'),
-      ]);
-
-      if (nRes.error) {
-        return {
-          success: false,
-          message: `خطأ أثناء جلب الكتب من سوباباس: ${nRes.error.message}`,
-          novelsCount: 0,
-          chaptersCount: 0,
-        };
-      }
-
-      // 3. Process cloud deleted records blacklist
-      const rawSettings = sRes.data || [];
-      const delRow = rawSettings.find((r: any) => r.id === 'deleted_records');
-      const cloudDeletedNovelIds = new Set<string>(Array.isArray(delRow?.data?.novels) ? delRow.data.novels : []);
-      const cloudDeletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
-
-      // Persist deleted records blacklist
-      Array.from(cloudDeletedNovelIds).forEach(id => storageService.markNovelDeleted(id));
-      Array.from(cloudDeletedChapterIds).forEach(id => storageService.markChapterDeleted(id));
-
-      const metaRow = rawSettings.find((r: any) => r.id === 'novels_metadata');
-      const novelsMetaMap: Record<string, any> = metaRow?.data && typeof metaRow.data === 'object' ? metaRow.data : {};
-      const chMetaRow = rawSettings.find((r: any) => r.id === 'chapters_metadata');
-      const chaptersMetaMap: Record<string, any> = chMetaRow?.data && typeof chMetaRow.data === 'object' ? chMetaRow.data : {};
-
-      // 4. Map & filter fresh novels
-      const rawNovels = nRes.data || [];
-      const existingLocalNovels = new Map(storageService.getNovels().map(nov => [nov.id, nov]));
-      const cleanNovelsMap = new Map<string, Novel>();
-      for (const n of rawNovels) {
-        if (!n || !n.id || cloudDeletedNovelIds.has(n.id)) continue;
-        const extra = novelsMetaMap[n.id];
-        const mappedNovel: Novel = {
-          id: n.id,
-          title: n.title || 'بدون عنوان',
-          slug: n.slug || n.id,
-          author: n.author || 'أيمن كناني',
-          authorBio: n.author_bio || '',
-          synopsis: n.synopsis || n.description || '',
-          coverImage: n.cover_image || '',
-          bannerImage: n.banner_image || '',
-          genres: Array.isArray(n.genres) && n.genres.length > 0 ? n.genres : ['Fantasy'],
-          tags: Array.isArray(n.tags) && n.tags.length > 0 ? n.tags : ['فكر', 'مؤلفات'],
-          status: n.status || 'ONGOING',
-          totalViews: Number(n.total_views) || 0,
-          totalLikes: Number(n.total_likes) || 0,
-          rating: Number(n.rating) || 5.0,
-          ratingCount: Number(n.rating_count) || 1,
-          createdAt: n.created_at || new Date().toISOString(),
-          updatedAt: n.updated_at || new Date().toISOString(),
-          isFeatured: Boolean(n.is_featured),
-          pdfDownloadUrl: n.pdf_download_url || undefined,
-          pdfFileSize: n.pdf_file_size || undefined,
-          downloadButtonText: n.download_button_text || undefined,
-          tableOfContents: Array.isArray(n.table_of_contents) && n.table_of_contents.length > 0
-            ? n.table_of_contents
-            : (extra?.tableOfContents || existingLocalNovels.get(n.id)?.tableOfContents || undefined),
-          seo: (n.seo && typeof n.seo === 'object')
-            ? n.seo
-            : (extra?.seo || existingLocalNovels.get(n.id)?.seo || undefined),
-        };
-        cleanNovelsMap.set(mappedNovel.id, mappedNovel);
-      }
-      const freshNovels = Array.from(cleanNovelsMap.values());
-      storageService.saveNovels(freshNovels);
-
-      // 5. Map & filter fresh chapters
-      const rawChapters = cRes.data || [];
-      const cleanChaptersMap = new Map<string, Chapter>();
-      for (const c of rawChapters) {
-        if (!c || !c.id || cloudDeletedChapterIds.has(c.id) || cloudDeletedNovelIds.has(c.novel_id)) continue;
-        const extraCh = chaptersMetaMap[c.id];
-        const mappedChapter: Chapter = {
-          id: c.id,
-          novelId: c.novel_id,
-          chapterNumber: Number(c.chapter_number) || 1,
-          title: c.title || `فصل ${c.chapter_number || 1}`,
-          slug: c.slug || c.id,
-          content: c.content || '',
-          authorNote: c.author_note || undefined,
-          publishedAt: c.published_at || new Date().toISOString(),
-          views: Number(c.views) || 0,
-          likes: Number(c.likes) || 0,
-          rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
-          ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
-          wordCount: Number(c.word_count) || 0,
-          status: c.status || 'PUBLISHED',
-          seo: c.seo && typeof c.seo === 'object' ? c.seo : (extraCh || undefined),
-        };
-        cleanChaptersMap.set(mappedChapter.id, mappedChapter);
-      }
-      const freshChapters = Array.from(cleanChaptersMap.values());
-      storageService.saveChapters(freshChapters);
-
-      // 6. Map comments
-      const rawComments = comRes.data || [];
-      const cleanComments: Comment[] = rawComments.map((com: any) => ({
-        id: com.id,
-        novelId: com.novel_id,
-        chapterId: com.chapter_id || undefined,
-        authorName: com.author_name,
-        authorAvatar: com.author_avatar || '',
-        content: com.content,
-        createdAt: com.created_at || new Date().toISOString(),
-        likes: Number(com.likes) || 0,
-        isAuthor: Boolean(com.is_author),
-        isPinned: Boolean(com.is_pinned),
-        parentId: com.parent_id || undefined,
-      }));
-      storageService.saveComments(cleanComments);
-
-      // 7. Profile & Settings
-      if (pRes.data?.data) {
-        storageService.saveAuthorProfile(pRes.data.data);
-      }
-      for (const item of rawSettings) {
-        if (item.id === 'site_branding' && item.data) storageService.saveSiteBranding(item.data);
-        if (item.id === 'donation_settings' && item.data) storageService.saveDonationSettings(item.data);
-        if (item.id === 'categories' && Array.isArray(item.data)) storageService.saveCategories(item.data);
-        if (item.id === 'legal_documents' && item.data) storageService.saveLegalDocuments(item.data);
-        if (item.id === 'ad_settings' && item.data) storageService.saveAdSettings(item.data);
-        if (item.id === 'seo_settings' && item.data) storageService.saveSeoSettings(item.data);
-      }
-
-      return {
-        success: true,
-        message: `تم مسح الذاكرة المحلية بنجاح وجلب البيانات المحدثة فقط من سوباباس! وُجد ${freshNovels.length} كتاب، و ${freshChapters.length} فصل.`,
-        novelsCount: freshNovels.length,
-        chaptersCount: freshChapters.length,
-      };
-    } catch (err: any) {
-      console.error('forceResetAndPullFromSupabase failed:', err);
-      return {
-        success: false,
-        message: `فشل إعادة ضبط البيانات: ${err?.message || err}`,
-        novelsCount: 0,
-        chaptersCount: 0,
-      };
-    }
-  }
-
   // --- Granular Real-time Cloud Helpers ---
 
   public async saveNovelToSupabase(novel: Novel): Promise<boolean> {
-    storageService.unmarkNovelDeleted(novel.id);
-
-    // 1. Primary Full-Stack Path: Call server API (Express + Node.js - 100% reliable, zero CORS, no browser blocking)
-    try {
-      if (typeof window !== 'undefined') {
-        const resp = await fetch('/api/novels', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(novel),
-        });
-        if (resp.ok) {
-          const body = await resp.json();
-          if (body.success) {
-            return true;
-          }
-        }
-      }
-    } catch (apiErr) {
-      console.warn('/api/novels server save failed, trying direct Supabase client fallback:', apiErr);
-    }
-
     const client = this.getClient();
     if (!client) return false;
     try {
-      // 1. Unmark from local and remote deleted blacklist
-      try {
-        const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
-        if (currentDel?.data?.novels && Array.isArray(currentDel.data.novels) && currentDel.data.novels.includes(novel.id)) {
-          const updatedNovels = currentDel.data.novels.filter((nid: string) => nid !== novel.id);
-          await client.from('site_settings').upsert({
-            id: 'deleted_records',
-            data: {
-              ...currentDel.data,
-              novels: updatedNovels,
-              updatedAt: new Date().toISOString(),
-            },
-          });
-        }
-      } catch (delErr) {
-        // silent
-      }
-
-      // 2. Prepare payload matching known Supabase columns
-      const row: Record<string, any> = {
+      const row = {
         id: novel.id,
         title: novel.title,
         slug: novel.slug || novel.id,
@@ -785,51 +426,13 @@ class SupabaseService {
         created_at: novel.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
-
-      // 3. Resilient upsert: if PostgREST complains about any column not found in schema cache, strip it and retry dynamically
-      let currentPayload = { ...row };
-      let maxAttempts = 6;
-      let error: any = null;
-
-      while (maxAttempts > 0) {
-        const res = await client.from('novels').upsert(currentPayload);
-        error = res.error;
-        if (!error) {
-          break;
-        }
-        const missingColMatch = error.message?.match(/Could not find the '([^']+)' column/i);
-        if (missingColMatch && missingColMatch[1]) {
-          const colName = missingColMatch[1];
-          delete currentPayload[colName];
-          maxAttempts--;
-          continue;
-        }
-        break;
-      }
-
+      const { error } = await client.from('novels').upsert(row);
       if (error) {
         console.warn('Error saving novel to Supabase:', error);
         return false;
       }
-
-      // 4. Persist rich metadata (table of contents, seo) in site_settings so it syncs across all devices & browsers
-      if (novel.tableOfContents || novel.seo) {
-        try {
-          const { data: currentMeta } = await client.from('site_settings').select('data').eq('id', 'novels_metadata').maybeSingle();
-          const metaMap = (currentMeta?.data && typeof currentMeta.data === 'object') ? currentMeta.data : {};
-          metaMap[novel.id] = {
-            tableOfContents: novel.tableOfContents || [],
-            seo: novel.seo || null,
-          };
-          await client.from('site_settings').upsert({
-            id: 'novels_metadata',
-            data: metaMap,
-          });
-        } catch (mErr) {
-          console.warn('Could not save novel metadata to site_settings:', mErr);
-        }
-      }
-
+      // Unmark from deleted records if previously marked
+      await this.unmarkDeletedIdInSupabase('novel', novel.id);
       return true;
     } catch (e) {
       console.warn('Supabase saveNovelToSupabase exception:', e);
@@ -837,73 +440,111 @@ class SupabaseService {
     }
   }
 
-  public async deleteNovelFromSupabase(novelId: string): Promise<boolean> {
-    storageService.markNovelDeleted(novelId);
-
-    // 1. Primary Full-Stack Path: Server API
-    try {
-      if (typeof window !== 'undefined') {
-        const resp = await fetch(`/api/novels/${encodeURIComponent(novelId)}`, {
-          method: 'DELETE',
-        });
-        if (resp.ok) {
-          const body = await resp.json();
-          if (body.success) return true;
-        }
-      }
-    } catch (apiErr) {
-      console.warn('/api/novels DELETE failed, trying direct Supabase client fallback:', apiErr);
+  public async recordDeletedIdInSupabase(type: 'novel' | 'chapter', id: string): Promise<void> {
+    if (type === 'novel') {
+      storageService.markNovelDeleted(id);
+    } else {
+      storageService.markChapterDeleted(id);
     }
 
     const client = this.getClient();
-    if (!client) return false;
+    if (!client) return;
     try {
-      // 1. Delete comments belonging to this novel
-      await client.from('comments').delete().eq('novel_id', novelId);
-      // 2. Delete chapters belonging to this novel
-      await client.from('chapters').delete().eq('novel_id', novelId);
-      // 3. Delete the novel itself
+      const { data } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+      const current = (data?.data && typeof data.data === 'object') ? data.data : {
+        deletedNovelIds: [],
+        novels: [],
+        deletedChapterIds: [],
+        chapters: []
+      };
+
+      const existingNovels = [
+        ...(Array.isArray(current.deletedNovelIds) ? current.deletedNovelIds : []),
+        ...(Array.isArray(current.novels) ? current.novels : []),
+      ];
+      const existingChapters = [
+        ...(Array.isArray(current.deletedChapterIds) ? current.deletedChapterIds : []),
+        ...(Array.isArray(current.chapters) ? current.chapters : []),
+      ];
+
+      if (type === 'novel') {
+        const set = new Set([...existingNovels, id]);
+        current.deletedNovelIds = Array.from(set);
+        current.novels = Array.from(set);
+      } else {
+        const set = new Set([...existingChapters, id]);
+        current.deletedChapterIds = Array.from(set);
+        current.chapters = Array.from(set);
+      }
+      current.updatedAt = new Date().toISOString();
+
+      await client.from('site_settings').upsert({
+        id: 'deleted_records',
+        data: current,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Error recording deleted id in Supabase:', e);
+    }
+  }
+
+  public async unmarkDeletedIdInSupabase(type: 'novel' | 'chapter', id: string): Promise<void> {
+    if (type === 'novel') {
+      storageService.unmarkNovelDeleted(id);
+    } else {
+      storageService.unmarkChapterDeleted(id);
+    }
+
+    const client = this.getClient();
+    if (!client) return;
+    try {
+      const { data } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+      if (!data?.data) return;
+      const current = data.data;
+      if (type === 'novel') {
+        current.deletedNovelIds = (current.deletedNovelIds || []).filter((x: string) => x !== id);
+        current.novels = (current.novels || []).filter((x: string) => x !== id);
+      } else {
+        current.deletedChapterIds = (current.deletedChapterIds || []).filter((x: string) => x !== id);
+        current.chapters = (current.chapters || []).filter((x: string) => x !== id);
+      }
+      current.updatedAt = new Date().toISOString();
+      await client.from('site_settings').upsert({
+        id: 'deleted_records',
+        data: current,
+        updated_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.warn('Error unmarking deleted id in Supabase:', e);
+    }
+  }
+
+  public async deleteNovelFromSupabase(novelId: string): Promise<boolean> {
+    // 1. Immediately delete locally and record tombstone in Supabase FIRST
+    storageService.deleteNovel(novelId);
+    await this.recordDeletedIdInSupabase('novel', novelId);
+
+    const client = this.getClient();
+    if (!client) return true;
+    try {
+      // 2. Delete comments belonging to this novel
+      try {
+        await client.from('comments').delete().eq('novel_id', novelId);
+      } catch (e) {
+        console.warn('Error deleting comments for novel:', e);
+      }
+      // 3. Delete chapters belonging to this novel
+      try {
+        await client.from('chapters').delete().eq('novel_id', novelId);
+      } catch (e) {
+        console.warn('Error deleting chapters for novel:', e);
+      }
+      // 4. Delete the novel itself
       const { error } = await client.from('novels').delete().eq('id', novelId);
       if (error) {
         console.error('Supabase deleteNovelFromSupabase error:', error);
-        return false;
       }
-
-      // 4. Clean up metadata from site_settings
-      try {
-        const { data: currentMeta } = await client.from('site_settings').select('data').eq('id', 'novels_metadata').maybeSingle();
-        if (currentMeta?.data && currentMeta.data[novelId]) {
-          delete currentMeta.data[novelId];
-          await client.from('site_settings').upsert({
-            id: 'novels_metadata',
-            data: currentMeta.data,
-          });
-        }
-      } catch (metaErr) {
-        console.warn('Could not delete novel metadata from site_settings:', metaErr);
-      }
-
-      // 5. Record deleted novel in site_settings so all syncing devices & readers purge it immediately
-      try {
-        const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
-        const existingNovels: string[] = Array.isArray(currentDel?.data?.novels) ? currentDel.data.novels : [];
-        const existingChapters: string[] = Array.isArray(currentDel?.data?.chapters) ? currentDel.data.chapters : [];
-        if (!existingNovels.includes(novelId)) {
-          existingNovels.push(novelId);
-        }
-        await client.from('site_settings').upsert({
-          id: 'deleted_records',
-          data: {
-            novels: existingNovels,
-            chapters: existingChapters,
-            updatedAt: new Date().toISOString(),
-          },
-        });
-      } catch (delErr) {
-        console.warn('Could not record deleted novel in site_settings:', delErr);
-      }
-
-      return true;
+      return !error;
     } catch (e) {
       console.warn('Supabase deleteNovelFromSupabase exception:', e);
       return false;
@@ -911,48 +552,10 @@ class SupabaseService {
   }
 
   public async saveChapterToSupabase(chapter: Chapter): Promise<boolean> {
-    storageService.unmarkChapterDeleted(chapter.id);
-
-    // 1. Primary Full-Stack Path: Server API
-    try {
-      if (typeof window !== 'undefined') {
-        const resp = await fetch('/api/chapters', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(chapter),
-        });
-        if (resp.ok) {
-          const body = await resp.json();
-          if (body.success) return true;
-        }
-      }
-    } catch (apiErr) {
-      console.warn('/api/chapters POST failed, trying direct Supabase client fallback:', apiErr);
-    }
-
     const client = this.getClient();
     if (!client) return false;
     try {
-      // 1. Unmark from local and remote deleted blacklist
-      try {
-        const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
-        if (currentDel?.data?.chapters && Array.isArray(currentDel.data.chapters) && currentDel.data.chapters.includes(chapter.id)) {
-          const updatedChapters = currentDel.data.chapters.filter((cid: string) => cid !== chapter.id);
-          await client.from('site_settings').upsert({
-            id: 'deleted_records',
-            data: {
-              ...currentDel.data,
-              chapters: updatedChapters,
-              updatedAt: new Date().toISOString(),
-            },
-          });
-        }
-      } catch (delErr) {
-        // silent
-      }
-
-      // 2. Prepare payload
-      const row: Record<string, any> = {
+      const row = {
         id: chapter.id,
         novel_id: chapter.novelId,
         chapter_number: chapter.chapterNumber,
@@ -966,48 +569,12 @@ class SupabaseService {
         word_count: chapter.wordCount || 0,
         status: chapter.status || 'PUBLISHED',
       };
-
-      // 3. Resilient upsert with dynamic column stripping
-      let currentPayload = { ...row };
-      let maxAttempts = 6;
-      let error: any = null;
-
-      while (maxAttempts > 0) {
-        const res = await client.from('chapters').upsert(currentPayload);
-        error = res.error;
-        if (!error) {
-          break;
-        }
-        const missingColMatch = error.message?.match(/Could not find the '([^']+)' column/i);
-        if (missingColMatch && missingColMatch[1]) {
-          const colName = missingColMatch[1];
-          delete currentPayload[colName];
-          maxAttempts--;
-          continue;
-        }
-        break;
-      }
-
+      const { error } = await client.from('chapters').upsert(row);
       if (error) {
         console.error('Supabase saveChapterToSupabase error:', error);
         return false;
       }
-
-      // 4. Persist chapter SEO in site_settings
-      if (chapter.seo) {
-        try {
-          const { data: currentMeta } = await client.from('site_settings').select('data').eq('id', 'chapters_metadata').maybeSingle();
-          const metaMap = (currentMeta?.data && typeof currentMeta.data === 'object') ? currentMeta.data : {};
-          metaMap[chapter.id] = chapter.seo;
-          await client.from('site_settings').upsert({
-            id: 'chapters_metadata',
-            data: metaMap,
-          });
-        } catch (mErr) {
-          console.warn('Could not save chapter SEO to site_settings:', mErr);
-        }
-      }
-
+      await this.unmarkDeletedIdInSupabase('chapter', chapter.id);
       return true;
     } catch (e) {
       console.warn('Supabase saveChapterToSupabase exception:', e);
@@ -1016,134 +583,28 @@ class SupabaseService {
   }
 
   public async deleteChapterFromSupabase(chapterId: string): Promise<boolean> {
-    storageService.markChapterDeleted(chapterId);
-
-    // 1. Primary Full-Stack Path: Server API
-    try {
-      if (typeof window !== 'undefined') {
-        const resp = await fetch(`/api/chapters/${encodeURIComponent(chapterId)}`, {
-          method: 'DELETE',
-        });
-        if (resp.ok) {
-          const body = await resp.json();
-          if (body.success) return true;
-        }
-      }
-    } catch (apiErr) {
-      console.warn('/api/chapters DELETE failed, trying direct Supabase fallback:', apiErr);
-    }
+    // 1. Delete locally and record tombstone FIRST
+    storageService.deleteChapter(chapterId);
+    await this.recordDeletedIdInSupabase('chapter', chapterId);
 
     const client = this.getClient();
-    if (!client) return false;
+    if (!client) return true;
     try {
-      // Delete comments belonging to this chapter
-      await client.from('comments').delete().eq('chapter_id', chapterId);
+      // 2. Delete comments belonging to this chapter
+      try {
+        await client.from('comments').delete().eq('chapter_id', chapterId);
+      } catch (e) {
+        console.warn('Error deleting comments for chapter:', e);
+      }
+      // 3. Delete the chapter itself
       const { error } = await client.from('chapters').delete().eq('id', chapterId);
       if (error) {
         console.error('Supabase deleteChapterFromSupabase error:', error);
-        return false;
       }
-
-      // Record in site_settings under deleted_records
-      try {
-        const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
-        const existingNovels: string[] = Array.isArray(currentDel?.data?.novels) ? currentDel.data.novels : [];
-        const existingChapters: string[] = Array.isArray(currentDel?.data?.chapters) ? currentDel.data.chapters : [];
-        if (!existingChapters.includes(chapterId)) {
-          existingChapters.push(chapterId);
-        }
-        await client.from('site_settings').upsert({
-          id: 'deleted_records',
-          data: {
-            novels: existingNovels,
-            chapters: existingChapters,
-            updatedAt: new Date().toISOString(),
-          },
-        });
-      } catch (delErr) {
-        console.warn('Could not record deleted chapter in site_settings:', delErr);
-      }
-
-      return true;
+      return !error;
     } catch (e) {
       console.warn('Supabase deleteChapterFromSupabase exception:', e);
       return false;
-    }
-  }
-
-  /**
-   * Increments view counters for a novel and optionally a chapter both in database and server
-   */
-  public async incrementView(
-    novelId: string,
-    chapterId?: string
-  ): Promise<{ totalViews?: number; chapterViews?: number }> {
-    try {
-      // 1. Try server API endpoint
-      const resp = await fetch('/api/views/increment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ novelId, chapterId }),
-      });
-      if (resp.ok) {
-        const data = await resp.json();
-        if (data && data.success) {
-          return { totalViews: data.totalViews, chapterViews: data.chapterViews };
-        }
-      }
-    } catch {
-      // Server endpoint not reachable or running in static context
-    }
-
-    // 2. Direct Supabase Client fallback
-    try {
-      const client = this.getClient();
-      if (!client) return {};
-
-      let totalViews: number | undefined;
-      let chapterViews: number | undefined;
-
-      if (novelId) {
-        const { data: nRow } = await client
-          .from('novels')
-          .select('total_views')
-          .eq('id', novelId)
-          .maybeSingle();
-
-        const currentNViews = Number(nRow?.total_views || 0);
-        totalViews = currentNViews + 1;
-
-        await client
-          .from('novels')
-          .update({
-            total_views: totalViews,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', novelId);
-      }
-
-      if (chapterId) {
-        const { data: cRow } = await client
-          .from('chapters')
-          .select('views')
-          .eq('id', chapterId)
-          .maybeSingle();
-
-        const currentCViews = Number(cRow?.views || 0);
-        chapterViews = currentCViews + 1;
-
-        await client
-          .from('chapters')
-          .update({
-            views: chapterViews,
-          })
-          .eq('id', chapterId);
-      }
-
-      return { totalViews, chapterViews };
-    } catch (fallbackErr) {
-      console.warn('incrementView fallback exception:', fallbackErr);
-      return {};
     }
   }
 
@@ -1383,9 +844,84 @@ class SupabaseService {
     try {
       const syncedSummary: string[] = [];
 
+      // 0. Extract tombstone deleted IDs from Supabase site_settings AND local storage
+      let remoteDeletedNovelIds: string[] = [];
+      let remoteDeletedChapterIds: string[] = [];
+      try {
+        const { data: delRow } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+        if (delRow?.data) {
+          const rawNovels = [
+            ...(Array.isArray(delRow.data.deletedNovelIds) ? delRow.data.deletedNovelIds : []),
+            ...(Array.isArray(delRow.data.novels) ? delRow.data.novels : []),
+          ];
+          remoteDeletedNovelIds = Array.from(new Set(rawNovels));
+
+          const rawChapters = [
+            ...(Array.isArray(delRow.data.deletedChapterIds) ? delRow.data.deletedChapterIds : []),
+            ...(Array.isArray(delRow.data.chapters) ? delRow.data.chapters : []),
+          ];
+          remoteDeletedChapterIds = Array.from(new Set(rawChapters));
+        }
+      } catch (e) {
+        console.warn('Sync fetch remote tombstones error:', e);
+      }
+
+      remoteDeletedNovelIds.forEach(id => storageService.markNovelDeleted(id));
+      remoteDeletedChapterIds.forEach(id => storageService.markChapterDeleted(id));
+
+      const deletedNovelIds = Array.from(new Set([
+        ...storageService.getDeletedNovelIds(),
+        ...remoteDeletedNovelIds,
+      ]));
+      const deletedChapterIds = Array.from(new Set([
+        ...storageService.getDeletedChapterIds(),
+        ...remoteDeletedChapterIds,
+      ]));
+
+      if (deletedNovelIds.length > 0) {
+        try {
+          await client.from('comments').delete().in('novel_id', deletedNovelIds);
+          await client.from('chapters').delete().in('novel_id', deletedNovelIds);
+          await client.from('novels').delete().in('id', deletedNovelIds);
+        } catch (e) {
+          console.warn('Sync purge deleted novels error:', e);
+        }
+      }
+
+      if (deletedChapterIds.length > 0) {
+        try {
+          await client.from('comments').delete().in('chapter_id', deletedChapterIds);
+          await client.from('chapters').delete().in('id', deletedChapterIds);
+        } catch (e) {
+          console.warn('Sync purge deleted chapters error:', e);
+        }
+      }
+
+      // Filter payload to strictly exclude any deleted items
+      const validNovels = (payload.novels || []).filter(n => !deletedNovelIds.includes(n.id));
+      const validChapters = (payload.chapters || []).filter(
+        c => !deletedChapterIds.includes(c.id) && !deletedNovelIds.includes(c.novelId)
+      );
+
+      // Clean ghost/stale novels from Supabase that were deleted locally or not in validNovels
+      try {
+        const { data: remoteNovels } = await client.from('novels').select('id');
+        if (remoteNovels && remoteNovels.length > 0) {
+          const validIds = new Set(validNovels.map(n => n.id));
+          const toDelete = remoteNovels.filter(rn => !validIds.has(rn.id)).map(rn => rn.id);
+          if (toDelete.length > 0) {
+            await client.from('comments').delete().in('novel_id', toDelete);
+            await client.from('chapters').delete().in('novel_id', toDelete);
+            await client.from('novels').delete().in('id', toDelete);
+          }
+        }
+      } catch (e) {
+        console.warn('Sync prune ghost novels error:', e);
+      }
+
       // 1. Sync Novels
-      if (payload.novels && payload.novels.length > 0) {
-        const novelsData = payload.novels.map(n => ({
+      if (validNovels.length > 0) {
+        const novelsData = validNovels.map(n => ({
           id: n.id,
           title: n.title,
           slug: n.slug || n.id,
@@ -1411,13 +947,13 @@ class SupabaseService {
         if (novelsErr) {
           console.warn('Novels sync warning:', novelsErr);
         } else {
-          syncedSummary.push(`${payload.novels.length} رواية/كتاب`);
+          syncedSummary.push(`${validNovels.length} رواية/كتاب`);
         }
       }
 
       // 2. Sync Chapters
-      if (payload.chapters && payload.chapters.length > 0) {
-        const chaptersData = payload.chapters.map(c => ({
+      if (validChapters.length > 0) {
+        const chaptersData = validChapters.map(c => ({
           id: c.id,
           novel_id: c.novelId,
           chapter_number: c.chapterNumber,
@@ -1435,7 +971,7 @@ class SupabaseService {
         if (chaptersErr) {
           console.warn('Chapters sync warning:', chaptersErr);
         } else {
-          syncedSummary.push(`${payload.chapters.length} فصل`);
+          syncedSummary.push(`${validChapters.length} فصل`);
         }
       }
 
@@ -1546,6 +1082,23 @@ class SupabaseService {
         } catch (e) {
           console.warn('SEO settings sync optional warning:', e);
         }
+      }
+
+      // 11. Sync Tombstones (deleted records) to guarantee all clients purge them
+      try {
+        await client.from('site_settings').upsert({
+          id: 'deleted_records',
+          data: {
+            deletedNovelIds,
+            novels: deletedNovelIds,
+            deletedChapterIds,
+            chapters: deletedChapterIds,
+            updatedAt: new Date().toISOString(),
+          },
+          updated_at: new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('Deleted records sync optional warning:', e);
       }
 
       const summaryText = syncedSummary.length > 0 ? syncedSummary.join(' و ') : 'البيانات كاملة';

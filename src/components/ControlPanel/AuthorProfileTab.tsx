@@ -240,7 +240,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
                 }}
               />
 
-              {profile.avatar ? (
+              {Boolean(profile.avatar?.trim()) ? (
                 <div className="relative group">
                   <img
                     src={profile.avatar}
@@ -326,7 +326,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
                   }
                 }}
               />
-              {profile.coverImage ? (
+              {Boolean(profile.coverImage?.trim()) ? (
                 <img
                   src={profile.coverImage}
                   alt="غلاف الكاتب"

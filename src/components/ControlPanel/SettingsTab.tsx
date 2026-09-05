@@ -20,7 +20,7 @@ import {
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { SiteBranding } from '../../types';
-import { ResetDataModal } from './ResetDataModal';
+import { applyBrandingToPWA } from '../../utils/pwaHelper';
 
 interface SettingsTabProps {
   onRefreshData: () => void;
@@ -38,7 +38,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
   const [isDraggingFavicon, setIsDraggingFavicon] = useState<boolean>(false);
   const [isDraggingPwaIcon, setIsDraggingPwaIcon] = useState<boolean>(false);
-  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
@@ -69,22 +68,17 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
       const result = e.target?.result as string;
       if (result) {
         if (type === 'logo') {
-          setBranding(prev => ({ ...prev, logoUrl: result }));
+          const updated = { ...branding, logoUrl: result };
+          setBranding(updated);
+          applyBrandingToPWA(updated);
         } else if (type === 'favicon') {
-          setBranding(prev => ({ ...prev, faviconUrl: result }));
-          // Update actual browser favicon dynamically
-          const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
-          link.type = 'image/x-icon';
-          link.rel = 'shortcut icon';
-          link.href = result;
-          document.getElementsByTagName('head')[0].appendChild(link);
+          const updated = { ...branding, faviconUrl: result };
+          setBranding(updated);
+          applyBrandingToPWA(updated);
         } else if (type === 'pwaIcon') {
-          setBranding(prev => ({ ...prev, pwaIconUrl: result }));
-          // Update Apple Touch Icon & PWA app icon
-          const appleLink = document.querySelector("link[rel*='apple-touch-icon']") as HTMLLinkElement || document.createElement('link');
-          appleLink.rel = 'apple-touch-icon';
-          appleLink.href = result;
-          document.getElementsByTagName('head')[0].appendChild(appleLink);
+          const updated = { ...branding, pwaIconUrl: result };
+          setBranding(updated);
+          applyBrandingToPWA(updated);
         }
       }
     };
@@ -95,7 +89,8 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
     e.preventDefault();
     storageService.saveSiteBranding(branding);
     supabaseService.saveSiteBrandingToSupabase(branding);
-    showToast('تم حفظ وتحديث هوية الموقع وشعار المنصة وأيقونة المتصفح بنجاح!');
+    applyBrandingToPWA(branding);
+    showToast('تم حفظ وتحديث هوية الموقع وشعار المنصة وأيقونة المتصفح وتطبيق الهاتف (PWA) بنجاح!');
     onRefreshData();
   };
 
@@ -252,7 +247,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {branding.logoUrl ? (
+                {Boolean(branding.logoUrl?.trim()) ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.logoUrl} alt="Logo" className="max-h-12 object-contain" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير اللوغو</span>
@@ -305,7 +300,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {branding.faviconUrl ? (
+                {Boolean(branding.faviconUrl?.trim()) ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.faviconUrl} alt="Favicon" className="w-8 h-8 rounded-md object-contain border border-[#E5E2D9]" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير أيقونة Favicon</span>
@@ -358,7 +353,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {branding.pwaIconUrl ? (
+                {Boolean(branding.pwaIconUrl?.trim()) ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.pwaIconUrl} alt="PWA Icon" className="w-10 h-10 rounded-xl object-cover border border-[#E5E2D9] shadow-xs" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير أيقونة التطبيق PWA</span>
@@ -388,7 +383,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
               type="text"
               value={branding.footerText}
               onChange={e => setBranding(prev => ({ ...prev, footerText: e.target.value }))}
-              placeholder="الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026"
+              placeholder="جميع الحقوق محفوظة للكاتب أيمن كناني © 2026"
               className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:border-[#4A5D4E] focus:outline-none"
             />
           </div>
@@ -538,36 +533,24 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
 
           <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 flex flex-col justify-between">
             <div>
-              <h4 className="text-xs font-bold text-rose-900 mb-1 flex items-center gap-1.5">
-                <RotateCcw className="w-4 h-4 text-rose-700" />
-                <span>إعادة ضبط البيانات (مسح الكاش وسحب Supabase)</span>
+              <h4 className="text-xs font-bold text-rose-900 mb-1">
+                إعادة ضبط البيانات الأولية
               </h4>
               <p className="text-[11px] text-rose-700 leading-relaxed mb-4">
-                مسح التخزين المحلي (localStorage) للكتب والفصول وإجبار التطبيق على إعادة سحب البيانات المحدثة فقط من سوباباس لحل مشاكل تكرار الكتب.
+                استعادة المؤلفات والفصول التجريبية الأصلية وتفريغ التقييمات.
               </p>
             </div>
             <button
               type="button"
-              id="settings-reset-data-btn"
-              onClick={() => setIsResetModalOpen(true)}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all"
+              onClick={handleResetData}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>إعادة ضبط وسحب البيانات السحابية</span>
+              <span>استعادة الحالة الافتراضية</span>
             </button>
           </div>
         </div>
       </div>
-
-      {/* Reset Data Confirmation & Execution Modal */}
-      <ResetDataModal
-        isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
-        onSuccess={() => {
-          onRefreshData();
-          showToast('تمت إعادة ضبط البيانات بنجاح وسحب النسخة المحدثة من سوباباس!');
-        }}
-      />
     </div>
   );
 };

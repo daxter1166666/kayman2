@@ -1,8 +1,5 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
 
-export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
-export const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?w=1600&auto=format&fit=crop&q=80';
-
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   name: 'أيمن كناني',
   englishName: 'Ayman Kinani',
@@ -34,7 +31,7 @@ export const INITIAL_SITE_BRANDING: SiteBranding = {
   siteSubtitle: 'المنصة الرسمية لنشر المؤلفات والكتب والروايات',
   logoUrl: '',
   faviconUrl: '',
-  footerText: 'الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026',
+  footerText: 'جميع الحقوق الأدبية والفكرية محفوظة للكاتب أيمن كناني © 2026',
 };
 
 export const INITIAL_SEO_SETTINGS: SeoSettings = {
@@ -50,7 +47,6 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   ogDefaultImage: 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop',
   enableStructuredData: true,
   indexingPolicy: 'all',
-  googleAnalyticsId: '',
 };
 
 export const INITIAL_DONATION_SETTINGS: DonationSettings = {
@@ -108,16 +104,13 @@ export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
   dmcaPolicy: `تحترم المنصة حقوق الملكية الفكرية وتلتزم بقانون الألفية الجديدة لحقوق طبع ونشر المواد الرقمية (DMCA).
 إذا كانت لديك أي استفسارات أو ملاحظات حول الملكية الأدبية، يرجى التواصل مع الكاتب عبر البريد الرسمي aymankinani.author@gmail.com وسيتم الرد فوراً وبشكل حاسم.`,
   licensesPolicy: `عن هذا العمل:
-أسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
+أضع هذا العمل ابتغاء وجه الله، وأسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
 
 الأفكار والرؤية في هذا العمل نابعة مني بالكامل. أستعين بأدوات الذكاء الاصطناعي لتوسيع الأفكار وصياغتها الأولية، مع مراجعتي وإشرافي الكامل على كل نص قبل نشره.
 
 الترخيص:
 هذا العمل مرخّص بموجب رخصة المشاع الإبداعي (نسب المصنف - غير تجاري 4.0 دولي)
 CC BY-NC 4.0
-
-بيان الترخيص وحق المؤلف:
-هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
 
 يعني هذا أنك تستطيع:
 ✅ نسخ العمل وإعادة توزيعه بأي وسيلة

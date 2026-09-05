@@ -5,7 +5,6 @@ import { AuthorProfileTab } from './AuthorProfileTab';
 import { DonationsTab } from './DonationsTab';
 import { SupabaseTab } from './SupabaseTab';
 import { ChapterPublisherTab } from './ChapterPublisherTab';
-import { RichEditorStudioTab } from './RichEditorStudioTab';
 import { NovelManagerTab } from './NovelManagerTab';
 import { CategoryManagerTab } from './CategoryManagerTab';
 import { LegalAndContactManagerTab } from './LegalAndContactManagerTab';
@@ -31,11 +30,8 @@ import {
   FileText,
   Copy,
   Check,
-  Search,
-  RotateCcw,
-  Feather
+  Search
 } from 'lucide-react';
-import { ResetDataModal } from './ResetDataModal';
 
 interface ControlPanelProps {
   novels: Novel[];
@@ -58,23 +54,21 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onAdminLogout,
   onOpenLegalPage,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('novels');
+  const [activeTab, setActiveTab] = useState<string>('author_profile');
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
-  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const tabs = [
-    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
-    { id: 'rich_editor', label: 'محرر الكتب والنصوص (WYSIWYG)', icon: Feather },
-    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
-    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
-    { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
     { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
-    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
     { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
+    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
+    { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
+    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
+    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
     { id: 'categories', label: 'إدارة وتخصيص الأقسام', icon: Layers },
     { id: 'legal_contact', label: 'السياسات ورسائل القراء', icon: FileText },
     { id: 'ads', label: 'إدارة الإعلانات', icon: DollarSign },
     { id: 'compliance', label: 'شروط AdSense', icon: ShieldCheck },
+    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'comments', label: 'تعليقات القراء', icon: MessageSquare, badge: comments.length },
     { id: 'settings', label: 'الهوية والأمان والنسخ', icon: Settings },
   ];
@@ -144,30 +138,16 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                id="cp-top-reset-btn"
-                onClick={() => setIsResetModalOpen(true)}
-                className="px-3 py-2 rounded-xl text-xs font-bold text-[#4A5D4E] bg-[#F7F5EE] hover:bg-[#EAE7DC] border border-[#E5E2D9] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                title="مسح التخزين المحلي وإعادة سحب البيانات المحدثة فقط من سوباباس لحل تكرار الكتب"
-              >
-                <RotateCcw className="w-3.5 h-3.5 text-[#4A5D4E]" />
-                <span className="hidden sm:inline">إعادة ضبط ومزامنة البيانات</span>
-                <span className="sm:hidden">إعادة ضبط</span>
-              </button>
-
-              <button
-                type="button"
-                id="admin-logout-btn"
-                onClick={onAdminLogout}
-                className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-                title="تسجيل خروج الأدمن"
-              >
-                <LogOut className="w-4 h-4" />
-                <span>تسجيل الخروج</span>
-              </button>
-            </div>
+            <button
+              type="button"
+              id="admin-logout-btn"
+              onClick={onAdminLogout}
+              className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+              title="تسجيل خروج الأدمن"
+            >
+              <LogOut className="w-4 h-4" />
+              <span>تسجيل الخروج</span>
+            </button>
           </div>
 
           {/* Multi-Line Wrapped Tab Switcher Bar - Fully visible in multiple rows */}
@@ -240,15 +220,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
 
-        {activeTab === 'rich_editor' && (
-          <RichEditorStudioTab
-            novels={novels}
-            chapters={chapters}
-            onRefreshData={onRefreshData}
-            onNavigateTab={tab => setActiveTab(tab)}
-          />
-        )}
-
         {activeTab === 'publish' && (
           <ChapterPublisherTab
             novels={novels}
@@ -295,14 +266,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
 
-        {activeTab === 'seo' && (
-          <SeoTab
-            novels={novels}
-            chapters={chapters}
-            onRefreshData={onRefreshData}
-          />
-        )}
-
         {activeTab === 'comments' && (
           <CommentModeratorTab
             novels={novels}
@@ -318,13 +281,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
       </main>
-
-      {/* Quick Reset Data Modal from Header */}
-      <ResetDataModal
-        isOpen={isResetModalOpen}
-        onClose={() => setIsResetModalOpen(false)}
-        onSuccess={onRefreshData}
-      />
     </div>
   );
 };
