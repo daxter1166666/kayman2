@@ -4,6 +4,7 @@ import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { ImageUploadInput } from '../ImageUploadInput';
 import { ConfirmModal } from '../ConfirmModal';
+import { toArabicGenre } from '../../utils/genreHelper';
 import {
   BookOpen,
   Plus,
@@ -64,7 +65,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setSynopsis('');
     setCoverImage('');
     setBannerImage('');
-    setSelectedGenres([categories[0]?.name || 'فكر وفلسفة']);
+    setSelectedGenres([categories[0]?.arabicName || categories[0]?.name || 'فكر وفلسفة']);
     setTagsInput('');
     setStatus('ONGOING');
     setIsFeatured(false);
@@ -83,7 +84,12 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setSynopsis(novel.synopsis);
     setCoverImage(novel.coverImage);
     setBannerImage(novel.bannerImage);
-    setSelectedGenres(novel.genres);
+    // Normalize selected genres to Arabic display names
+    const normalizedGenres = novel.genres.map(g => {
+      const match = categories.find(c => c.name === g || c.arabicName === g);
+      return match ? match.arabicName : toArabicGenre(g);
+    });
+    setSelectedGenres(normalizedGenres);
     setTagsInput(novel.tags.join('، '));
     setStatus(novel.status);
     setIsFeatured(novel.isFeatured || false);
@@ -94,13 +100,18 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleGenreToggle = (genreName: string) => {
-    if (selectedGenres.includes(genreName)) {
+  const handleGenreToggle = (targetName: string) => {
+    const cat = categories.find(c => c.name === targetName || c.arabicName === targetName);
+    const arName = cat ? cat.arabicName : toArabicGenre(targetName);
+    const enName = cat ? cat.name : targetName;
+
+    const isAlreadySelected = selectedGenres.some(g => g === arName || g === enName);
+    if (isAlreadySelected) {
       if (selectedGenres.length > 1) {
-        setSelectedGenres(selectedGenres.filter(g => g !== genreName));
+        setSelectedGenres(selectedGenres.filter(g => g !== arName && g !== enName));
       }
     } else {
-      setSelectedGenres([...selectedGenres, genreName]);
+      setSelectedGenres([...selectedGenres, arName]);
     }
   };
 
@@ -488,12 +499,12 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             </label>
             <div className="flex flex-wrap gap-2">
               {categories.map(c => {
-                const selected = selectedGenres.includes(c.name) || selectedGenres.includes(c.arabicName);
+                const selected = selectedGenres.includes(c.arabicName) || selectedGenres.includes(c.name);
                 return (
                   <button
                     key={c.id}
                     type="button"
-                    onClick={() => handleGenreToggle(c.name)}
+                    onClick={() => handleGenreToggle(c.arabicName)}
                     className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer border ${
                       selected
                         ? 'bg-[#4A5D4E] text-[#FDFCF8] border-[#4A5D4E]'

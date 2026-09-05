@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Novel, Chapter, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
+import { toArabicGenre } from '../utils/genreHelper';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import {
@@ -145,7 +146,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                     key={g}
                     className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]"
                   >
-                    {g}
+                    {toArabicGenre(g)}
                   </span>
                 ))}
               </div>

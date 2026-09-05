@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Novel, Chapter, Comment, ReaderSettings, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
+import { extractCleanParagraphs } from '../utils/textCleaner';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import confetti from 'canvas-confetti';
@@ -279,8 +280,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     full: 'max-w-5xl',
   }[readerSettings.contentWidth];
 
-  // Split chapter content for mid-chapter ad insertion if long
-  const paragraphs = chapter.content.split('\n\n').filter(p => p.trim());
+  // Clean chapter content and extract proper literary paragraphs (removes any HTML/CSS codes)
+  const paragraphs = useMemo(() => extractCleanParagraphs(chapter.content), [chapter.content]);
   const midPoint = Math.floor(paragraphs.length / 2);
 
   return (
@@ -311,12 +312,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               <span className="hidden sm:inline">نظرة عامة</span>
             </button>
 
-            <div className="min-w-0">
-              <h2 className="text-xs font-medium opacity-75 truncate max-w-[200px] sm:max-w-xs font-amiri">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs font-medium opacity-75 truncate max-w-[130px] sm:max-w-xs md:max-w-md font-amiri">
                 {novel.title}
               </h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-bold truncate font-amiri text-[#4A5D4E]">
+                <span className="text-xs sm:text-sm font-bold truncate max-w-[140px] sm:max-w-none font-amiri text-[#4A5D4E]">
                   الفصل {chapter.chapterNumber}: {chapter.title}
                 </span>
               </div>

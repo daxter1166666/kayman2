@@ -27,6 +27,7 @@ import { AuthorProfileSection } from './components/AuthorProfileSection';
 import { DonationModal } from './components/DonationModal';
 import { PWAInstallModal } from './components/PWAInstallModal';
 import { applyBrandingToPWA } from './utils/pwaHelper';
+import { toArabicGenre } from './utils/genreHelper';
 import {
   Sparkles,
   BookOpen,
@@ -411,8 +412,12 @@ export default function App() {
         }
         // Category filter
         if (selectedGenre !== 'All') {
-          const cat = categories.find(c => c.name === selectedGenre);
-          const match = novel.genres.includes(selectedGenre as any) || (cat && novel.genres.includes(cat.arabicName as any));
+          const cat = categories.find(c => c.name === selectedGenre || c.arabicName === selectedGenre);
+          const match = novel.genres.some(g => {
+            return g === selectedGenre ||
+                   toArabicGenre(g) === selectedGenre ||
+                   (cat && (g === cat.name || g === cat.arabicName || toArabicGenre(g) === cat.arabicName));
+          });
           if (!match) return false;
         }
         return true;
@@ -626,7 +631,7 @@ export default function App() {
                           key={g}
                           className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]"
                         >
-                          {g}
+                          {toArabicGenre(g)}
                         </span>
                       ))}
                     </div>

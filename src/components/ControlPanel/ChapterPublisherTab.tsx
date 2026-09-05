@@ -3,6 +3,7 @@ import { Novel, Chapter, ChapterStatus } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { ConfirmModal } from '../ConfirmModal';
+import { cleanChapterContent, hasHtmlOrStyleResidue } from '../../utils/textCleaner';
 import {
   FilePlus,
   Edit3,
@@ -84,7 +85,8 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     setEditingChapterId(ch.id);
     setSelectedNovelId(ch.novelId);
     setTitle(ch.title);
-    setContent(ch.content);
+    const cleanedText = hasHtmlOrStyleResidue(ch.content) ? cleanChapterContent(ch.content) : ch.content;
+    setContent(cleanedText);
     setAuthorNote(ch.authorNote || '');
     setStatus(ch.status);
     setActiveView('editor');
@@ -138,11 +140,14 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       return;
     }
 
+    // Always sanitize content to ensure pristine typography and eliminate HTML/CSS symbols
+    const cleanedContent = cleanChapterContent(content.trim());
+
     if (editingChapterId) {
       // Update existing
       storageService.updateChapter(editingChapterId, {
         title: title.trim(),
-        content: content.trim(),
+        content: cleanedContent,
         authorNote: authorNote.trim() || undefined,
         status,
       });
@@ -163,7 +168,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       const newlyAdded = storageService.addChapter({
         novelId: selectedNovelId,
         title: title.trim(),
-        content: content.trim(),
+        content: cleanedContent,
         authorNote: authorNote.trim() || undefined,
         status,
       });
@@ -361,20 +366,55 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
 
             {/* Chapter Body Composer */}
             <div>
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                 <label className="text-xs font-bold text-[#2C2C2C]">
                   نص ومحتوى الفصل *
                 </label>
-                <button
-                  type="button"
-                  id="insert-template-btn"
-                  onClick={handleInsertTemplate}
-                  className="text-xs text-[#4A5D4E] hover:underline cursor-pointer flex items-center gap-1 font-bold"
-                >
-                  <Sparkles className="w-3 h-3" />
-                  <span>إدراج نص أدبي تجريبي</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    id="clean-content-btn"
+                    onClick={() => {
+                      const cleaned = cleanChapterContent(content);
+                      setContent(cleaned);
+                      showToast('تم تنظيف النص من كافة الرموز وأكواد التنسيق الدخيلة بنجاح!');
+                    }}
+                    className="text-xs text-[#8C5E45] hover:text-[#2C2C2C] flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] cursor-pointer transition-colors"
+                    title="إزالة وسوم HTML وأكواد التنسيق الغريبة من النص"
+                  >
+                    <span>🧹 تنظيف النص من الرموز</span>
+                  </button>
+                  <button
+                    type="button"
+                    id="insert-template-btn"
+                    onClick={handleInsertTemplate}
+                    className="text-xs text-[#4A5D4E] hover:underline cursor-pointer flex items-center gap-1 font-bold"
+                  >
+                    <Sparkles className="w-3 h-3" />
+                    <span>إدراج نص تجريبي</span>
+                  </button>
+                </div>
               </div>
+
+              {hasHtmlOrStyleResidue(content) && (
+                <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span>تم رصد أكواد HTML أو رموز تنسيق خارجية قد تظهر كرموز غير مفهومة للقارئ.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const cleaned = cleanChapterContent(content);
+                      setContent(cleaned);
+                      showToast('تم تنظيف النص بنجاح!');
+                    }}
+                    className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors"
+                  >
+                    تنظيف النص الآن
+                  </button>
+                </div>
+              )}
 
               <textarea
                 id="chapter-content-textarea"

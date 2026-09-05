@@ -1,5 +1,6 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
+import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
 
 const KEYS = {
   NOVELS: 'ayman_novels_v2',
@@ -145,7 +146,22 @@ export const storageService = {
 
   // --- Chapters ---
   getChapters(novelId?: string): Chapter[] {
-    const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    let mutated = false;
+    const chapters = rawChapters.map(c => {
+      if (c.content && hasHtmlOrStyleResidue(c.content)) {
+        mutated = true;
+        const cleaned = cleanChapterContent(c.content);
+        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
+        return { ...c, content: cleaned, wordCount: words };
+      }
+      return c;
+    });
+
+    if (mutated) {
+      setStored(KEYS.CHAPTERS, chapters);
+    }
+
     const deletedChapters = new Set(this.getDeletedChapterIds());
     const deletedNovels = new Set(this.getDeletedNovelIds());
     const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
@@ -160,7 +176,15 @@ export const storageService = {
   saveChapters(chapters: Chapter[]): void {
     const deletedChapters = new Set(this.getDeletedChapterIds());
     const deletedNovels = new Set(this.getDeletedNovelIds());
-    const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
+    const sanitized = chapters.map(c => {
+      if (c.content && hasHtmlOrStyleResidue(c.content)) {
+        const cleaned = cleanChapterContent(c.content);
+        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
+        return { ...c, content: cleaned, wordCount: words };
+      }
+      return c;
+    });
+    const valid = sanitized.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
     setStored(KEYS.CHAPTERS, valid);
   },
 
@@ -182,14 +206,15 @@ export const storageService = {
       ? Math.max(...novelChapters.map(c => c.chapterNumber)) + 1 
       : 1;
 
-    const words = data.content.trim().split(/\s+/).filter(Boolean).length;
+    const cleanedContent = cleanChapterContent(data.content);
+    const words = cleanedContent.trim().split(/\s+/).filter(Boolean).length;
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
       chapterNumber: nextChapterNumber,
       title: data.title,
       slug: `chapter-${nextChapterNumber}-${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      content: data.content,
+      content: cleanedContent,
       authorNote: data.authorNote,
       publishedAt: new Date().toISOString(),
       views: 0,
@@ -212,10 +237,13 @@ export const storageService = {
     const index = chapters.findIndex(c => c.id === id);
     if (index === -1) return undefined;
     
-    if (updates.content) {
-      updates.wordCount = updates.content.trim().split(/\s+/).filter(Boolean).length;
+    const sanitizedUpdates = { ...updates };
+    if (sanitizedUpdates.content) {
+      sanitizedUpdates.content = cleanChapterContent(sanitizedUpdates.content);
+      sanitizedUpdates.wordCount = sanitizedUpdates.content.trim().split(/\s+/).filter(Boolean).length;
     }
-    chapters[index] = { ...chapters[index], ...updates };
+
+    chapters[index] = { ...chapters[index], ...sanitizedUpdates };
     this.saveChapters(chapters);
     return chapters[index];
   },

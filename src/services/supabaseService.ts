@@ -13,6 +13,7 @@ import {
   SeoSettings
 } from '../types';
 import { storageService } from './storageService';
+import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
 
 class SupabaseService {
   private client: SupabaseClient | null = null;
@@ -213,20 +214,27 @@ class SupabaseService {
         .select('*')
         .order('chapter_number', { ascending: true });
 
-      const chapters: Chapter[] = (rawChapters || []).map((c: any) => ({
-        id: c.id,
-        novelId: c.novel_id,
-        chapterNumber: Number(c.chapter_number) || 1,
-        title: c.title,
-        slug: c.slug || c.id,
-        content: c.content || '',
-        authorNote: c.author_note || undefined,
-        publishedAt: c.published_at || new Date().toISOString(),
-        views: Number(c.views) || 0,
-        likes: Number(c.likes) || 0,
-        wordCount: Number(c.word_count) || 0,
-        status: c.status || 'PUBLISHED',
-      }));
+      const chapters: Chapter[] = (rawChapters || []).map((c: any) => {
+        const rawContent = c.content || '';
+        const cleanedContent = hasHtmlOrStyleResidue(rawContent)
+          ? cleanChapterContent(rawContent)
+          : rawContent;
+        const words = Number(c.word_count) || cleanedContent.trim().split(/\s+/).filter(Boolean).length;
+        return {
+          id: c.id,
+          novelId: c.novel_id,
+          chapterNumber: Number(c.chapter_number) || 1,
+          title: c.title,
+          slug: c.slug || c.id,
+          content: cleanedContent,
+          authorNote: c.author_note || undefined,
+          publishedAt: c.published_at || new Date().toISOString(),
+          views: Number(c.views) || 0,
+          likes: Number(c.likes) || 0,
+          wordCount: words,
+          status: c.status || 'PUBLISHED',
+        };
+      });
 
       // 3. Fetch Comments
       const { data: rawComments } = await client
@@ -555,18 +563,19 @@ class SupabaseService {
     const client = this.getClient();
     if (!client) return false;
     try {
+      const cleanContent = cleanChapterContent(chapter.content);
       const row = {
         id: chapter.id,
         novel_id: chapter.novelId,
         chapter_number: chapter.chapterNumber,
         title: chapter.title,
         slug: chapter.slug || chapter.id,
-        content: chapter.content,
+        content: cleanContent,
         author_note: chapter.authorNote || '',
         published_at: chapter.publishedAt || new Date().toISOString(),
         views: chapter.views || 0,
         likes: chapter.likes || 0,
-        word_count: chapter.wordCount || 0,
+        word_count: chapter.wordCount || cleanContent.trim().split(/\s+/).filter(Boolean).length,
         status: chapter.status || 'PUBLISHED',
       };
       const { error } = await client.from('chapters').upsert(row);
@@ -953,20 +962,23 @@ class SupabaseService {
 
       // 2. Sync Chapters
       if (validChapters.length > 0) {
-        const chaptersData = validChapters.map(c => ({
-          id: c.id,
-          novel_id: c.novelId,
-          chapter_number: c.chapterNumber,
-          title: c.title,
-          slug: c.slug || c.id,
-          content: c.content,
-          author_note: c.authorNote || '',
-          published_at: c.publishedAt || new Date().toISOString(),
-          views: c.views || 0,
-          likes: c.likes || 0,
-          word_count: c.wordCount || 0,
-          status: c.status || 'PUBLISHED',
-        }));
+        const chaptersData = validChapters.map(c => {
+          const cleanContent = cleanChapterContent(c.content);
+          return {
+            id: c.id,
+            novel_id: c.novelId,
+            chapter_number: c.chapterNumber,
+            title: c.title,
+            slug: c.slug || c.id,
+            content: cleanContent,
+            author_note: c.authorNote || '',
+            published_at: c.publishedAt || new Date().toISOString(),
+            views: c.views || 0,
+            likes: c.likes || 0,
+            word_count: c.wordCount || cleanContent.trim().split(/\s+/).filter(Boolean).length,
+            status: c.status || 'PUBLISHED',
+          };
+        });
         const { error: chaptersErr } = await client.from('chapters').upsert(chaptersData);
         if (chaptersErr) {
           console.warn('Chapters sync warning:', chaptersErr);

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Novel } from '../types';
 import { BookOpen, Heart, Eye, Star, Sparkles, ChevronLeft, Download } from 'lucide-react';
+import { toArabicGenre } from '../utils/genreHelper';
 
 interface NovelCardProps {
   novel: Novel;
@@ -95,7 +96,7 @@ export const NovelCard: React.FC<NovelCardProps> = ({
                 key={genre}
                 className="px-2.5 py-0.5 rounded-md text-[11px] font-medium bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]"
               >
-                {genre}
+                {toArabicGenre(genre)}
               </span>
             ))}
           </div>
