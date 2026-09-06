@@ -1,6 +1,6 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
-import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
+import { cleanChapterContent, hasHtmlOrStyleResidue, sanitizeRichHtml, extractPlainText } from '../utils/textCleaner';
 
 const KEYS = {
   NOVELS: 'ayman_novels_v2',
@@ -147,22 +147,7 @@ export const storageService = {
 
   // --- Chapters ---
   getChapters(novelId?: string): Chapter[] {
-    const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-    let mutated = false;
-    const chapters = rawChapters.map(c => {
-      if (c.content && hasHtmlOrStyleResidue(c.content)) {
-        mutated = true;
-        const cleaned = cleanChapterContent(c.content);
-        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
-        return { ...c, content: cleaned, wordCount: words };
-      }
-      return c;
-    });
-
-    if (mutated) {
-      setStored(KEYS.CHAPTERS, chapters);
-    }
-
+    const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
     const deletedChapters = new Set(this.getDeletedChapterIds());
     const deletedNovels = new Set(this.getDeletedNovelIds());
     const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
@@ -177,15 +162,7 @@ export const storageService = {
   saveChapters(chapters: Chapter[]): void {
     const deletedChapters = new Set(this.getDeletedChapterIds());
     const deletedNovels = new Set(this.getDeletedNovelIds());
-    const sanitized = chapters.map(c => {
-      if (c.content && hasHtmlOrStyleResidue(c.content)) {
-        const cleaned = cleanChapterContent(c.content);
-        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
-        return { ...c, content: cleaned, wordCount: words };
-      }
-      return c;
-    });
-    const valid = sanitized.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
+    const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
     setStored(KEYS.CHAPTERS, valid);
   },
 
@@ -200,6 +177,7 @@ export const storageService = {
     content: string;
     authorNote?: string;
     status?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
+    fontFamily?: string;
     seo?: ChapterSeoMeta;
   }): Chapter {
     const chapters = this.getChapters();
@@ -208,8 +186,10 @@ export const storageService = {
       ? Math.max(...novelChapters.map(c => c.chapterNumber)) + 1 
       : 1;
 
-    const cleanedContent = cleanChapterContent(data.content);
-    const words = cleanedContent.trim().split(/\s+/).filter(Boolean).length;
+    const isHtml = /<[a-z][\s\S]*>/i.test(data.content);
+    const cleanedContent = isHtml ? sanitizeRichHtml(data.content) : cleanChapterContent(data.content);
+    const plain = isHtml ? extractPlainText(data.content) : cleanedContent;
+    const words = plain.trim().split(/\s+/).filter(Boolean).length;
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
@@ -223,6 +203,7 @@ export const storageService = {
       likes: 0,
       wordCount: words,
       status: data.status || 'PUBLISHED',
+      fontFamily: data.fontFamily,
       seo: data.seo,
     };
 

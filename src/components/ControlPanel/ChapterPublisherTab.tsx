@@ -3,7 +3,8 @@ import { Novel, Chapter, ChapterStatus } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { ConfirmModal } from '../ConfirmModal';
-import { cleanChapterContent, hasHtmlOrStyleResidue, extractCleanParagraphs } from '../../utils/textCleaner';
+import { cleanChapterContent, hasHtmlOrStyleResidue, extractCleanParagraphs, sanitizeRichHtml } from '../../utils/textCleaner';
+import { RichTextEditor } from '../RichTextEditor';
 import {
   FilePlus,
   Edit3,
@@ -50,7 +51,8 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
   const [content, setContent] = useState<string>('');
   const [authorNote, setAuthorNote] = useState<string>('');
   const [status, setStatus] = useState<ChapterStatus>('PUBLISHED');
-  const [activeView, setActiveView] = useState<'editor' | 'preview'>('editor');
+  const [fontFamily, setFontFamily] = useState<string>('cairo');
+  const [showLivePreview, setShowLivePreview] = useState<boolean>(false);
   const [notification, setNotification] = useState<string | null>(null);
 
   // Filtered chapters for current novel
@@ -79,18 +81,19 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
     setContent('');
     setAuthorNote('');
     setStatus('PUBLISHED');
-    setActiveView('editor');
+    setFontFamily('cairo');
   };
 
   const handleEditChapter = (ch: Chapter) => {
     setEditingChapterId(ch.id);
     setSelectedNovelId(ch.novelId);
     setTitle(ch.title);
-    const cleanedText = hasHtmlOrStyleResidue(ch.content) ? cleanChapterContent(ch.content) : ch.content;
-    setContent(cleanedText);
+    setContent(ch.content || '');
     setAuthorNote(ch.authorNote || '');
     setStatus(ch.status);
-    setActiveView('editor');
+    if (ch.fontFamily) {
+      setFontFamily(ch.fontFamily);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -141,16 +144,18 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       return;
     }
 
-    // Always sanitize content to ensure pristine typography and eliminate HTML/CSS symbols
-    const cleanedContent = cleanChapterContent(content.trim());
+    // Sanitize rich HTML if present, or clean plain text
+    const isHtml = /<[a-z][\s\S]*>/i.test(content);
+    const sanitizedContent = isHtml ? sanitizeRichHtml(content.trim()) : content.trim();
 
     if (editingChapterId) {
       // Update existing
       storageService.updateChapter(editingChapterId, {
         title: title.trim(),
-        content: cleanedContent,
+        content: sanitizedContent,
         authorNote: authorNote.trim() || undefined,
         status,
+        fontFamily,
       });
       const updatedCh = storageService.getChapters().find(c => c.id === editingChapterId);
       if (updatedCh) {
@@ -169,9 +174,10 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
       const newlyAdded = storageService.addChapter({
         novelId: selectedNovelId,
         title: title.trim(),
-        content: cleanedContent,
+        content: sanitizedContent,
         authorNote: authorNote.trim() || undefined,
         status,
+        fontFamily,
       });
       if (newlyAdded) {
         supabaseService.saveChapterToSupabase(newlyAdded).then(res => {
@@ -247,17 +253,6 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
           {onNavigateTab && (
             <button
               type="button"
-              onClick={() => onNavigateTab('rich_editor')}
-              className="px-3 py-2 text-xs rounded-xl bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] font-bold border border-[#4A5D4E]/30 flex items-center gap-1.5 cursor-pointer transition-colors"
-              title="الانتقال إلى محرر النصوص واستوديو التنسيق المتقدم"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-              <span>محرر النصوص المتقدم</span>
-            </button>
-          )}
-          {onNavigateTab && (
-            <button
-              type="button"
               onClick={() => onNavigateTab('chapter_seo')}
               className="px-3 py-2 text-xs rounded-xl bg-[#8C5E45]/10 hover:bg-[#8C5E45]/20 text-[#8C5E45] font-bold border border-[#8C5E45]/30 flex items-center gap-1.5 cursor-pointer transition-colors"
               title="الانتقال إلى استوديو سيو الفصول"
@@ -285,7 +280,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
         </div>
       </div>
 
-      {/* Composer Form */}
+      {/* Composer Form - Fully Integrated Rich Editor with Text Box */}
       <form onSubmit={handleSave} className="p-6 rounded-3xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-6 shadow-xs">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E2D9] pb-4">
           <div className="flex items-center gap-2">
@@ -306,204 +301,185 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
             )}
           </div>
 
-          {/* Editor vs Preview Mode Switch */}
-          <div className="flex items-center gap-1 bg-[#F7F5EE] p-1 rounded-xl border border-[#E5E2D9] text-xs font-bold">
-            <button
-              type="button"
-              id="view-mode-editor-btn"
-              onClick={() => setActiveView('editor')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                activeView === 'editor'
-                  ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
-                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-              }`}
-            >
-              الكتابة والمحرر
-            </button>
-            <button
-              type="button"
-              id="view-mode-preview-btn"
-              onClick={() => setActiveView('preview')}
-              className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
-                activeView === 'preview'
-                  ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
-                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-              }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>معاينة القارئ الحية</span>
-            </button>
+          <div className="text-xs text-[#6E6A64] flex items-center gap-2 font-bold">
+            <span className="w-2 h-2 rounded-full bg-[#4A5D4E]" />
+            <span>المحرر مدمج ومفعل دائماً في صندوق الكتابة</span>
           </div>
         </div>
 
-        {activeView === 'editor' ? (
-          <>
-            {/* Title & Status */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-2">
-                <label className="text-xs font-bold text-[#2C2C2C] block mb-2">
-                  عنوان الفصل *
-                </label>
-                <input
-                  type="text"
-                  id="chapter-title-input"
-                  placeholder="مثال: أسرار المخطوطة القديمة في برج الزمان"
-                  value={title}
-                  onChange={e => setTitle(e.target.value)}
-                  className="w-full px-4 py-2.5 text-sm rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-amiri font-bold"
-                  required
-                />
-              </div>
+        {/* Title & Status */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="md:col-span-2">
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-2">
+              عنوان الفصل *
+            </label>
+            <input
+              type="text"
+              id="chapter-title-input"
+              placeholder="مثال: أسرار المخطوطة القديمة في برج الزمان"
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              className="w-full px-4 py-2.5 text-sm rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-amiri font-bold"
+              required
+            />
+          </div>
 
-              <div>
-                <label className="text-xs font-bold text-[#2C2C2C] block mb-2">
-                  حالة النشر
-                </label>
-                <select
-                  id="chapter-status-select"
-                  value={status}
-                  onChange={e => setStatus(e.target.value as ChapterStatus)}
-                  className="w-full px-3 py-2.5 text-sm rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
-                >
-                  <option value="PUBLISHED">منشور (متاح فوراً للقراء)</option>
-                  <option value="DRAFT">مسودة (للكاتب فقط)</option>
-                  <option value="SCHEDULED">مجدول لاحقاً</option>
-                </select>
-              </div>
-            </div>
+          <div>
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-2">
+              حالة النشر
+            </label>
+            <select
+              id="chapter-status-select"
+              value={status}
+              onChange={e => setStatus(e.target.value as ChapterStatus)}
+              className="w-full px-3 py-2.5 text-sm rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
+            >
+              <option value="PUBLISHED">منشور (متاح فوراً للقراء)</option>
+              <option value="DRAFT">مسودة (للكاتب فقط)</option>
+              <option value="SCHEDULED">مجدول لاحقاً</option>
+            </select>
+          </div>
+        </div>
 
-            {/* Author's Note (Optional) */}
-            <div>
-              <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-                ملاحظة الكاتب للقراء (اختياري)
-              </label>
-              <input
-                type="text"
-                id="chapter-author-note-input"
-                placeholder="مثال: شكراً لتفاعلكم الرائع! ما رأيكم في التحول المفاجئ في نهاية هذا الفصل؟..."
-                value={authorNote}
-                onChange={e => setAuthorNote(e.target.value)}
-                className="w-full px-4 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-              />
-            </div>
+        {/* Author's Note (Optional) */}
+        <div>
+          <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
+            ملاحظة الكاتب للقراء (اختياري)
+          </label>
+          <input
+            type="text"
+            id="chapter-author-note-input"
+            placeholder="مثال: شكراً لتفاعلكم الرائع! ما رأيكم في التحول المفاجئ في نهاية هذا الفصل؟..."
+            value={authorNote}
+            onChange={e => setAuthorNote(e.target.value)}
+            className="w-full px-4 py-2 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+          />
+        </div>
 
-            {/* Chapter Body Composer */}
-            <div>
-              <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                <label className="text-xs font-bold text-[#2C2C2C]">
-                  نص ومحتوى الفصل *
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    id="clean-content-btn"
-                    onClick={() => {
-                      const cleaned = cleanChapterContent(content);
-                      setContent(cleaned);
-                      showToast('تم تنظيف النص من كافة الرموز وأكواد التنسيق الدخيلة بنجاح!');
-                    }}
-                    className="text-xs text-[#8C5E45] hover:text-[#2C2C2C] flex items-center gap-1 font-bold px-2 py-0.5 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] cursor-pointer transition-colors"
-                    title="إزالة وسوم HTML وأكواد التنسيق الغريبة من النص"
-                  >
-                    <span>🧹 تنظيف النص من الرموز</span>
-                  </button>
-                  <button
-                    type="button"
-                    id="insert-template-btn"
-                    onClick={handleInsertTemplate}
-                    className="text-xs text-[#4A5D4E] hover:underline cursor-pointer flex items-center gap-1 font-bold"
-                  >
-                    <Sparkles className="w-3 h-3" />
-                    <span>إدراج نص تجريبي</span>
-                  </button>
-                </div>
-              </div>
-
-              {hasHtmlOrStyleResidue(content) && (
-                <div className="mb-3 p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                    <span>تم رصد أكواد HTML أو رموز تنسيق خارجية قد تظهر كرموز غير مفهومة للقارئ.</span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const cleaned = cleanChapterContent(content);
-                      setContent(cleaned);
-                      showToast('تم تنظيف النص بنجاح!');
-                    }}
-                    className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors"
-                  >
-                    تنظيف النص الآن
-                  </button>
-                </div>
-              )}
-
-              <textarea
-                id="chapter-content-textarea"
-                rows={14}
-                placeholder="ابدأ بكتابة أحداث الفصل هنا... افصل بين الفقرات بسطر فارغ لضمان أفضل تجربة قراءة ومطالعة مريحة..."
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                className="w-full p-4 text-sm sm:text-base rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-amiri leading-relaxed"
-                required
-              />
-
-              {/* Real-time word statistics bar */}
-              <div className="flex flex-wrap items-center justify-between gap-4 mt-2 px-3 py-2 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs text-[#6E6A64]">
-                <div className="flex items-center gap-4">
-                  <span>
-                    الكلمات: <strong className="text-[#4A5D4E] font-mono">{wordCount.toLocaleString()}</strong>
-                  </span>
-                  <span>
-                    الفقرات: <strong className="text-[#2C2C2C] font-mono">{paragraphCount}</strong>
-                  </span>
-                  <span>
-                    وقت القراءة التقديري: <strong className="text-[#2C2C2C] font-mono">{readingTime} دقيقة</strong>
-                  </span>
-                </div>
-                <span className="text-[11px] text-[#6E6A64]">
-                  افصل بين الفقرات بسطر فارغ لتنسيق مثالي
-                </span>
-              </div>
-            </div>
-          </>
-        ) : (
-          /* Live Reader Preview Pane */
-          <div className="p-6 rounded-2xl bg-[#FDFCF8] text-[#2C2C2C] border border-[#E5E2D9] font-amiri shadow-inner">
-            <div className="text-center pb-6 mb-6 border-b border-[#E5E2D9]">
-              <span className="text-xs text-[#4A5D4E] font-cairo font-bold">
-                {novels.find(n => n.id === selectedNovelId)?.title}
+        {/* Integrated Rich Text Editor Textbox */}
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1.5">
+              <span>نص ومحتوى الفصل *</span>
+              <span className="text-[11px] font-normal text-[#6E6A64]">
+                (المحرر وأدوات التنسيق مرتبطة مباشرة بعلبة النص أعلاها)
               </span>
-              <h2 className="text-2xl sm:text-3xl font-bold mt-1 text-[#2C2C2C]">
-                {title || 'فصل بدون عنوان'}
-              </h2>
-              <div className="text-xs text-[#6E6A64] mt-1 font-cairo">
-                {wordCount} كلمة · {readingTime} دقائق قراءة
-              </div>
-            </div>
-
-            {authorNote && (
-              <div className="p-3.5 rounded-lg bg-[#F7F5EE] text-xs italic font-cairo mb-6 text-[#2C2C2C] border border-[#E5E2D9]">
-                <strong>كلمة الكاتب:</strong> {authorNote}
-              </div>
-            )}
-
-            <div className="space-y-4 text-base leading-relaxed text-[#2C2C2C]">
-              {content ? (
-                extractCleanParagraphs(content).map((p, i) => (
-                  <p key={i}>
-                    {p}
-                  </p>
-                ))
-              ) : (
-                <p className="text-[#6E6A64] italic text-center py-8 font-cairo">
-                  لم يتم كتابة أي نص بعد. انتقل إلى وضع المحرر للبدء في الكتابة!
-                </p>
-              )}
+            </label>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="clean-content-btn"
+                onClick={() => {
+                  const cleaned = cleanChapterContent(content);
+                  setContent(cleaned);
+                  showToast('تم تنظيف النص من كافة الرموز وأكواد التنسيق بنجاح!');
+                }}
+                className="text-xs text-[#8C5E45] hover:text-[#2C2C2C] flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] cursor-pointer transition-colors"
+                title="إزالة وسوم HTML وأكواد التنسيق الغريبة من النص"
+              >
+                <span>🧹 تنظيف الرموز</span>
+              </button>
+              <button
+                type="button"
+                id="insert-template-btn"
+                onClick={handleInsertTemplate}
+                className="text-xs text-[#4A5D4E] hover:underline cursor-pointer flex items-center gap-1 font-bold px-2 py-1 rounded-lg hover:bg-[#F7F5EE]"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>إدراج نص تجريبي</span>
+              </button>
             </div>
           </div>
-        )}
+
+          {hasHtmlOrStyleResidue(content) && (
+            <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-900 text-xs flex flex-wrap items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
+                <span>تم رصد أكواد خارجية أو بقايا تنسيق منسوخة قد تحتاج لتنظيف.</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  const cleaned = cleanChapterContent(content);
+                  setContent(cleaned);
+                  showToast('تم تنظيف النص بنجاح!');
+                }}
+                className="px-2.5 py-1 bg-amber-700 hover:bg-amber-800 text-white font-bold rounded-lg text-xs cursor-pointer transition-colors"
+              >
+                تنظيف النص الآن
+              </button>
+            </div>
+          )}
+
+          {/* Direct Rich Text Editor Component - Attached seamlessly to the textbox */}
+          <RichTextEditor
+            value={content}
+            onChange={setContent}
+            placeholder="ابدأ بكتابة أحداث الفصل هنا... يمكنك استخدام شريط الأدوات المدمج مباشرة بالأعلى لتنسيق العناوين، والخطوط، والفقرات، والاقتباسات..."
+            minHeight="420px"
+            defaultFont={fontFamily as any}
+            onFontChange={setFontFamily}
+          />
+        </div>
+
+        {/* Optional Collapsible Live Reader Preview Accordion */}
+        <div className="rounded-2xl border border-[#E5E2D9] bg-[#FDFCF8] overflow-hidden transition-all shadow-2xs">
+          <button
+            type="button"
+            id="toggle-live-preview-btn"
+            onClick={() => setShowLivePreview(!showLivePreview)}
+            className="w-full px-5 py-3.5 flex items-center justify-between bg-[#F7F5EE] hover:bg-[#EBE8DF] text-[#2C2C2C] text-xs font-bold transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <Eye className="w-4 h-4 text-[#4A5D4E]" />
+              <span>معاينة القارئ الحية (اختياري - انقر للعرض دون مغادرة المحرر)</span>
+            </div>
+            <span className="text-xs text-[#4A5D4E] font-bold">
+              {showLivePreview ? 'إخفاء المعاينة ▲' : 'فتح المعاينة المباشرة ▼'}
+            </span>
+          </button>
+
+          {showLivePreview && (
+            <div className="p-6 text-[#2C2C2C] font-amiri border-t border-[#E5E2D9]">
+              <div className="text-center pb-6 mb-6 border-b border-[#E5E2D9]">
+                <span className="text-xs text-[#4A5D4E] font-cairo font-bold">
+                  {novels.find(n => n.id === selectedNovelId)?.title}
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-bold mt-1 text-[#2C2C2C]">
+                  {title || 'فصل بدون عنوان'}
+                </h2>
+                <div className="text-xs text-[#6E6A64] mt-1 font-cairo">
+                  {wordCount} كلمة · {readingTime} دقائق قراءة
+                </div>
+              </div>
+
+              {authorNote && (
+                <div className="p-3.5 rounded-lg bg-[#F7F5EE] text-xs italic font-cairo mb-6 text-[#2C2C2C] border border-[#E5E2D9]">
+                  <strong>كلمة الكاتب:</strong> {authorNote}
+                </div>
+              )}
+
+              <div className="space-y-4 text-base leading-relaxed text-[#2C2C2C]">
+                {content ? (
+                  /<[a-z][\s\S]*>/i.test(content) ? (
+                    <div
+                      className="rich-reading-content leading-relaxed sm:leading-loose space-y-4"
+                      dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(content) }}
+                    />
+                  ) : (
+                    extractCleanParagraphs(content).map((p, i) => (
+                      <p key={i}>{p}</p>
+                    ))
+                  )
+                ) : (
+                  <p className="text-[#6E6A64] italic text-center py-8 font-cairo">
+                    اكتب نص ومحتوى الفصل في علبة النص أعلاه لتظهر لك المعاينة فوراً هنا.
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* Action Submit Buttons */}
         <div className="pt-4 border-t border-[#E5E2D9] flex items-center justify-between">

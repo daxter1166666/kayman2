@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Novel, Chapter, Comment, ReaderSettings, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
-import { extractCleanParagraphs } from '../utils/textCleaner';
+import { extractCleanParagraphs, sanitizeRichHtml } from '../utils/textCleaner';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import confetti from 'canvas-confetti';
@@ -281,6 +281,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   }[readerSettings.contentWidth];
 
   // Clean chapter content and extract proper literary paragraphs (removes any HTML/CSS codes)
+  const isRichContent = useMemo(() => /<[a-z][\s\S]*>/i.test(chapter.content), [chapter.content]);
   const paragraphs = useMemo(() => extractCleanParagraphs(chapter.content), [chapter.content]);
 
   return (
@@ -822,19 +823,31 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           } select-text cursor-text selection:bg-[#4A5D4E]/20`}
           style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text', letterSpacing: 'normal' }}
         >
-          {paragraphs.map((para, idx) => (
-            <p
-              key={`p-${idx}`}
-              className={`leading-relaxed sm:leading-loose ${
+          {isRichContent ? (
+            <div
+              className={`rich-reading-content leading-relaxed sm:leading-loose ${
                 readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
               } ${
-                readerSettings.paragraphSpacing === 'spacious' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-7'
-              } last:mb-0`}
+                readerSettings.paragraphSpacing === 'spacious' ? '[&>p]:mb-8 sm:[&>p]:mb-10' : '[&>p]:mb-6 sm:[&>p]:mb-7'
+              }`}
               style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word', letterSpacing: 'normal' }}
-            >
-              {para}
-            </p>
-          ))}
+              dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(chapter.content) }}
+            />
+          ) : (
+            paragraphs.map((para, idx) => (
+              <p
+                key={`p-${idx}`}
+                className={`leading-relaxed sm:leading-loose ${
+                  readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
+                } ${
+                  readerSettings.paragraphSpacing === 'spacious' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-7'
+                } last:mb-0`}
+                style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word', letterSpacing: 'normal' }}
+              >
+                {para}
+              </p>
+            ))
+          )}
 
           {/* Chapter License Notice */}
           <div className={`mt-8 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>

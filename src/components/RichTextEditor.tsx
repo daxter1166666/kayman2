@@ -96,7 +96,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   // Sync external value to editor HTML when not typing
   useEffect(() => {
-    if (editorRef.current && !isSourceMode) {
+    const isFocused = typeof document !== 'undefined' && editorRef.current && document.activeElement === editorRef.current;
+    if (editorRef.current && !isSourceMode && !isFocused) {
       // Only update innerHTML if it's genuinely different to avoid cursor jumps
       const currentHtml = editorRef.current.innerHTML;
       if (value !== currentHtml) {
