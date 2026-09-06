@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { Novel, Chapter } from '../types';
-import { pdfExportService } from '../services/pdfExportService';
+import { pdfExportService, PdfExportOptions } from '../services/pdfExportService';
 import { formatDeweyDisplay } from '../utils/deweyDecimal';
 import {
   FileDown,
   X,
   BookOpen,
-  Printer,
+  CheckCircle2,
+  Sparkles,
+  Layers,
   Type,
   Sliders,
   AlertCircle,
-  Check
+  Printer
 } from 'lucide-react';
 
 interface NovelPdfDownloadModalProps {
@@ -26,7 +28,7 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
   novel,
   chapters,
 }) => {
-  const [fontFamily, setFontFamily] = useState<'amiri' | 'cairo' | 'readex' | 'tajawal'>('amiri');
+  const [fontFamily, setFontFamily] = useState<'readex' | 'amiri' | 'cairo' | 'tajawal'>('readex');
   const [fontSize, setFontSize] = useState<'small' | 'medium' | 'large'>('medium');
   const [includeCover, setIncludeCover] = useState<boolean>(true);
   const [includeToc, setIncludeToc] = useState<boolean>(true);
@@ -44,7 +46,7 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
 
   const deweyLabel = formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName);
 
-  const handleStartDirectDownload = async () => {
+  const handleStartExport = async () => {
     if (novelChapters.length === 0) {
       setError('لا توجد فصول منشورة في هذه الرواية بعد لتضمينها في ملف الـ PDF.');
       return;
@@ -54,13 +56,12 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
       setIsGenerating(true);
       setError(null);
       setProgress(5);
-      setStatusMessage('جاري بدء معالجة الرواية وتنسيق الصفحات...');
+      setStatusMessage('جاري بدء معالجة الرواية...');
 
       await pdfExportService.downloadNovelFullBookPdf(novel, chapters, {
         fontFamily,
         fontSize,
         includeCover,
-        includeCopyright: true,
         includeToc,
         onProgress: (pct, msg) => {
           setProgress(pct);
@@ -74,29 +75,27 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
       }, 1500);
     } catch (err: any) {
       console.error('PDF generation error:', err);
-      setError('حدث خطأ أثناء تجميع ملف الـ PDF. يمكنك استخدام خيار "طباعة / حفظ كـ PDF عبر المتصفح" كبديل مباشر.');
+      setError('حدث خطأ أثناء تجميع ملف الـ PDF. يرجى المحاولة مرة أخرى.');
       setIsGenerating(false);
     }
   };
 
-  const handleOpenPrintEngine = async () => {
+  const handleOpenPrintView = async () => {
     if (novelChapters.length === 0) {
-      setError('لا توجد فصول منشورة في هذه الرواية بعد.');
+      setError('لا توجد فصول منشورة في هذه الرواية بعد لعرضها.');
       return;
     }
-
+    setError(null);
     try {
-      setError(null);
       await pdfExportService.openPrintBookView(novel, chapters, {
         fontFamily,
         fontSize,
         includeCover,
         includeCopyright: true,
-        includeToc
+        includeToc,
       });
     } catch (err: any) {
-      console.error('Print trigger error:', err);
-      setError('تعذر فتح نافذة الطباعة. يرجى تجربة التنزيل المباشر.');
+      setError(err?.message || 'حدث خطأ أثناء فتح وضع الطباعة');
     }
   };
 
@@ -111,10 +110,10 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
             </div>
             <div>
               <h3 className="text-base font-bold text-[#2C2C2C] font-cairo">
-                تحميل وتصدير الرواية ككتاب PDF
+                تحميل الرواية كاملة (كتاب PDF فاخر)
               </h3>
               <p className="text-xs text-[#6E6A64]">
-                تنسيق طباعي احترافي مع غلاف أصلي كامل وفهرس دقيق
+                جميع الفصول في ملف واحد منسق مع غلاف وفهرس رسمي
               </p>
             </div>
           </div>
@@ -174,9 +173,23 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
             <div>
               <label className="block text-xs font-bold text-[#2C2C2C] mb-1.5 flex items-center gap-1.5">
                 <Type className="w-3.5 h-3.5 text-[#4A5D4E]" />
-                <span>الخط العربي المعتمد لصفحات الكتاب:</span>
+                <span>الخط العربي المعتمد في صفحات الكتاب:</span>
               </label>
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setFontFamily('readex')}
+                  disabled={isGenerating}
+                  className={`p-2.5 rounded-xl border text-right text-xs transition-all cursor-pointer ${
+                    fontFamily === 'readex'
+                      ? 'border-[#4A5D4E] bg-[#4A5D4E]/5 text-[#4A5D4E] font-bold shadow-xs'
+                      : 'border-[#E5E2D9] bg-[#FFFFFF] text-[#2C2C2C] hover:bg-[#FAF9F5]'
+                  }`}
+                >
+                  <div className="font-readex font-bold">خط ريدكس برو</div>
+                  <div className="text-[10px] text-[#6E6A64] mt-0.5">عصري فائق الوضوح والمقروئية</div>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setFontFamily('amiri')}
@@ -187,8 +200,8 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
                       : 'border-[#E5E2D9] bg-[#FFFFFF] text-[#2C2C2C] hover:bg-[#FAF9F5]'
                   }`}
                 >
-                  <div className="font-amiri font-bold text-sm">الخط الأميري (افتراضي)</div>
-                  <div className="text-[10px] text-[#6E6A64] mt-0.5">وقار الروايات والكتب الأدبية العربية</div>
+                  <div className="font-amiri font-bold">الخط الأميري</div>
+                  <div className="text-[10px] text-[#6E6A64] mt-0.5">وقار الروايات العربية الكلاسيكية</div>
                 </button>
 
                 <button
@@ -201,22 +214,8 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
                       : 'border-[#E5E2D9] bg-[#FFFFFF] text-[#2C2C2C] hover:bg-[#FAF9F5]'
                   }`}
                 >
-                  <div className="font-cairo font-bold text-sm">خط كايرو</div>
-                  <div className="text-[10px] text-[#6E6A64] mt-0.5">رصين هندسي مريح وواضح</div>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setFontFamily('readex')}
-                  disabled={isGenerating}
-                  className={`p-2.5 rounded-xl border text-right text-xs transition-all cursor-pointer ${
-                    fontFamily === 'readex'
-                      ? 'border-[#4A5D4E] bg-[#4A5D4E]/5 text-[#4A5D4E] font-bold shadow-xs'
-                      : 'border-[#E5E2D9] bg-[#FFFFFF] text-[#2C2C2C] hover:bg-[#FAF9F5]'
-                  }`}
-                >
-                  <div className="font-readex font-bold text-sm">خط ريدكس برو</div>
-                  <div className="text-[10px] text-[#6E6A64] mt-0.5">عصري فائق الوضوح والمقروئية</div>
+                  <div className="font-cairo font-bold">خط كايرو</div>
+                  <div className="text-[10px] text-[#6E6A64] mt-0.5">رصين هندسي مريح للعين</div>
                 </button>
 
                 <button
@@ -229,7 +228,7 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
                       : 'border-[#E5E2D9] bg-[#FFFFFF] text-[#2C2C2C] hover:bg-[#FAF9F5]'
                   }`}
                 >
-                  <div className="font-tajawal font-bold text-sm">خط تجوال</div>
+                  <div className="font-tajawal font-bold">خط تجوال</div>
                   <div className="text-[10px] text-[#6E6A64] mt-0.5">متوازن وناعم للأعمال الأدبية</div>
                 </button>
               </div>
@@ -238,13 +237,13 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
             {/* Font Size Selector */}
             <div>
               <label className="block text-xs font-bold text-[#2C2C2C] mb-1.5">
-                حجم خط القراءة:
+                حجم خط الفصول والقراءة:
               </label>
               <div className="flex gap-2">
                 {[
                   { id: 'small', label: 'صغير (13.5px)', desc: 'صفحات أقل' },
-                  { id: 'medium', label: 'متوسط قياسي (15px)', desc: 'الموصى به للكتب' },
-                  { id: 'large', label: 'كبير ومريح (16.5px)', desc: 'قراءة مريحة' }
+                  { id: 'medium', label: 'متوسط قياسي (15px)', desc: 'الموصى به' },
+                  { id: 'large', label: 'كبير ومريح (17px)', desc: 'كبار السن والقراءة الليلية' }
                 ].map(opt => (
                   <button
                     key={opt.id}
@@ -265,36 +264,26 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
 
             {/* Checkboxes: Cover & TOC */}
             <div className="space-y-2 pt-2 border-t border-[#E5E2D9]">
-              <label className="flex items-start gap-2 text-xs text-[#2C2C2C] cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-[#2C2C2C] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={includeCover}
                   onChange={e => setIncludeCover(e.target.checked)}
                   disabled={isGenerating}
-                  className="rounded text-[#4A5D4E] focus:ring-[#4A5D4E] mt-0.5"
+                  className="rounded text-[#4A5D4E] focus:ring-[#4A5D4E]"
                 />
-                <div>
-                  <span className="font-bold block">تضمين غلاف الرواية الأصلي كصفحة أولى كاملة</span>
-                  <span className="text-[11px] text-[#6E6A64]">
-                    يغطي الصفحة الأولى 100% كما يظهر في الموقع، دون أي كتابة أو إضافات على الغلاف.
-                  </span>
-                </div>
+                <span className="font-bold">تضمين صفحة الغلاف الكاملة مع صورة الكتاب واسم الكاتب</span>
               </label>
 
-              <label className="flex items-start gap-2 text-xs text-[#2C2C2C] cursor-pointer">
+              <label className="flex items-center gap-2 text-xs text-[#2C2C2C] cursor-pointer">
                 <input
                   type="checkbox"
                   checked={includeToc}
                   onChange={e => setIncludeToc(e.target.checked)}
                   disabled={isGenerating}
-                  className="rounded text-[#4A5D4E] focus:ring-[#4A5D4E] mt-0.5"
+                  className="rounded text-[#4A5D4E] focus:ring-[#4A5D4E]"
                 />
-                <div>
-                  <span className="font-bold block">تضمين بطاقة التوثيق وفهرس الفصول المرقم</span>
-                  <span className="text-[11px] text-[#6E6A64]">
-                    فهرس منسق بأرقام الصفحات الحقيقية وبطاقة الفهرسة الببليوغرافية وحقوق الكاتب.
-                  </span>
-                </div>
+                <span className="font-bold">تضمين بطاقة الفهرسة الببليوغرافية (Dewey) وفهرس الفصول</span>
               </label>
             </div>
           </div>
@@ -321,7 +310,7 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
                 />
               </div>
               <p className="text-[11px] text-[#6E6A64] text-center">
-                تنسيق نصوص وخطوط الرواية بجودة عالية...
+                يتم تنسيق الصفحات بدقة عالية 300 DPI للحصول على جودة طباعة نقية...
               </p>
             </div>
           )}
@@ -331,40 +320,40 @@ export const NovelPdfDownloadModal: React.FC<NovelPdfDownloadModalProps> = ({
         <div className="p-4 border-t border-[#E5E2D9] bg-[#FAF9F5] flex flex-wrap items-center justify-between gap-3">
           <button
             type="button"
-            onClick={handleOpenPrintEngine}
-            disabled={isGenerating || novelChapters.length === 0}
-            className="px-4 py-2.5 rounded-xl border border-[#4A5D4E]/30 bg-[#FFFFFF] hover:bg-[#FAF9F5] text-[#4A5D4E] text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-            title="فتح نافذة الطباعة لحفظ الرواية بصيغة PDF بجودة فيكتور فائقة مع نصوص أصلية"
+            onClick={onClose}
+            disabled={isGenerating}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#EBE8DF] transition-colors cursor-pointer disabled:opacity-50"
           >
-            <Printer className="w-4 h-4" />
-            <span>طباعة / حفظ كـ PDF عبر المتصفح</span>
+            إلغاء
           </button>
 
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={onClose}
-              disabled={isGenerating}
-              className="px-3.5 py-2.5 rounded-xl text-xs font-bold text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#EBE8DF] transition-colors cursor-pointer disabled:opacity-50"
+              onClick={handleOpenPrintView}
+              disabled={isGenerating || novelChapters.length === 0}
+              className="px-4 py-2.5 rounded-xl border border-[#4A5D4E] text-[#4A5D4E] hover:bg-[#4A5D4E]/10 text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              title="فتح نافذة الطباعة بحجم A4 ونصوص متجهة فائقة الدقة بنسبة 100% مع إمكانية حفظ PDF مباشرة من المتصفح"
             >
-              إلغاء
+              <Printer className="w-4 h-4" />
+              <span>معاينة وطباعة الكتاب (Vector)</span>
             </button>
 
             <button
               type="button"
-              onClick={handleStartDirectDownload}
+              onClick={handleStartExport}
               disabled={isGenerating || novelChapters.length === 0}
-              className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold transition-all shadow-sm flex items-center gap-2 cursor-pointer disabled:opacity-50"
             >
               {isGenerating ? (
                 <>
                   <div className="w-3.5 h-3.5 border-2 border-[#FFFFFF] border-t-transparent rounded-full animate-spin" />
-                  <span>جاري تجهيز الكتاب...</span>
+                  <span>جاري تجميع وتحميل الكتاب...</span>
                 </>
               ) : (
                 <>
                   <FileDown className="w-4 h-4" />
-                  <span>تنزيل ملف PDF المباشر</span>
+                  <span>تنزيل الرواية الكاملة PDF</span>
                 </>
               )}
             </button>

@@ -112,7 +112,10 @@ export interface TableOfContentItem {
   anchor?: string;
   level?: number;
   url?: string;
+  linkUrl?: string;
   chapterNumber?: number;
+  pageNumber?: string | number;
+  description?: string;
   slug?: string;
   chapterId?: string;
 }
@@ -183,6 +186,7 @@ export interface Chapter {
   likes: number;
   wordCount: number;
   status: ChapterStatus;
+  fontFamily?: string;
   seo?: ChapterSeoMeta;
 }
 

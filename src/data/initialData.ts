@@ -1,5 +1,7 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
 
+export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop';
+
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   name: 'أيمن كناني',
   englishName: 'Ayman Kinani',
