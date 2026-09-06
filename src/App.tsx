@@ -44,7 +44,8 @@ import {
   Compass,
   Smartphone,
   Check,
-  Heart
+  Heart,
+  Lock
 } from 'lucide-react';
 
 export default function App() {
@@ -60,11 +61,9 @@ export default function App() {
   const [siteBranding, setSiteBranding] = useState<SiteBranding>(() => storageService.getSiteBranding());
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
-  // Navigation View State - set to control_panel so author can immediately view and manage
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(() => {
-    storageService.setAdminLoggedIn(true);
-    return 'control_panel';
-  });
+  // Navigation View State - default to catalog (home view for all readers)
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
@@ -139,6 +138,7 @@ export default function App() {
 
     if (isQueryAdmin || isPathAdmin || isHashAdmin) {
       if (storageService.isAdminLoggedIn()) {
+        setIsAdminLoggedIn(true);
         setCurrentView('control_panel');
       } else {
         setShowAdminLoginModal(true);
@@ -320,12 +320,17 @@ export default function App() {
       handleNavigateHome();
       return;
     }
-    storageService.setAdminLoggedIn(true);
-    setCurrentView('control_panel');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (storageService.isAdminLoggedIn()) {
+      setIsAdminLoggedIn(true);
+      setCurrentView('control_panel');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+      setShowAdminLoginModal(true);
+    }
   };
 
   const handleAdminLoginSuccess = () => {
+    setIsAdminLoggedIn(true);
     setShowAdminLoginModal(false);
     setCurrentView('control_panel');
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -333,6 +338,7 @@ export default function App() {
 
   const handleAdminLogout = () => {
     storageService.logoutAdmin();
+    setIsAdminLoggedIn(false);
     setCurrentView('catalog');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -503,7 +509,7 @@ export default function App() {
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         isControlPanelOpen={currentView === 'control_panel'}
-        isAdminLoggedIn={storageService.isAdminLoggedIn()}
+        isAdminLoggedIn={isAdminLoggedIn}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
         onInstallPwa={handleInstallPwa}
         canInstallPwa={canInstallPwa}
@@ -569,16 +575,46 @@ export default function App() {
 
         {/* 3. AUTHOR & ADMIN CONTROL PANEL */}
         {currentView === 'control_panel' && (
-          <ControlPanel
-            novels={novels}
-            chapters={chapters}
-            comments={comments}
-            adSettings={adSettings}
-            onRefreshData={refreshData}
-            onExitControlPanel={handleNavigateHome}
-            onAdminLogout={handleAdminLogout}
-            onOpenLegalPage={handleOpenLegalPage}
-          />
+          isAdminLoggedIn ? (
+            <ControlPanel
+              novels={novels}
+              chapters={chapters}
+              comments={comments}
+              adSettings={adSettings}
+              onRefreshData={refreshData}
+              onExitControlPanel={handleNavigateHome}
+              onAdminLogout={handleAdminLogout}
+              onOpenLegalPage={handleOpenLegalPage}
+            />
+          ) : (
+            <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center font-cairo bg-[#FDFCF8]">
+              <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mb-4 shadow-xs">
+                <Lock className="w-8 h-8" />
+              </div>
+              <h2 className="text-2xl font-bold font-amiri text-[#2C2C2C] mb-2">لوحة التحكم مقفلة</h2>
+              <p className="text-sm text-[#6E6A64] max-w-md mb-6 leading-relaxed">
+                هذه المنطقة مخصصة لإدارة ونشر المؤلفات من قبل الكاتب فقط. يرجى تسجيل الدخول للوصول إليها.
+              </p>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  id="lockscreen-login-btn"
+                  onClick={() => setShowAdminLoginModal(true)}
+                  className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all"
+                >
+                  تسجيل دخول الإدارة
+                </button>
+                <button
+                  type="button"
+                  id="lockscreen-home-btn"
+                  onClick={handleNavigateHome}
+                  className="px-6 py-2.5 border border-[#E5E2D9] text-[#2C2C2C] font-bold text-xs rounded-xl hover:bg-[#F7F5EE] cursor-pointer transition-all"
+                >
+                  العودة للموقع
+                </button>
+              </div>
+            </div>
+          )
         )}
 
         {/* 4. LEGAL & COMPLIANCE PAGES */}

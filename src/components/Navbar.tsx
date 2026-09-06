@@ -174,8 +174,8 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Direct Rich Text Editor Access Button */}
-            {onOpenEditor && (
+            {/* Direct Rich Text Editor Access Button - Admin Only */}
+            {isAdminLoggedIn && onOpenEditor && (
               <button
                 type="button"
                 id="nav-rich-editor-btn"
@@ -188,20 +188,22 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* Admin Control Panel Button - Always accessible */}
-            <button
-              type="button"
-              id="nav-control-panel-btn"
-              onClick={onOpenControlPanel}
-              className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer mr-2 ${
-                isControlPanelOpen
-                  ? 'bg-[#2C2C2C] text-[#FDFCF8]'
-                  : 'bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8]'
-              }`}
-            >
-              <LayoutDashboard className="w-3.5 h-3.5" />
-              <span>{isControlPanelOpen ? 'الرجوع للموقع' : 'لوحة التحكم الإدارية'}</span>
-            </button>
+            {/* Admin Control Panel Button - Only visible when Admin is logged in */}
+            {isAdminLoggedIn && (
+              <button
+                type="button"
+                id="nav-control-panel-btn"
+                onClick={onOpenControlPanel}
+                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-xs cursor-pointer mr-2 ${
+                  isControlPanelOpen
+                    ? 'bg-[#2C2C2C] text-[#FDFCF8]'
+                    : 'bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8]'
+                }`}
+              >
+                <LayoutDashboard className="w-3.5 h-3.5" />
+                <span>{isControlPanelOpen ? 'الرجوع للموقع' : 'لوحة التحكم الإدارية'}</span>
+              </button>
+            )}
           </div>
 
           {/* Mobile Menu Button */}
@@ -334,8 +336,8 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {/* Mobile Direct Rich Text Editor Access Button */}
-              {onOpenEditor && (
+              {/* Mobile Direct Rich Text Editor Access Button - Admin Only */}
+              {isAdminLoggedIn && onOpenEditor && (
                 <button
                   type="button"
                   id="mobile-nav-rich-editor-btn"
@@ -350,22 +352,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              <button
-                type="button"
-                id="mobile-nav-control-panel-btn"
-                onClick={() => {
-                  onOpenControlPanel();
-                  setMobileMenuOpen(false);
-                }}
-                className={`col-span-2 p-3 rounded-xl text-center font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
-                  isControlPanelOpen
-                    ? 'bg-[#2C2C2C] text-[#FDFCF8]'
-                    : 'bg-[#4A5D4E] text-[#FDFCF8]'
-                }`}
-              >
-                <LayoutDashboard className="w-4 h-4" />
-                <span>{isControlPanelOpen ? 'الرجوع للموقع' : 'لوحة التحكم الإدارية'}</span>
-              </button>
+              {/* Mobile Control Panel Button - Admin Only */}
+              {isAdminLoggedIn && (
+                <button
+                  type="button"
+                  id="mobile-nav-control-panel-btn"
+                  onClick={() => {
+                    onOpenControlPanel();
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`col-span-2 p-3 rounded-xl text-center font-bold flex items-center justify-center gap-2 cursor-pointer transition-all ${
+                    isControlPanelOpen
+                      ? 'bg-[#2C2C2C] text-[#FDFCF8]'
+                      : 'bg-[#4A5D4E] text-[#FDFCF8]'
+                  }`}
+                >
+                  <LayoutDashboard className="w-4 h-4" />
+                  <span>{isControlPanelOpen ? 'الرجوع للموقع' : 'لوحة التحكم الإدارية'}</span>
+                </button>
+              )}
             </div>
           </div>
         )}

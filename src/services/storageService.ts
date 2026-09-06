@@ -13,7 +13,7 @@ const KEYS = {
   USER_LIKED_CHAPTERS: 'ayman_user_liked_chapters_v2',
   USER_LIKED_COMMENTS: 'ayman_user_liked_comments_v2',
   USER_RATINGS: 'ayman_user_ratings_v2',
-  ADMIN_AUTH: 'ayman_admin_auth_v2',
+  ADMIN_AUTH: 'ayman_admin_auth_v3',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
   CATEGORIES: 'ayman_categories_v2',
   LEGAL_DOCS: 'ayman_legal_docs_v2',
@@ -30,6 +30,7 @@ const KEYS = {
 // Clean legacy mock keys if present in browser storage
 try {
   const legacyKeys = [
+    'ayman_admin_auth_v2',
     'novelia_novels_v1',
     'novelia_chapters_v1',
     'novelia_comments_v1',
