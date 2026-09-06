@@ -106,24 +106,25 @@ function paginateChaptersWithDomMeasurement(
   measureBox.style.zIndex = '-99999';
   document.body.appendChild(measureBox);
 
-  const measureHeight = (paras: string[]): number => {
+  const measureHeight = (paras: string[], isFirstPage = false): number => {
     if (paras.length === 0) return 0;
     measureBox.innerHTML = paras
       .map((p, idx) => {
         const isLast = idx === paras.length - 1;
-        return `<p style="margin: 0 0 ${isLast ? '0' : '16px'} 0; font-size: ${options.bodyFontSize}; line-height: ${options.lineHeight}; direction: rtl; text-align: justify; unicode-bidi: isolate; word-break: break-word;">${p}</p>`;
+        const indent = (isFirstPage && idx === 0) ? '0' : '1.8em';
+        return `<p style="margin: 0 0 ${isLast ? '0' : '10px'} 0; font-size: ${options.bodyFontSize}; line-height: ${options.lineHeight}; direction: rtl; text-align: justify; text-justify: inter-word; unicode-bidi: isolate; word-break: break-word; text-indent: ${indent}; letter-spacing: normal;">${p}</p>`;
       })
       .join('');
     return measureBox.offsetHeight;
   };
 
   // Available content height:
-  // A4 = 1123px. Padding: top 50px, bottom 50px = 100px.
+  // A4 = 1123px. Padding: top 48px, bottom 48px = 96px.
   // Running Header = ~32px. Running Footer = ~32px. Buffer = 14px.
-  // Standard page max text height = 945px.
-  // First page of chapter has centered title header (~145px), so max text height = 800px.
-  const MAX_HEIGHT_STANDARD = 935;
-  const MAX_HEIGHT_FIRST_PAGE = 795;
+  // Standard page max text height = 940px.
+  // First page of chapter has centered title header (~150px), so max text height = 790px.
+  const MAX_HEIGHT_STANDARD = 940;
+  const MAX_HEIGHT_FIRST_PAGE = 790;
 
   const allChapterPages: ChapterPageData[] = [];
   const chapterStartIndices: Record<string, number> = {};
@@ -142,7 +143,7 @@ function paginateChaptersWithDomMeasurement(
       const maxHeight = isFirstPage ? MAX_HEIGHT_FIRST_PAGE : MAX_HEIGHT_STANDARD;
       const p = paraQueue.shift()!;
       const testParas = [...currentParas, p];
-      const testHeight = measureHeight(testParas);
+      const testHeight = measureHeight(testParas, isFirstPage);
 
       if (testHeight <= maxHeight) {
         currentParas.push(p);
@@ -159,7 +160,7 @@ function paginateChaptersWithDomMeasurement(
           while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const part = words.slice(0, mid).join(' ');
-            const h = measureHeight([...currentParas, part]);
+            const h = measureHeight([...currentParas, part], isFirstPage);
             if (h <= maxHeight) {
               bestK = mid;
               low = mid + 1;
@@ -213,7 +214,7 @@ function paginateChaptersWithDomMeasurement(
           while (low <= high) {
             const mid = Math.floor((low + high) / 2);
             const part = words.slice(0, mid).join(' ');
-            const h = measureHeight([part]);
+            const h = measureHeight([part], isFirstPage);
             if (h <= maxHeight) {
               bestK = mid;
               low = mid + 1;
@@ -314,14 +315,14 @@ export class PdfExportService {
       fontCss = "'Tajawal', system-ui, sans-serif";
     }
 
-    let bodyFontSize = '15px';
-    let lineHeight = '1.85';
+    let bodyFontSize = '15.5px';
+    let lineHeight = '2.1';
     if (options.fontSize === 'small') {
-      bodyFontSize = '13.5px';
-      lineHeight = '1.8';
+      bodyFontSize = '14px';
+      lineHeight = '2.0';
     } else if (options.fontSize === 'large') {
-      bodyFontSize = '16.5px';
-      lineHeight = '1.95';
+      bodyFontSize = '17px';
+      lineHeight = '2.2';
     }
 
     const deweyText = formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName);
@@ -370,76 +371,119 @@ export class PdfExportService {
     // Build pages HTML array
     const pagesHtml: { html: string; pageType: string; isCover?: boolean }[] = [];
 
-    // 1. COVER PAGE (if no cover image provided, elegant typography fallback)
+    // 1. COVER PAGE (if no cover image provided, elegant classical hardcover typography)
     if (options.includeCover && !coverBase64) {
       pagesHtml.push({
         pageType: 'cover',
         isCover: true,
         html: `
-          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; background: #FAF9F6; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 60px; box-sizing: border-box; direction: rtl; text-align: center; font-family: ${fontCss}; overflow: hidden;">
-            <div style="border: 2px solid #2C2C2C; padding: 60px 40px; width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: center; align-items: center; box-sizing: border-box;">
-              <h1 style="font-size: 38px; font-weight: 800; color: #1A1A1A; margin: 0 0 20px 0; line-height: 1.35; font-family: 'Amiri', serif;">
-                ${novel.title}
-              </h1>
-              <div style="width: 60px; height: 2px; background: #2C2C2C; margin: 0 auto 24px auto;"></div>
-              <p style="font-size: 22px; font-weight: 600; color: #444444; margin: 0; font-family: 'Amiri', serif;">
-                تأليف: ${novel.author || 'أيمن كناني'}
-              </p>
+          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; background: #FAF8F2; display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 50px; box-sizing: border-box; direction: rtl; text-align: center; font-family: ${fontCss}; overflow: hidden;">
+            <div style="border: 3px double #3D4D40; width: 100%; height: 100%; padding: 60px 40px; display: flex; flex-direction: column; justify-content: space-between; align-items: center; box-sizing: border-box; position: relative;">
+              <div style="position: absolute; top: 8px; bottom: 8px; right: 8px; left: 8px; border: 0.5px solid #D1CAC0; pointer-events: none;"></div>
+              
+              <!-- Top Header Ornament -->
+              <div style="width: 100%; position: relative; z-index: 1;">
+                <div style="font-size: 14px; font-weight: 700; color: #4A5D4E; font-family: 'Amiri', serif; margin-bottom: 8px; letter-spacing: normal;">
+                  ❖ رِوَايَـةٌ أَدَبِيَّـةٌ عَـرَبِـيَّـة ❖
+                </div>
+                <div style="width: 50px; height: 1px; background: #4A5D4E; margin: 0 auto;"></div>
+              </div>
+
+              <!-- Central Title Section -->
+              <div style="max-width: 540px; margin: auto 0; position: relative; z-index: 1;">
+                <h1 style="font-size: 42px; font-weight: 800; color: #1E2922; margin: 0 0 16px 0; line-height: 1.35; font-family: 'Amiri', serif; letter-spacing: normal;">
+                  ${novel.title}
+                </h1>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 10px; color: #7B6858; font-size: 15px; font-family: 'Amiri', serif; margin-bottom: 24px;">
+                  <span>✦</span>
+                  <span style="font-size: 20px;">❖</span>
+                  <span>✦</span>
+                </div>
+                <p style="font-size: 22px; font-weight: 600; color: #3E4F42; margin: 0; font-family: 'Amiri', serif; letter-spacing: normal;">
+                  تَأْلِيفُ الأَدِيبِ: ${novel.author || 'أيمن كناني'}
+                </p>
+                ${novel.synopsis ? `
+                  <p style="font-size: 13.5px; line-height: 1.9; color: #555555; margin-top: 24px; font-family: 'Amiri', serif; max-width: 480px;">
+                    ${novel.synopsis.slice(0, 180)}...
+                  </p>
+                ` : ''}
+              </div>
+
+              <!-- Bottom Publisher Mark -->
+              <div style="width: 100%; position: relative; z-index: 1;">
+                <div style="width: 70px; height: 1px; background: #C5BFB0; margin: 0 auto 16px auto;"></div>
+                <div style="font-size: 12.5px; color: #6E6A64; line-height: 1.8; font-family: 'Amiri', serif;">
+                  <p style="margin: 0; font-weight: 700; color: #2C2C2C;">المنصة الأدبية الرسمية للكاتب أيمن كناني</p>
+                  <p style="margin: 0;">الطبعة الإلكترونية الكاملة والمحققة — ${new Date().getFullYear()}م</p>
+                </div>
+              </div>
             </div>
           </div>
         `
       });
     }
 
-    // 2. COPYRIGHT / IMPRINT PAGE (Dignified literary page, no SaaS boxes or tables)
+    // 2. COPYRIGHT / IMPRINT PAGE (Dignified National Library CIP card format)
     if (options.includeCopyright !== false) {
       pagesHtml.push({
         pageType: 'copyright',
         html: `
-          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 65px 70px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: center; font-family: ${fontCss}; overflow: hidden;">
-            <div style="font-size: 11px; color: #888888; border-bottom: 1px solid #EEEEEE; padding-bottom: 8px; text-align: right;">
-              <span>رواية: ${novel.title}</span>
+          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 50px 65px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: center; font-family: ${fontCss}; overflow: hidden;">
+            <div style="position: absolute; top: 18px; bottom: 18px; right: 22px; left: 22px; border: 1px solid #DCD7CB; pointer-events: none; box-sizing: border-box;">
+              <div style="position: absolute; top: 3px; bottom: 3px; right: 3px; left: 3px; border: 0.5px solid #EAE6DC; pointer-events: none;"></div>
             </div>
 
-            <div style="margin: auto 0; width: 100%; max-width: 520px; margin-left: auto; margin-right: auto;">
-              <h1 style="font-family: 'Amiri', serif; font-size: 32px; font-weight: 700; color: #111111; margin: 0 0 12px 0;">
+            <div style="font-size: 11.5px; color: #777777; border-bottom: 1px solid #E5E0D5; padding-bottom: 8px; text-align: right; font-family: 'Amiri', serif; position: relative; z-index: 1;">
+              <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
+            </div>
+
+            <div style="margin: auto 0; width: 100%; max-width: 540px; margin-left: auto; margin-right: auto; position: relative; z-index: 1;">
+              <h1 style="font-family: 'Amiri', serif; font-size: 32px; font-weight: 700; color: #1E2922; margin: 0 0 10px 0; letter-spacing: normal;">
                 ${novel.title}
               </h1>
-              <p style="font-family: 'Amiri', serif; font-size: 19px; color: #444444; margin: 0 0 35px 0;">
+              <p style="font-family: 'Amiri', serif; font-size: 19px; color: #4A5D4E; margin: 0 0 24px 0; font-weight: 600; letter-spacing: normal;">
                 تأليف: ${novel.author || 'أيمن كناني'}
               </p>
 
-              <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto 35px auto;"></div>
-
-              <div style="font-size: 13.5px; line-height: 2.3; color: #333333; margin-bottom: 35px;">
-                <p style="margin: 0;"><strong>رواية أدبية عربية</strong></p>
-                ${deweyText ? `<p style="margin: 0;">التصنيف المكتبي: ${deweyText}</p>` : ''}
-                <p style="margin: 0;">الناشر: المنصة الرسمية للكاتب أيمن كناني</p>
-                <p style="margin: 0;">الموقع الرسمي: aymankinani.com</p>
-                <p style="margin: 0;">الطبعة الإلكترونية الأولى — ${new Date().getFullYear()}م</p>
+              <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif; margin-bottom: 28px;">
+                <span>✦</span>
+                <span style="font-size: 16px;">❖</span>
+                <span>✦</span>
               </div>
 
-              <div style="width: 30px; height: 1px; background: #CCCCCC; margin: 0 auto 30px auto;"></div>
+              <!-- CIP Bibliographic Card -->
+              <div style="border: 1px solid #DCD7CB; background: #FAF9F6; padding: 22px 28px; border-radius: 4px; text-align: right; font-size: 13px; line-height: 2.2; color: #333333; margin-bottom: 28px;">
+                <p style="margin: 0; font-weight: bold; border-bottom: 1px solid #EAE6DC; padding-bottom: 6px; margin-bottom: 8px; color: #1E2922;">
+                  بطاقة الفهرسة والتوثيق الببليوغرافي:
+                </p>
+                <p style="margin: 0;"><strong>عنوان الرواية:</strong> ${novel.title}</p>
+                <p style="margin: 0;"><strong>المؤلف:</strong> ${novel.author || 'أيمن كناني'}</p>
+                ${deweyText ? `<p style="margin: 0;"><strong>التصنيف المكتبي الدولي:</strong> ${deweyText}</p>` : ''}
+                <p style="margin: 0;"><strong>جهة النشر:</strong> المنصة الرقمية الرسمية للأديب أيمن كناني</p>
+                <p style="margin: 0;"><strong>الموقع الرسمي:</strong> aymankinani.com</p>
+                <p style="margin: 0;"><strong>تاريخ الإصدار:</strong> ${new Date().getFullYear()}م — الطبعة الإلكترونية المحققة</p>
+                <p style="margin: 0;"><strong>الترخيص:</strong> رخصة المشاع الإبداعي الدولية (CC BY-NC 4.0)</p>
+              </div>
 
-              <div style="font-size: 12px; line-height: 2.0; color: #666666; max-width: 460px; margin: 0 auto;">
+              <div style="font-size: 11.5px; line-height: 2.0; color: #666666; max-width: 480px; margin: 0 auto;">
                 <p style="margin: 0 0 6px 0; font-weight: bold; color: #222222;">
-                  جميع حقوق الملكية الفكرية والنشر والتأليف محفوظة للمؤلف © ${new Date().getFullYear()}م
+                  جميع حقوق الملكية الفكرية والأدبية محفوظة للمؤلف © ${new Date().getFullYear()}م
                 </p>
                 <p style="margin: 0;">
-                  هذا العمل منشور لأغراض القراءة الشخصية. يُحظر تماماً نسخ أو بيع أو اقتباس أجزاء من الرواية لأي غرض تجاري دون إذن كتابي رسمي مسبق من المؤلف.
+                  هذا العمل منشور لأغراض المطالعة والقراءة الشخصية. يحظر تماماً نسخ أو بيع أو إعادة استغلال الرواية تجارياً دون إذن كتابي رسمي وصريح من الكاتب.
                 </p>
               </div>
             </div>
 
-            <div style="font-size: 11px; color: #888888; border-top: 1px solid #EEEEEE; padding-top: 10px; text-align: center;">
-              — بيانات النشر والتوثيق —
+            <div style="font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 8px; text-align: center; font-family: 'Amiri', serif; position: relative; z-index: 1;">
+              — بيانات النشر والتوثيق الأدبي —
             </div>
           </div>
         `
       });
     }
 
-    // 3. TABLE OF CONTENTS (فهرس الفصول) - Clean, literary dotted leaders
+    // 3. TABLE OF CONTENTS (فهرس الفصول) - Clean, literary dotted leaders & calligraphy header
     if (options.includeToc) {
       for (let tIdx = 0; tIdx < tocPageCount; tIdx++) {
         const pageChapters = sortedChapters.slice(
@@ -450,41 +494,56 @@ export class PdfExportService {
         pagesHtml.push({
           pageType: 'toc',
           html: `
-            <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 55px 70px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: right; font-family: ${fontCss}; overflow: hidden;">
-              <div>
+            <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 50px 65px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: right; font-family: ${fontCss}; overflow: hidden;">
+              <div style="position: absolute; top: 18px; bottom: 18px; right: 22px; left: 22px; border: 1px solid #DCD7CB; pointer-events: none; box-sizing: border-box;">
+                <div style="position: absolute; top: 3px; bottom: 3px; right: 3px; left: 3px; border: 0.5px solid #EAE6DC; pointer-events: none;"></div>
+              </div>
+
+              <div style="position: relative; z-index: 1;">
                 <!-- Running Header -->
-                <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888888; border-bottom: 1px solid #EEEEEE; padding-bottom: 8px; margin-bottom: 35px;">
-                  <span>رواية: ${novel.title}</span>
+                <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: #666666; border-bottom: 1px solid #E5E0D5; padding-bottom: 8px; margin-bottom: 30px; font-family: 'Amiri', serif;">
+                  <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
                   <span>فهرس الفصول ${tocPageCount > 1 ? `(${tIdx + 1}/${tocPageCount})` : ''}</span>
                 </div>
 
                 <!-- Title Header -->
-                <div style="text-align: center; margin-bottom: 40px;">
-                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #111111; margin: 0 0 12px 0;">
-                    فهرس الفصول
+                <div style="text-align: center; margin-bottom: 36px;">
+                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #1E2922; margin: 0 0 8px 0; letter-spacing: normal;">
+                    فِـهْـرِسُ الفُـصُـولِ والمُـحْـتَـوَيَات
                   </h2>
-                  <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto;"></div>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif;">
+                    <span>✦</span>
+                    <span style="font-size: 16px;">❖</span>
+                    <span>✦</span>
+                  </div>
                 </div>
 
                 <!-- Chapter Rows with clean dotted lines -->
-                <div style="display: flex; flex-direction: column; gap: 16px;">
-                  ${pageChapters.map(ch => `
-                    <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 15px; line-height: 1.6; direction: rtl;">
-                      <span style="font-weight: 700; color: #222222; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: normal;">
-                        الفصل ${ch.chapterNumber}: ${ch.title}
-                      </span>
-                      <span style="flex-grow: 1; border-bottom: 1.5px dotted #888888; margin: 0 14px; height: 1px;"></span>
-                      <span style="font-family: 'Amiri', serif; font-size: 15px; font-weight: 700; color: #333333; white-space: nowrap; letter-spacing: normal;">
-                        ${chapterStartPages[ch.id]}
-                      </span>
-                    </div>
-                  `).join('')}
+                <div style="display: flex; flex-direction: column; gap: 18px;">
+                  ${pageChapters.map(ch => {
+                    const titleText = ch.title.trim().startsWith('الفصل') || ch.title.trim().startsWith('فصل')
+                      ? ch.title
+                      : `الفصل ${ch.chapterNumber}: ${ch.title}`;
+                    return `
+                      <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 15px; line-height: 1.6; direction: rtl;">
+                        <span style="font-weight: 700; color: #222222; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: normal;">
+                          ${titleText}
+                        </span>
+                        <span style="flex-grow: 1; border-bottom: 1.5px dotted #999387; margin: 0 14px; height: 1px;"></span>
+                        <span style="font-family: 'Amiri', serif; font-size: 15px; font-weight: 700; color: #333333; white-space: nowrap; letter-spacing: normal;">
+                          ${chapterStartPages[ch.id]}
+                        </span>
+                      </div>
+                    `;
+                  }).join('')}
                 </div>
               </div>
 
               <!-- Footer -->
-              <div style="text-align: center; font-size: 11px; color: #888888; border-top: 1px solid #EEEEEE; padding-top: 10px;">
-                — ${tocStartPageNum + tIdx} —
+              <div style="display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 8px; font-family: 'Amiri', serif; position: relative; z-index: 1;">
+                <span style="color: #7B6858; font-size: 10px;">✦</span>
+                <span style="font-weight: 700; color: #2C2C2C; font-size: 13px;">${tocStartPageNum + tIdx}</span>
+                <span style="color: #7B6858; font-size: 10px;">✦</span>
               </div>
             </div>
           `
@@ -492,7 +551,7 @@ export class PdfExportService {
       }
     }
 
-    // 4. CHAPTER PAGES (صفحات الفصول مع ملء كامل للصفحة وتنسيق رصين)
+    // 4. CHAPTER PAGES (صفحات الفصول مع إطار كتاب كلاسيكي وأناقة أدبية راقية)
     for (let cIdx = 0; cIdx < chapterPages.length; cIdx++) {
       const pageData = chapterPages[cIdx];
       const ch = pageData.chapter;
@@ -500,38 +559,53 @@ export class PdfExportService {
       const isLastPage = pageData.isLastPage;
       const pageNum = pageCounter + cIdx;
 
+      // Smart check if chapter title already starts with "الفصل" to prevent duplicate headings
+      const hasDuplicateChapterWord = /^(الفصل|فصل)\s*[\d\u0660-\u0669]/i.test(ch.title.trim()) || ch.title.trim().startsWith('الفصل ') || ch.title.trim().startsWith('فصل ');
+
       pagesHtml.push({
         pageType: 'chapter',
         html: `
-          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 50px 65px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: right; font-family: ${fontCss}; overflow: hidden;">
-            <div style="width: 100%; flex: 1; display: flex; flex-direction: column;">
+          <div class="pdf-page" style="width: 794px; height: 1123px; min-height: 1123px; max-height: 1123px; position: relative; padding: 48px 65px; box-sizing: border-box; background: #FFFFFF; display: flex; flex-direction: column; justify-content: space-between; direction: rtl; text-align: right; font-family: ${fontCss}; overflow: hidden;">
+            <!-- Classical Luxury Book Inner Frame -->
+            <div style="position: absolute; top: 18px; bottom: 18px; right: 22px; left: 22px; border: 1px solid #DCD7CB; pointer-events: none; box-sizing: border-box;">
+              <div style="position: absolute; top: 3px; bottom: 3px; right: 3px; left: 3px; border: 0.5px solid #EAE6DC; pointer-events: none;"></div>
+            </div>
+
+            <div style="width: 100%; flex: 1; display: flex; flex-direction: column; position: relative; z-index: 1;">
               ${!isFirstPage ? `
-                <!-- Clean Running Header (Subsequent pages only, NO awkward "(تابع)") -->
-                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #777777; border-bottom: 1px solid #EEEEEE; padding-bottom: 8px; margin-bottom: 22px;">
-                  <span>رواية: ${novel.title}</span>
-                  <span>${ch.title}</span>
+                <!-- Clean Running Header (Subsequent pages only) -->
+                <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #666666; border-bottom: 1px solid #E5E0D5; padding-bottom: 8px; margin-bottom: 22px; font-family: 'Amiri', serif;">
+                  <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
+                  <span style="color: #666666;">${ch.title}</span>
                 </div>
               ` : ''}
 
               ${isFirstPage ? `
                 <!-- Dignified Centered Chapter Title on the first page -->
-                <div style="text-align: center; margin: 25px 0 35px 0;">
-                  <div style="font-size: 13.5px; font-weight: 600; color: #555555; margin-bottom: 8px; letter-spacing: normal;">
-                    — الفصل ${ch.chapterNumber} —
-                  </div>
-                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #111111; margin: 0 0 14px 0; line-height: 1.4; letter-spacing: normal;">
+                <div style="text-align: center; margin: 20px 0 26px 0;">
+                  ${!hasDuplicateChapterWord ? `
+                    <div style="font-size: 13.5px; font-weight: 600; color: #4A5D4E; margin-bottom: 6px; letter-spacing: normal;">
+                      — الفصل ${ch.chapterNumber} —
+                    </div>
+                  ` : ''}
+                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #1E2922; margin: 0 0 10px 0; line-height: 1.45; letter-spacing: normal;">
                     ${ch.title}
                   </h2>
-                  <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto;"></div>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif;">
+                    <span>✦</span>
+                    <span style="font-size: 16px;">❖</span>
+                    <span>✦</span>
+                  </div>
                 </div>
               ` : ''}
 
-              <!-- Content Paragraphs that fill the page completely -->
+              <!-- Content Paragraphs with classical novel indentation -->
               <div style="width: 100%; font-family: ${fontCss}; font-size: ${bodyFontSize}; line-height: ${lineHeight}; color: #1A1A1A;">
                 ${pageData.paragraphs.map((p, pIdx) => {
                   const isSplitBottom = !isLastPage && pIdx === pageData.paragraphs.length - 1;
+                  const shouldIndent = !(isFirstPage && pIdx === 0);
                   return `
-                    <p style="margin: 0 0 ${isSplitBottom ? '0' : '16px'} 0; font-size: ${bodyFontSize}; line-height: ${lineHeight}; text-align: justify; text-justify: inter-word; direction: rtl; unicode-bidi: isolate; word-break: break-word; letter-spacing: normal;">
+                    <p style="margin: 0 0 ${isSplitBottom ? '0' : '10px'} 0; font-size: ${bodyFontSize}; line-height: ${lineHeight}; text-align: justify; text-justify: inter-word; direction: rtl; unicode-bidi: isolate; word-break: break-word; letter-spacing: normal; text-indent: ${shouldIndent ? '1.8em' : '0'};">
                       ${p}
                     </p>
                   `;
@@ -539,15 +613,17 @@ export class PdfExportService {
               </div>
 
               ${isLastPage && ch.authorNote ? `
-                <div style="margin-top: 24px; padding: 12px 16px; background: #FAF9F6; border-right: 3px solid #4A5D4E; border-radius: 4px; font-size: 12px; line-height: 1.8; color: #555555;">
+                <div style="margin-top: 24px; padding: 14px 18px; background: #FAF9F6; border: 1px solid #E5E0D5; border-right: 3px solid #4A5D4E; border-radius: 4px; font-size: 12.5px; line-height: 1.9; color: #555555; font-family: ${fontCss};">
                   <strong style="color: #1A1A1A;">ملاحظة الكاتب:</strong> ${ch.authorNote}
                 </div>
               ` : ''}
             </div>
 
-            <!-- Clean Running Footer with Page Number -->
-            <div style="text-align: center; font-size: 11px; color: #777777; border-top: 1px solid #EEEEEE; padding-top: 8px; margin-top: 10px;">
-              — ${pageNum} —
+            <!-- Dignified Running Footer with Page Number -->
+            <div style="display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 8px; margin-top: 10px; font-family: 'Amiri', serif; position: relative; z-index: 1;">
+              <span style="color: #7B6858; font-size: 10px;">✦</span>
+              <span style="font-weight: 700; color: #2C2C2C; font-size: 13px;">${pageNum}</span>
+              <span style="color: #7B6858; font-size: 10px;">✦</span>
             </div>
           </div>
         `
@@ -706,14 +782,14 @@ export class PdfExportService {
       fontCss = "'Tajawal', system-ui, sans-serif";
     }
 
-    let bodyFontSize = '15px';
-    let lineHeight = '1.85';
+    let bodyFontSize = '15.5px';
+    let lineHeight = '2.1';
     if (options.fontSize === 'small') {
-      bodyFontSize = '13.5px';
-      lineHeight = '1.8';
+      bodyFontSize = '14px';
+      lineHeight = '2.0';
     } else if (options.fontSize === 'large') {
-      bodyFontSize = '16.5px';
-      lineHeight = '1.95';
+      bodyFontSize = '17px';
+      lineHeight = '2.2';
     }
 
     const deweyText = formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName);
@@ -797,6 +873,27 @@ export class PdfExportService {
             position: relative;
             overflow: hidden;
             box-sizing: border-box;
+            padding: 14mm 18mm;
+            background: #FFFFFF;
+          }
+          .book-frame {
+            position: absolute;
+            top: 6mm;
+            bottom: 6mm;
+            right: 7mm;
+            left: 7mm;
+            border: 1px solid #DCD7CB;
+            pointer-events: none;
+            box-sizing: border-box;
+          }
+          .book-frame-inner {
+            position: absolute;
+            top: 1.2mm;
+            bottom: 1.2mm;
+            right: 1.2mm;
+            left: 1.2mm;
+            border: 0.5px solid #EAE6DC;
+            pointer-events: none;
           }
           .book-cover-page {
             width: 210mm;
@@ -815,14 +912,15 @@ export class PdfExportService {
             display: block;
           }
           .inner-page {
-            padding: 16mm 18mm;
+            position: relative;
+            z-index: 2;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
             height: 100%;
           }
           p {
-            margin: 0 0 16px 0;
+            margin: 0 0 10px 0;
             font-size: ${bodyFontSize};
             line-height: ${lineHeight};
             text-align: justify !important;
@@ -831,7 +929,7 @@ export class PdfExportService {
             unicode-bidi: isolate !important;
             letter-spacing: 0 !important;
             word-spacing: 0 !important;
-            text-indent: 0 !important;
+            text-indent: 1.8em;
           }
         </style>
       </head>
@@ -842,39 +940,53 @@ export class PdfExportService {
               <img src="${novel.coverImage}" alt="غلاف الرواية" />
             </div>
           ` : `
-            <div class="book-page" style="background: #FAF9F6; display: flex; align-items: center; justify-content: center; padding: 25mm;">
-              <div style="border: 2px solid #2C2C2C; width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20mm;">
-                <h1 style="font-size: 36px; font-weight: 800; margin: 0 0 18px 0; font-family: 'Amiri', serif;">${novel.title}</h1>
-                <div style="width: 50px; height: 2px; background: #2C2C2C; margin: 0 auto 20px auto;"></div>
-                <p style="font-size: 20px; font-weight: 600; color: #444444; margin: 0;">تأليف: ${novel.author || 'أيمن كناني'}</p>
+            <div class="book-page" style="background: #FAF8F2; display: flex; align-items: center; justify-content: center; padding: 18mm;">
+              <div class="book-frame" style="border: 3px double #3D4D40;"></div>
+              <div class="inner-page" style="width: 100%; height: 100%; text-align: center; justify-content: space-between; align-items: center; padding: 16mm 10mm;">
+                <div style="font-size: 14px; font-weight: 700; color: #4A5D4E; font-family: 'Amiri', serif;">❖ رِوَايَـةٌ أَدَبِيَّـةٌ عَـرَبِـيَّـة ❖</div>
+                <div style="max-width: 500px; margin: auto 0;">
+                  <h1 style="font-size: 38px; font-weight: 800; margin: 0 0 14px 0; font-family: 'Amiri', serif; color: #1E2922;">${novel.title}</h1>
+                  <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 14px; font-family: 'Amiri', serif; margin-bottom: 20px;">
+                    <span>✦</span><span style="font-size: 18px;">❖</span><span>✦</span>
+                  </div>
+                  <p style="font-size: 20px; font-weight: 600; color: #3E4F42; margin: 0; text-indent: 0;">تَأْلِيفُ الأَدِيبِ: ${novel.author || 'أيمن كناني'}</p>
+                </div>
+                <div style="font-size: 12px; color: #6E6A64; font-family: 'Amiri', serif;">
+                  <p style="margin: 0; font-weight: 700; color: #2C2C2C; text-indent: 0;">المنصة الأدبية الرسمية للكاتب أيمن كناني</p>
+                  <p style="margin: 0; text-indent: 0;">الطبعة الإلكترونية الكاملة والمحققة — ${new Date().getFullYear()}م</p>
+                </div>
               </div>
             </div>
           `}
         ` : ''}
 
         ${options.includeCopyright !== false ? `
-          <div class="book-page" style="background: #FFFFFF;">
+          <div class="book-page">
+            <div class="book-frame"><div class="book-frame-inner"></div></div>
             <div class="inner-page" style="text-align: center;">
-              <div style="font-size: 11px; color: #888888; border-bottom: 1px solid #EEEEEE; padding-bottom: 6px; text-align: right;">
-                <span>رواية: ${novel.title}</span>
+              <div style="font-size: 11.5px; color: #777777; border-bottom: 1px solid #E5E0D5; padding-bottom: 6px; text-align: right; font-family: 'Amiri', serif;">
+                <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
               </div>
               <div style="margin: auto 0; max-width: 520px; margin-left: auto; margin-right: auto;">
-                <h1 style="font-family: 'Amiri', serif; font-size: 30px; font-weight: 700; margin: 0 0 10px 0;">${novel.title}</h1>
-                <p style="font-size: 18px; color: #444444; margin: 0 0 30px 0;">تأليف: ${novel.author || 'أيمن كناني'}</p>
-                <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto 30px auto;"></div>
-                <div style="font-size: 13.5px; line-height: 2.3; color: #333333; margin-bottom: 30px;">
-                  <p style="margin: 0;"><strong>رواية أدبية عربية</strong></p>
-                  ${deweyText ? `<p style="margin: 0;">التصنيف المكتبي: ${deweyText}</p>` : ''}
-                  <p style="margin: 0;">الناشر: المنصة الرسمية للكاتب أيمن كناني</p>
-                  <p style="margin: 0;">الطبعة الإلكترونية الأولى — ${new Date().getFullYear()}م</p>
+                <h1 style="font-family: 'Amiri', serif; font-size: 30px; font-weight: 700; color: #1E2922; margin: 0 0 8px 0;">${novel.title}</h1>
+                <p style="font-size: 18px; color: #4A5D4E; margin: 0 0 20px 0; font-family: 'Amiri', serif; font-weight: 600; text-indent: 0;">تأليف: ${novel.author || 'أيمن كناني'}</p>
+                <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif; margin-bottom: 24px;">
+                  <span>✦</span><span style="font-size: 16px;">❖</span><span>✦</span>
                 </div>
-                <div style="width: 30px; height: 1px; background: #CCCCCC; margin: 0 auto 25px auto;"></div>
-                <div style="font-size: 12px; line-height: 2.0; color: #666666;">
-                  <p style="margin: 0 0 6px 0; font-weight: bold; color: #222222;">جميع حقوق النشر والملكية الفكرية محفوظة للمؤلف © ${new Date().getFullYear()}م</p>
-                  <p style="margin: 0;">هذا المصنف مخصص للقراءة الشخصية ولا يجوز استغلاله أو طباعته تجارياً دون موافقة كتابية مسبقة.</p>
+                <div style="border: 1px solid #DCD7CB; background: #FAF9F6; padding: 18px 24px; border-radius: 4px; text-align: right; font-size: 13px; line-height: 2.2; color: #333333; margin-bottom: 24px;">
+                  <p style="margin: 0; font-weight: bold; border-bottom: 1px solid #EAE6DC; padding-bottom: 4px; margin-bottom: 6px; color: #1E2922; text-indent: 0;">بطاقة الفهرسة والتوثيق الببليوغرافي:</p>
+                  <p style="margin: 0; text-indent: 0;"><strong>عنوان الرواية:</strong> ${novel.title}</p>
+                  <p style="margin: 0; text-indent: 0;"><strong>المؤلف:</strong> ${novel.author || 'أيمن كناني'}</p>
+                  ${deweyText ? `<p style="margin: 0; text-indent: 0;"><strong>التصنيف المكتبي الدولي:</strong> ${deweyText}</p>` : ''}
+                  <p style="margin: 0; text-indent: 0;"><strong>جهة النشر:</strong> المنصة الرقمية الرسمية للأديب أيمن كناني</p>
+                  <p style="margin: 0; text-indent: 0;"><strong>تاريخ الإصدار:</strong> ${new Date().getFullYear()}م — الطبعة الإلكترونية المحققة</p>
+                </div>
+                <div style="font-size: 11.5px; line-height: 2.0; color: #666666;">
+                  <p style="margin: 0 0 4px 0; font-weight: bold; color: #222222; text-indent: 0;">جميع حقوق الملكية الفكرية محفوظة للمؤلف © ${new Date().getFullYear()}م</p>
+                  <p style="margin: 0; text-indent: 0;">هذا المصنف مخصص للمطالعة الشخصية ولا يجوز استغلاله أو طباعته تجارياً دون موافقة كتابية مسبقة.</p>
                 </div>
               </div>
-              <div style="font-size: 11px; color: #888888; border-top: 1px solid #EEEEEE; padding-top: 6px;">
+              <div style="font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 6px; font-family: 'Amiri', serif;">
                 — بيانات النشر والتوثيق —
               </div>
             </div>
@@ -884,29 +996,39 @@ export class PdfExportService {
         ${options.includeToc ? Array.from({ length: tocPageCount }).map((_, tIdx) => {
           const pageChapters = sortedChapters.slice(tIdx * TOC_ITEMS_PER_PAGE, (tIdx + 1) * TOC_ITEMS_PER_PAGE);
           return `
-            <div class="book-page" style="background: #FFFFFF;">
+            <div class="book-page">
+              <div class="book-frame"><div class="book-frame-inner"></div></div>
               <div class="inner-page">
                 <div>
-                  <div style="display: flex; justify-content: space-between; font-size: 11px; color: #888888; border-bottom: 1px solid #EEEEEE; padding-bottom: 6px; margin-bottom: 30px;">
-                    <span>رواية: ${novel.title}</span>
+                  <div style="display: flex; justify-content: space-between; font-size: 11.5px; color: #666666; border-bottom: 1px solid #E5E0D5; padding-bottom: 6px; margin-bottom: 25px; font-family: 'Amiri', serif;">
+                    <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
                     <span>فهرس الفصول ${tocPageCount > 1 ? `(${tIdx + 1}/${tocPageCount})` : ''}</span>
                   </div>
-                  <div style="text-align: center; margin-bottom: 35px;">
-                    <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: bold; margin: 0 0 10px 0;">فهرس الفصول</h2>
-                    <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto;"></div>
+                  <div style="text-align: center; margin-bottom: 30px;">
+                    <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: bold; color: #1E2922; margin: 0 0 6px 0;">فِـهْـرِسُ الفُـصُـولِ والمُـحْـتَـوَيَات</h2>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif;">
+                      <span>✦</span><span style="font-size: 16px;">❖</span><span>✦</span>
+                    </div>
                   </div>
-                  <div style="display: flex; flex-direction: column; gap: 14px;">
-                    ${pageChapters.map(ch => `
-                      <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 14px;">
-                        <span style="font-weight: 700; color: #222222; white-space: nowrap;">الفصل ${ch.chapterNumber}: ${ch.title}</span>
-                        <span style="flex-grow: 1; border-bottom: 1.5px dotted #999999; margin: 0 12px; height: 1px;"></span>
-                        <span style="font-family: 'Amiri', serif; font-size: 14.5px; font-weight: bold; color: #333333; white-space: nowrap;">${chapterStartPages[ch.id]}</span>
-                      </div>
-                    `).join('')}
+                  <div style="display: flex; flex-direction: column; gap: 16px;">
+                    ${pageChapters.map(ch => {
+                      const titleText = ch.title.trim().startsWith('الفصل') || ch.title.trim().startsWith('فصل')
+                        ? ch.title
+                        : `الفصل ${ch.chapterNumber}: ${ch.title}`;
+                      return `
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; font-size: 14.5px;">
+                          <span style="font-weight: 700; color: #222222; white-space: nowrap;">${titleText}</span>
+                          <span style="flex-grow: 1; border-bottom: 1.5px dotted #999387; margin: 0 12px; height: 1px;"></span>
+                          <span style="font-family: 'Amiri', serif; font-size: 14.5px; font-weight: bold; color: #333333; white-space: nowrap;">${chapterStartPages[ch.id]}</span>
+                        </div>
+                      `;
+                    }).join('')}
                   </div>
                 </div>
-                <div style="text-align: center; font-size: 11px; color: #888888; border-top: 1px solid #EEEEEE; padding-top: 6px;">
-                  — ${tocStartPageNum + tIdx} —
+                <div style="display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 6px; font-family: 'Amiri', serif;">
+                  <span style="color: #7B6858; font-size: 10px;">✦</span>
+                  <span style="font-weight: 700; color: #2C2C2C; font-size: 13px;">${tocStartPageNum + tIdx}</span>
+                  <span style="color: #7B6858; font-size: 10px;">✦</span>
                 </div>
               </div>
             </div>
@@ -918,31 +1040,38 @@ export class PdfExportService {
           const isFirstPage = pageData.isFirstPage;
           const isLastPage = pageData.isLastPage;
           const pageNum = pageCounter + pIdx;
+          const hasDuplicateChapterWord = /^(الفصل|فصل)\s*[\d\u0660-\u0669]/i.test(ch.title.trim()) || ch.title.trim().startsWith('الفصل ') || ch.title.trim().startsWith('فصل ');
 
           return `
-            <div class="book-page" style="background: #FFFFFF;">
+            <div class="book-page">
+              <div class="book-frame"><div class="book-frame-inner"></div></div>
               <div class="inner-page">
                 <div style="width: 100%; flex: 1; display: flex; flex-direction: column;">
                   ${!isFirstPage ? `
-                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #777777; border-bottom: 1px solid #EEEEEE; padding-bottom: 6px; margin-bottom: 20px;">
-                      <span>رواية: ${novel.title}</span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11.5px; color: #666666; border-bottom: 1px solid #E5E0D5; padding-bottom: 6px; margin-bottom: 20px; font-family: 'Amiri', serif;">
+                      <span style="font-weight: 600; color: #4A5D4E;">رواية: ${novel.title}</span>
                       <span>${ch.title}</span>
                     </div>
                   ` : ''}
 
                   ${isFirstPage ? `
-                    <div style="text-align: center; margin: 20px 0 30px 0;">
-                      <div style="font-size: 13px; font-weight: 600; color: #666666; margin-bottom: 6px;">— الفصل ${ch.chapterNumber} —</div>
-                      <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #111111; margin: 0 0 12px 0;">${ch.title}</h2>
-                      <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto;"></div>
+                    <div style="text-align: center; margin: 16px 0 24px 0;">
+                      ${!hasDuplicateChapterWord ? `
+                        <div style="font-size: 13px; font-weight: 600; color: #4A5D4E; margin-bottom: 4px; font-family: 'Amiri', serif;">— الفصل ${ch.chapterNumber} —</div>
+                      ` : ''}
+                      <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #1E2922; margin: 0 0 8px 0;">${ch.title}</h2>
+                      <div style="display: flex; align-items: center; justify-content: center; gap: 8px; color: #7B6858; font-size: 13px; font-family: 'Amiri', serif;">
+                        <span>✦</span><span style="font-size: 16px;">❖</span><span>✦</span>
+                      </div>
                     </div>
                   ` : ''}
 
                   <div style="width: 100%; font-family: ${fontCss}; font-size: ${bodyFontSize}; line-height: ${lineHeight}; color: #1A1A1A;">
                     ${pageData.paragraphs.map((p, idx) => {
                       const isSplitBottom = !isLastPage && idx === pageData.paragraphs.length - 1;
+                      const shouldIndent = !(isFirstPage && idx === 0);
                       return `
-                        <p style="margin: 0 0 ${isSplitBottom ? '0' : '16px'} 0;">
+                        <p style="margin: 0 0 ${isSplitBottom ? '0' : '10px'} 0; text-indent: ${shouldIndent ? '1.8em' : '0'};">
                           ${p}
                         </p>
                       `;
@@ -950,14 +1079,16 @@ export class PdfExportService {
                   </div>
 
                   ${isLastPage && ch.authorNote ? `
-                    <div style="margin-top: 20px; padding: 12px 16px; background: #FAF9F6; border-right: 3px solid #4A5D4E; border-radius: 4px; font-size: 12px; line-height: 1.8; color: #555555;">
+                    <div style="margin-top: 20px; padding: 12px 16px; background: #FAF9F6; border: 1px solid #E5E0D5; border-right: 3px solid #4A5D4E; border-radius: 4px; font-size: 12.5px; line-height: 1.8; color: #555555; font-family: ${fontCss};">
                       <strong style="color: #1A1A1A;">ملاحظة الكاتب:</strong> ${ch.authorNote}
                     </div>
                   ` : ''}
                 </div>
 
-                <div style="text-align: center; font-size: 11px; color: #777777; border-top: 1px solid #EEEEEE; padding-top: 6px; margin-top: 8px;">
-                  — ${pageNum} —
+                <div style="display: flex; justify-content: center; align-items: center; gap: 8px; font-size: 11.5px; color: #777777; border-top: 1px solid #E5E0D5; padding-top: 6px; margin-top: 8px; font-family: 'Amiri', serif;">
+                  <span style="color: #7B6858; font-size: 10px;">✦</span>
+                  <span style="font-weight: 700; color: #2C2C2C; font-size: 13px;">${pageNum}</span>
+                  <span style="color: #7B6858; font-size: 10px;">✦</span>
                 </div>
               </div>
             </div>
