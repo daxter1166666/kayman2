@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { Novel, NovelStatus, Genre, Category } from '../../types';
+import { Novel, NovelStatus, Genre, Category, Chapter } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { ImageUploadInput } from '../ImageUploadInput';
 import { ConfirmModal } from '../ConfirmModal';
+import { NovelPdfDownloadModal } from '../NovelPdfDownloadModal';
 import { toArabicGenre } from '../../utils/genreHelper';
+import { DEWEY_DECIMAL_CATEGORIES, formatDeweyDisplay } from '../../utils/deweyDecimal';
 import {
   BookOpen,
   Plus,
@@ -17,22 +19,29 @@ import {
   Heart,
   Download,
   ExternalLink,
-  FileText
+  FileText,
+  Search,
+  Layers
 } from 'lucide-react';
 
 interface NovelManagerTabProps {
   novels: Novel[];
+  chapters?: Chapter[];
   onRefreshData: () => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   novels,
+  chapters = [],
   onRefreshData,
+  onNavigateTab,
 }) => {
   const [isCreating, setIsCreating] = useState<boolean>(false);
   const [editingNovelId, setEditingNovelId] = useState<string | null>(null);
   const [novelToDelete, setNovelToDelete] = useState<Novel | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [exportPdfNovel, setExportPdfNovel] = useState<Novel | null>(null);
 
   const categories: Category[] = storageService.getCategories();
 
@@ -50,6 +59,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
   const [pdfDownloadUrl, setPdfDownloadUrl] = useState<string>('');
   const [pdfFileSize, setPdfFileSize] = useState<string>('');
   const [downloadButtonText, setDownloadButtonText] = useState<string>('');
+  const [deweyDecimal, setDeweyDecimal] = useState<string>('');
+  const [deweyCategoryName, setDeweyCategoryName] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -72,6 +83,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl('');
     setPdfFileSize('');
     setDownloadButtonText('');
+    setDeweyDecimal('813');
+    setDeweyCategoryName('الروايات والقصص الأدبية العربية');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -96,6 +109,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
     setPdfDownloadUrl(novel.pdfDownloadUrl || '');
     setPdfFileSize(novel.pdfFileSize || '');
     setDownloadButtonText(novel.downloadButtonText || '');
+    setDeweyDecimal(novel.deweyDecimal || '');
+    setDeweyCategoryName(novel.deweyCategoryName || '');
     setIsCreating(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -149,6 +164,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
+        deweyDecimal: deweyDecimal.trim() || undefined,
+        deweyCategoryName: deweyCategoryName.trim() || undefined,
       });
       const updated = storageService.getNovels().find(n => n.id === editingNovelId);
       if (updated) {
@@ -178,6 +195,8 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
         pdfDownloadUrl: pdfDownloadUrl.trim() || undefined,
         pdfFileSize: pdfFileSize.trim() || undefined,
         downloadButtonText: downloadButtonText.trim() || undefined,
+        deweyDecimal: deweyDecimal.trim() || undefined,
+        deweyCategoryName: deweyCategoryName.trim() || undefined,
       });
       if (created) {
         supabaseService.saveNovelToSupabase(created).then(res => {
@@ -518,6 +537,76 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             </div>
           </div>
 
+          {/* Dewey Decimal Classification (فهرس ديوي العشري) */}
+          <div className="p-4 rounded-2xl bg-[#FAF9F5] border border-[#E5E2D9] space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-[#4A5D4E]" />
+                <label className="text-xs font-bold text-[#2C2C2C]">
+                  تصنيف ديوي العشري للكتاب (Dewey Decimal Classification)
+                </label>
+              </div>
+              {deweyDecimal && (
+                <span className="text-[11px] font-bold text-[#4A5D4E] bg-[#4A5D4E]/10 px-2 py-0.5 rounded border border-[#4A5D4E]/20">
+                  {formatDeweyDisplay(deweyDecimal, deweyCategoryName)}
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="text-[11px] font-bold text-[#6E6A64] block mb-1">
+                  اختر تصنيفاً جاهزاً:
+                </label>
+                <select
+                  value={DEWEY_DECIMAL_CATEGORIES.some(c => c.code === deweyDecimal) ? deweyDecimal : ''}
+                  onChange={e => {
+                    const val = e.target.value;
+                    const cat = DEWEY_DECIMAL_CATEGORIES.find(c => c.code === val);
+                    if (cat) {
+                      setDeweyDecimal(cat.code);
+                      setDeweyCategoryName(cat.name);
+                    }
+                  }}
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C]"
+                >
+                  <option value="">-- اختر من تصنيفات ديوي --</option>
+                  {DEWEY_DECIMAL_CATEGORIES.map(cat => (
+                    <option key={cat.code} value={cat.code}>
+                      {cat.code} - {cat.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#6E6A64] block mb-1">
+                  رمز ديوي (Dewey Code):
+                </label>
+                <input
+                  type="text"
+                  value={deweyDecimal}
+                  onChange={e => setDeweyDecimal(e.target.value)}
+                  placeholder="مثال: 813"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="text-[11px] font-bold text-[#6E6A64] block mb-1">
+                  اسم فئة ديوي:
+                </label>
+                <input
+                  type="text"
+                  value={deweyCategoryName}
+                  onChange={e => setDeweyCategoryName(e.target.value)}
+                  placeholder="مثال: الروايات والقصص الأدبية العربية"
+                  className="w-full px-3 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C]"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* Synopsis */}
           <div>
             <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
@@ -587,13 +676,18 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
                     className="w-20 h-28 object-cover rounded-xl border border-[#E5E2D9] shrink-0"
                   />
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 mb-1">
+                    <div className="flex flex-wrap items-center gap-1.5 mb-1">
                       <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]">
                         {novel.status === 'ONGOING' ? 'مستمر' : 'مكتمل'}
                       </span>
                       {novel.isFeatured && (
                         <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#C88A3B] text-white">
                           مميز
+                        </span>
+                      )}
+                      {novel.deweyDecimal && (
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25">
+                          {formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName)}
                         </span>
                       )}
                     </div>
@@ -623,12 +717,32 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
                 </p>
               </div>
 
-              <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E2D9]">
+              <div className="flex flex-wrap items-center justify-end gap-1.5 pt-3 border-t border-[#E5E2D9]">
+                <button
+                  type="button"
+                  onClick={() => setExportPdfNovel(novel)}
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#C88A3B] hover:bg-[#C88A3B]/10 flex items-center gap-1 cursor-pointer transition-colors"
+                  title="تصدير وتنزيل كافة فصول الرواية في كتاب PDF واحد منسق"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>تصدير PDF</span>
+                </button>
+                {onNavigateTab && (
+                  <button
+                    type="button"
+                    onClick={() => onNavigateTab('novel_seo')}
+                    className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#8C5E45] hover:bg-[#8C5E45]/10 flex items-center gap-1 cursor-pointer transition-colors"
+                    title="تعديل سيو هذا الكتاب في محركات البحث"
+                  >
+                    <Search className="w-3.5 h-3.5" />
+                    <span>سيو</span>
+                  </button>
+                )}
                 <button
                   id={`edit-novel-btn-${novel.id}`}
                   type="button"
                   onClick={() => handleStartEdit(novel)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Edit3 className="w-3.5 h-3.5" />
                   <span>تعديل</span>
@@ -637,7 +751,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
                   id={`delete-novel-btn-${novel.id}`}
                   type="button"
                   onClick={() => setNovelToDelete(novel)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-50 flex items-center gap-1 cursor-pointer transition-colors"
+                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-rose-700 hover:bg-rose-50 flex items-center gap-1 cursor-pointer transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>حذف</span>
@@ -646,6 +760,16 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
             </div>
           ))}
         </div>
+      )}
+
+      {/* Novel Full PDF Download Modal */}
+      {exportPdfNovel && (
+        <NovelPdfDownloadModal
+          novel={exportPdfNovel}
+          chapters={chapters}
+          isOpen={Boolean(exportPdfNovel)}
+          onClose={() => setExportPdfNovel(null)}
+        />
       )}
 
       {/* Confirmation Modal for Novel Deletion */}

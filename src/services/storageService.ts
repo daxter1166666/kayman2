@@ -1,4 +1,4 @@
-import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
+import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
 import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
 
@@ -199,6 +199,7 @@ export const storageService = {
     content: string;
     authorNote?: string;
     status?: 'PUBLISHED' | 'DRAFT' | 'SCHEDULED';
+    seo?: ChapterSeoMeta;
   }): Chapter {
     const chapters = this.getChapters();
     const novelChapters = chapters.filter(c => c.novelId === data.novelId);
@@ -221,6 +222,7 @@ export const storageService = {
       likes: 0,
       wordCount: words,
       status: data.status || 'PUBLISHED',
+      seo: data.seo,
     };
 
     chapters.push(newChapter);
@@ -625,6 +627,10 @@ export const storageService = {
     }
 
     return false;
+  },
+
+  setAdminLoggedIn(val: boolean): void {
+    setStored(KEYS.ADMIN_AUTH, val);
   },
 
   logoutAdmin(): void {

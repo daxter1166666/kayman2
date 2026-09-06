@@ -15,12 +15,16 @@ import {
   ExternalLink,
   ShieldCheck,
   Layers,
-  Star
+  Star,
+  BookOpen,
+  FileText
 } from 'lucide-react';
 import { storageService } from '../../services/storageService';
 import { seoService } from '../../services/seoService';
 import { supabaseService } from '../../services/supabaseService';
 import { SeoSettings, Novel, Chapter } from '../../types';
+import { NovelSeoStudio } from './NovelSeoStudio';
+import { ChapterSeoStudio } from './ChapterSeoStudio';
 
 interface SeoTabProps {
   novels: Novel[];
@@ -29,6 +33,7 @@ interface SeoTabProps {
 }
 
 export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData }) => {
+  const [activeSubTab, setActiveSubTab] = useState<'general' | 'novels' | 'chapters' | 'sitemaps'>('general');
   const [settings, setSettings] = useState<SeoSettings>(() => storageService.getSeoSettings());
   const [copiedSitemap, setCopiedSitemap] = useState<boolean>(false);
   const [copiedRobots, setCopiedRobots] = useState<boolean>(false);
@@ -156,9 +161,75 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
             </div>
           </div>
         </div>
+
+        {/* Sub-tab Navigation */}
+        <div className="flex flex-wrap items-center gap-2 pt-4 border-t border-[#E5E2D9]">
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('general')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeSubTab === 'general'
+                ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                : 'bg-[#FAF9F5] text-[#6E6A64] hover:text-[#2C2C2C] border border-[#E5E2D9]'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>سيو الموقع العام (Global SEO)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('novels')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeSubTab === 'novels'
+                ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                : 'bg-[#FAF9F5] text-[#6E6A64] hover:text-[#2C2C2C] border border-[#E5E2D9]'
+            }`}
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>سيو الكتب والروايات (Novel SEO Studio)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('chapters')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeSubTab === 'chapters'
+                ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                : 'bg-[#FAF9F5] text-[#6E6A64] hover:text-[#2C2C2C] border border-[#E5E2D9]'
+            }`}
+          >
+            <FileText className="w-3.5 h-3.5" />
+            <span>سيو الفصول الفردية (Chapter SEO Studio)</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('sitemaps')}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+              activeSubTab === 'sitemaps'
+                ? 'bg-[#4A5D4E] text-[#FDFCF8] shadow-xs'
+                : 'bg-[#FAF9F5] text-[#6E6A64] hover:text-[#2C2C2C] border border-[#E5E2D9]'
+            }`}
+          >
+            <Globe className="w-3.5 h-3.5" />
+            <span>خرائط الموقع وملفات التوجيه (Sitemap & Robots)</span>
+          </button>
+        </div>
       </div>
 
-      {/* Main Settings Form & Live Google SERP Preview */}
+      {/* Novel SEO Studio View */}
+      {activeSubTab === 'novels' && (
+        <NovelSeoStudio novels={novels} onRefreshData={onRefreshData} />
+      )}
+
+      {/* Chapter SEO Studio View */}
+      {activeSubTab === 'chapters' && (
+        <ChapterSeoStudio novels={novels} chapters={chapters} onRefreshData={onRefreshData} />
+      )}
+
+      {/* Main Settings Form & Live Google SERP Preview (General or Sitemaps view) */}
+      {(activeSubTab === 'general' || activeSubTab === 'sitemaps') && (
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Settings Form (7 cols) */}
         <form onSubmit={handleSaveSettings} className="lg:col-span-7 space-y-6">
@@ -548,6 +619,7 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

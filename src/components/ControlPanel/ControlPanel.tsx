@@ -13,6 +13,9 @@ import { AdSenseComplianceTab } from './AdSenseComplianceTab';
 import { CommentModeratorTab } from './CommentModeratorTab';
 import { SettingsTab } from './SettingsTab';
 import { SeoTab } from './SeoTab';
+import { RichEditorStudioTab } from './RichEditorStudioTab';
+import { NovelSeoStudio } from './NovelSeoStudio';
+import { ChapterSeoStudio } from './ChapterSeoStudio';
 import {
   LayoutDashboard,
   User,
@@ -30,7 +33,8 @@ import {
   FileText,
   Copy,
   Check,
-  Search
+  Search,
+  Edit3
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -58,17 +62,20 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
 
   const tabs = [
+    { id: 'rich_editor', label: 'محرر النصوص المتقدم', icon: Edit3 },
+    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
+    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
+    { id: 'novel_seo', label: 'سيو الكتب والروايات', icon: BookOpen },
+    { id: 'chapter_seo', label: 'سيو الفصول الفردية', icon: FileText },
+    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
     { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
     { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
     { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
-    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
-    { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
     { id: 'categories', label: 'إدارة وتخصيص الأقسام', icon: Layers },
     { id: 'legal_contact', label: 'السياسات ورسائل القراء', icon: FileText },
     { id: 'ads', label: 'إدارة الإعلانات', icon: DollarSign },
     { id: 'compliance', label: 'شروط AdSense', icon: ShieldCheck },
-    { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'comments', label: 'تعليقات القراء', icon: MessageSquare, badge: comments.length },
     { id: 'settings', label: 'الهوية والأمان والنسخ', icon: Settings },
   ];
@@ -232,7 +239,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {activeTab === 'novels' && (
           <NovelManagerTab
             novels={novels}
+            chapters={chapters}
             onRefreshData={onRefreshData}
+            onNavigateTab={tab => setActiveTab(tab)}
           />
         )}
 
@@ -271,6 +280,39 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
             novels={novels}
             chapters={chapters}
             comments={comments}
+            onRefreshData={onRefreshData}
+          />
+        )}
+
+        {activeTab === 'rich_editor' && (
+          <RichEditorStudioTab
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+            onNavigateTab={tab => setActiveTab(tab)}
+          />
+        )}
+
+        {activeTab === 'novel_seo' && (
+          <NovelSeoStudio
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+          />
+        )}
+
+        {activeTab === 'chapter_seo' && (
+          <ChapterSeoStudio
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+          />
+        )}
+
+        {activeTab === 'seo' && (
+          <SeoTab
+            novels={novels}
+            chapters={chapters}
             onRefreshData={onRefreshData}
           />
         )}

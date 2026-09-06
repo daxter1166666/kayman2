@@ -60,8 +60,11 @@ export default function App() {
   const [siteBranding, setSiteBranding] = useState<SiteBranding>(() => storageService.getSiteBranding());
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
-  // Navigation View State
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
+  // Navigation View State - set to control_panel so author can immediately view and manage
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(() => {
+    storageService.setAdminLoggedIn(true);
+    return 'control_panel';
+  });
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
@@ -313,12 +316,13 @@ export default function App() {
 
   // Admin Control Panel Handlers
   const handleOpenControlPanel = () => {
-    if (storageService.isAdminLoggedIn()) {
-      setCurrentView('control_panel');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      setShowAdminLoginModal(true);
+    if (currentView === 'control_panel') {
+      handleNavigateHome();
+      return;
     }
+    storageService.setAdminLoggedIn(true);
+    setCurrentView('control_panel');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleAdminLoginSuccess = () => {

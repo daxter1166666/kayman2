@@ -206,6 +206,8 @@ class SupabaseService {
         pdfDownloadUrl: n.pdf_download_url || undefined,
         pdfFileSize: n.pdf_file_size || undefined,
         downloadButtonText: n.download_button_text || undefined,
+        tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
+        seo: typeof n.seo === 'object' && n.seo !== null ? n.seo : (typeof n.seo === 'string' ? (() => { try { return JSON.parse(n.seo); } catch { return undefined; } })() : undefined),
       }));
 
       // 2. Fetch Chapters
@@ -233,6 +235,7 @@ class SupabaseService {
           likes: Number(c.likes) || 0,
           wordCount: words,
           status: c.status || 'PUBLISHED',
+          seo: typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? (() => { try { return JSON.parse(c.seo); } catch { return undefined; } })() : undefined),
         };
       });
 
@@ -431,6 +434,8 @@ class SupabaseService {
         pdf_download_url: novel.pdfDownloadUrl || '',
         pdf_file_size: novel.pdfFileSize || '',
         download_button_text: novel.downloadButtonText || '',
+        table_of_contents: novel.tableOfContents || [],
+        seo: novel.seo || null,
         created_at: novel.createdAt || new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
@@ -577,6 +582,7 @@ class SupabaseService {
         likes: chapter.likes || 0,
         word_count: chapter.wordCount || cleanContent.trim().split(/\s+/).filter(Boolean).length,
         status: chapter.status || 'PUBLISHED',
+        seo: chapter.seo || null,
       };
       const { error } = await client.from('chapters').upsert(row);
       if (error) {

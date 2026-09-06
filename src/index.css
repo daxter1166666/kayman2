@@ -42,6 +42,30 @@
     font-family: 'Readex Pro', system-ui, sans-serif;
   }
 
+  .font-almarai {
+    font-family: 'Almarai', system-ui, sans-serif;
+  }
+
+  .font-noto-naskh {
+    font-family: 'Noto Naskh Arabic', serif;
+  }
+
+  .font-noto-kufi {
+    font-family: 'Noto Kufi Arabic', system-ui, sans-serif;
+  }
+
+  .font-aref {
+    font-family: 'Aref Ruqaa', serif;
+  }
+
+  .font-markazi {
+    font-family: 'Markazi Text', serif;
+  }
+
+  .font-messiri {
+    font-family: 'El Messiri', sans-serif;
+  }
+
   .font-scheherazade {
     font-family: 'Scheherazade New', serif;
   }

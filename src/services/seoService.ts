@@ -1,5 +1,6 @@
-import { Novel, Chapter, AuthorProfile, SiteBranding, SeoSettings } from '../types';
+import { Novel, Chapter, AuthorProfile, SiteBranding, SeoSettings, NovelSeoMeta, ChapterSeoMeta, TableOfContentItem } from '../types';
 import { storageService } from './storageService';
+import { getDeweyInfo, formatDeweyDisplay } from '../utils/deweyDecimal';
 
 export interface SeoMetaOptions {
   title?: string;
@@ -233,43 +234,69 @@ class SeoService {
   }
 
   /**
-   * Generates Schema.org Book JSON-LD with Ratings and Download links.
+   * Generates Schema.org Book JSON-LD with Ratings, Dewey Decimal Classification, and Download links.
    */
-  public buildNovelJsonLd(novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
+  public buildNovelJsonLd(novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string, chapters?: Chapter[]) {
     const rootUrl = (baseUrl || storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
     const novelUrl = `${rootUrl}/?novel=${novel.id}`;
+    const deweyDisplay = formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName);
+
+    const bookSchema: Record<string, any> = {
+      '@context': 'https://schema.org',
+      '@type': 'Book',
+      'name': novel.title,
+      'url': novelUrl,
+      'image': novel.coverImage,
+      'description': novel.synopsis,
+      'inLanguage': 'ar',
+      'bookFormat': 'https://schema.org/EBook',
+      'genre': novel.genres || [],
+      'keywords': (novel.tags || []).join(', '),
+      'datePublished': novel.createdAt,
+      'dateModified': novel.updatedAt,
+      'author': {
+        '@type': 'Person',
+        'name': novel.author || authorProfile?.name || 'أيمن كناني',
+        'url': `${rootUrl}/?view=about`
+      },
+      'publisher': {
+        '@type': 'Organization',
+        'name': 'المنصة الرسمية للكاتب أيمن كناني'
+      },
+      'aggregateRating': {
+        '@type': 'AggregateRating',
+        'ratingValue': novel.rating || 5.0,
+        'bestRating': 5,
+        'worstRating': 1,
+        'ratingCount': novel.ratingCount || 1,
+      }
+    };
+
+    // Add Dewey Decimal Classification
+    if (novel.deweyDecimal) {
+      bookSchema['classification'] = novel.deweyDecimal;
+      bookSchema['identifier'] = [
+        {
+          '@type': 'PropertyValue',
+          'propertyID': 'Dewey Decimal Classification (DDC)',
+          'value': novel.deweyDecimal,
+          'name': deweyDisplay
+        }
+      ];
+    }
+
+    // Add chapters table of contents if available
+    if (chapters && chapters.length > 0) {
+      bookSchema['hasPart'] = chapters.map(ch => ({
+        '@type': 'Chapter',
+        'position': ch.chapterNumber,
+        'name': ch.title,
+        'url': `${rootUrl}/?novel=${novel.id}&chapter=${ch.id}`
+      }));
+    }
 
     const schemas: any[] = [
-      {
-        '@context': 'https://schema.org',
-        '@type': 'Book',
-        'name': novel.title,
-        'url': novelUrl,
-        'image': novel.coverImage,
-        'description': novel.synopsis,
-        'inLanguage': 'ar',
-        'bookFormat': 'https://schema.org/EBook',
-        'genre': novel.genres || [],
-        'keywords': (novel.tags || []).join(', '),
-        'datePublished': novel.createdAt,
-        'dateModified': novel.updatedAt,
-        'author': {
-          '@type': 'Person',
-          'name': novel.author || authorProfile?.name || 'أيمن كناني',
-          'url': `${rootUrl}/?view=about`
-        },
-        'publisher': {
-          '@type': 'Organization',
-          'name': 'المنصة الرسمية للكاتب أيمن كناني'
-        },
-        'aggregateRating': {
-          '@type': 'AggregateRating',
-          'ratingValue': novel.rating || 5.0,
-          'bestRating': 5,
-          'worstRating': 1,
-          'ratingCount': novel.ratingCount || 1,
-        }
-      },
+      bookSchema,
       // Breadcrumbs schema for Google Search results
       {
         '@context': 'https://schema.org',
@@ -319,7 +346,8 @@ class SeoService {
     return [
       {
         '@context': 'https://schema.org',
-        '@type': 'Article',
+        '@type': 'Chapter',
+        'position': chapter.chapterNumber,
         'headline': `${chapter.title} - ${novel.title}`,
         'name': chapter.title,
         'url': chapterUrl,
@@ -330,7 +358,11 @@ class SeoService {
         'isPartOf': {
           '@type': 'Book',
           'name': novel.title,
-          'url': `${rootUrl}/?novel=${novel.id}`
+          'url': `${rootUrl}/?novel=${novel.id}`,
+          'author': {
+            '@type': 'Person',
+            'name': novel.author || authorProfile?.name || 'أيمن كناني'
+          }
         },
         'author': {
           '@type': 'Person',
@@ -363,6 +395,112 @@ class SeoService {
         ]
       }
     ];
+  }
+
+  /**
+   * Automatic High-Performance SEO Generator for Novels.
+   * Auto-generates optimal Meta Title, Meta Description, Keywords, Canonical URL, and Table of Contents with links.
+   */
+  public generateNovelAutoSeo(novel: Novel, chapters: Chapter[] = [], authorProfile?: AuthorProfile): NovelSeoMeta {
+    const seoSettings = storageService.getSeoSettings();
+    const author = novel.author || authorProfile?.name || seoSettings.authorName || 'أيمن كناني';
+    const rootUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    const canonical = `${rootUrl}/?novel=${novel.id}`;
+
+    // Clean synopsis text for description (145-160 chars)
+    const cleanSynopsis = (novel.synopsis || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    let metaDesc = `اقرأ وتعرف على رواية "${novel.title}" بقلم الكاتب ${author}. ${cleanSynopsis.slice(0, 100)}... قراءة مباشرة مجانية وتحميل الكتاب كاملاً بصيغة PDF.`;
+    if (metaDesc.length > 160) {
+      metaDesc = metaDesc.slice(0, 157) + '...';
+    }
+
+    // Build intelligent focus keywords
+    const keywordsList: string[] = [
+      novel.title,
+      `رواية ${novel.title}`,
+      `تحميل رواية ${novel.title} pdf`,
+      author,
+      `كتب ${author}`,
+      'قراءة اونلاين مجانية',
+      'فصول الرواية',
+      ...(novel.genres || []),
+      ...(novel.tags || [])
+    ];
+    if (novel.deweyDecimal) {
+      keywordsList.push(`تصنيف ديوي ${novel.deweyDecimal}`);
+    }
+
+    // Build Table of Contents with direct chapter links
+    const tocItems: TableOfContentItem[] = chapters
+      .filter(c => c.novelId === novel.id)
+      .sort((a, b) => a.chapterNumber - b.chapterNumber)
+      .map(ch => ({
+        id: ch.id,
+        title: `الفصل ${ch.chapterNumber}: ${ch.title}`,
+        chapterNumber: ch.chapterNumber,
+        slug: ch.slug,
+        url: `${rootUrl}/?novel=${novel.id}&chapter=${ch.id}`,
+        level: 1
+      }));
+
+    return {
+      metaTitle: `رواية ${novel.title} | بقلم ${author} - قراءة مباشرة وتحميل PDF`,
+      metaDescription: metaDesc,
+      focusKeywords: Array.from(new Set(keywordsList)).join(', '),
+      canonicalUrl: canonical,
+      ogImage: novel.coverImage || novel.bannerImage,
+      authorName: author,
+      structuredDataType: 'Book',
+      deweyDecimal: novel.deweyDecimal,
+      deweyCategoryName: novel.deweyCategoryName,
+      autoGenerated: true,
+      tableOfContents: tocItems
+    };
+  }
+
+  /**
+   * Automatic High-Performance SEO Generator for Chapters.
+   */
+  public generateChapterAutoSeo(chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile): ChapterSeoMeta {
+    const seoSettings = storageService.getSeoSettings();
+    const author = novel.author || authorProfile?.name || seoSettings.authorName || 'أيمن كناني';
+    const rootUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    const canonical = `${rootUrl}/?novel=${novel.id}&chapter=${chapter.id}`;
+
+    // Clean text snippet for description
+    const cleanContent = (chapter.content || '')
+      .replace(/<[^>]*>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    let metaDesc = `اقرأ ${chapter.title} (الفصل ${chapter.chapterNumber}) من رواية "${novel.title}" للكاتب ${author}. ${cleanContent.slice(0, 95)}... قراءة حصرية ممتعة.`;
+    if (metaDesc.length > 160) {
+      metaDesc = metaDesc.slice(0, 157) + '...';
+    }
+
+    const keywords = [
+      chapter.title,
+      `الفصل ${chapter.chapterNumber}`,
+      `فصل ${chapter.chapterNumber} ${novel.title}`,
+      `رواية ${novel.title}`,
+      author,
+      'قراءة مباشرة اونلاين',
+      'فصول رواية',
+      ...(novel.genres || [])
+    ];
+
+    return {
+      metaTitle: `${chapter.title} - رواية ${novel.title} | الفصل ${chapter.chapterNumber} بقلم ${author}`,
+      metaDescription: metaDesc,
+      focusKeywords: Array.from(new Set(keywords)).join(', '),
+      canonicalUrl: canonical,
+      ogImage: novel.coverImage || novel.bannerImage,
+      autoGenerated: true
+    };
   }
 
   /**

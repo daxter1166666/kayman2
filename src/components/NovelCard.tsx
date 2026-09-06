@@ -2,6 +2,7 @@ import React from 'react';
 import { Novel } from '../types';
 import { BookOpen, Heart, Eye, Star, Sparkles, ChevronLeft, Download } from 'lucide-react';
 import { toArabicGenre } from '../utils/genreHelper';
+import { formatDeweyDisplay } from '../utils/deweyDecimal';
 
 interface NovelCardProps {
   novel: Novel;
@@ -89,8 +90,16 @@ export const NovelCard: React.FC<NovelCardProps> = ({
       {/* Novel Body & Information */}
       <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between bg-white">
         <div>
-          {/* Genre Tags */}
-          <div className="flex flex-wrap gap-1.5 mb-2.5">
+          {/* Genre Tags & Dewey Classification */}
+          <div className="flex flex-wrap items-center gap-1.5 mb-2.5">
+            {novel.deweyDecimal && (
+              <span
+                className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25"
+                title={formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName)}
+              >
+                ديوي {novel.deweyDecimal}
+              </span>
+            )}
             {novel.genres.slice(0, 3).map(genre => (
               <span
                 key={genre}

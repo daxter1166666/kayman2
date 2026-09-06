@@ -16,7 +16,8 @@ import {
   FileText,
   Undo2,
   AlertCircle,
-  ArrowRight
+  ArrowRight,
+  Search
 } from 'lucide-react';
 
 interface ChapterPublisherTabProps {
@@ -241,8 +242,30 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
           </p>
         </div>
 
-        {/* Novel Selector */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        {/* Novel Selector and Shortcuts */}
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          {onNavigateTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('rich_editor')}
+              className="px-3 py-2 text-xs rounded-xl bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] font-bold border border-[#4A5D4E]/30 flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="الانتقال إلى محرر النصوص واستوديو التنسيق المتقدم"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+              <span>محرر النصوص المتقدم</span>
+            </button>
+          )}
+          {onNavigateTab && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('chapter_seo')}
+              className="px-3 py-2 text-xs rounded-xl bg-[#8C5E45]/10 hover:bg-[#8C5E45]/20 text-[#8C5E45] font-bold border border-[#8C5E45]/30 flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="الانتقال إلى استوديو سيو الفصول"
+            >
+              <Search className="w-3.5 h-3.5" />
+              <span>سيو الفصول</span>
+            </button>
+          )}
           <label className="text-xs font-bold text-[#6E6A64] shrink-0">النشر في كتاب:</label>
           <select
             id="publisher-select-novel"
@@ -251,7 +274,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
               setSelectedNovelId(e.target.value);
               if (editingChapterId) handleStartNew();
             }}
-            className="w-full sm:w-64 px-3 py-2 text-xs rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
+            className="w-full sm:w-56 px-3 py-2 text-xs rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
           >
             {novels.map(n => (
               <option key={n.id} value={n.id}>
@@ -567,6 +590,16 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                       {ch.likes.toLocaleString()}
                     </td>
                     <td className="py-3 px-3 text-left space-x-2 space-x-reverse">
+                      {onNavigateTab && (
+                        <button
+                          type="button"
+                          onClick={() => onNavigateTab('chapter_seo')}
+                          className="px-2.5 py-1 bg-[#8C5E45]/10 hover:bg-[#8C5E45]/20 text-[#8C5E45] border border-[#8C5E45]/30 rounded-lg text-xs transition-colors cursor-pointer"
+                          title="تعديل سيو هذا الفصل لمحركات البحث"
+                        >
+                          <Search className="w-3.5 h-3.5 inline" />
+                        </button>
+                      )}
                       <button
                         type="button"
                         id={`edit-btn-${ch.id}`}

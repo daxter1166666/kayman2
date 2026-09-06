@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { Novel, Chapter, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
 import { toArabicGenre } from '../utils/genreHelper';
+import { formatDeweyDisplay } from '../utils/deweyDecimal';
+import { NovelPdfDownloadModal } from './NovelPdfDownloadModal';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import {
@@ -19,7 +21,11 @@ import {
   UserCheck,
   CheckCircle2,
   Tag,
-  Download
+  Download,
+  FileDown,
+  Link,
+  Copy,
+  Check
 } from 'lucide-react';
 
 interface NovelDetailViewProps {
@@ -40,6 +46,8 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   adSettings,
 }) => {
   const [copied, setCopied] = useState<boolean>(false);
+  const [copiedChapterId, setCopiedChapterId] = useState<string | null>(null);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [currentRating, setCurrentRating] = useState<number>(novel.rating);
   const [ratingCount, setRatingCount] = useState<number>(novel.ratingCount);
   const isNovelBookmarked = storageService.isBookmarked(novel.id);
@@ -69,6 +77,16 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
     }
   };
 
+  const handleCopyChapterLink = (e: React.MouseEvent, ch: Chapter) => {
+    e.stopPropagation();
+    const chapterUrl = `${window.location.origin}/?novel=${novel.id}&chapter=${ch.id}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(chapterUrl);
+      setCopiedChapterId(ch.id);
+      setTimeout(() => setCopiedChapterId(null), 2500);
+    }
+  };
+
   const handleBookmarkToggle = () => {
     if (chapters.length > 0) {
       const firstChapter = sortedChapters[0];
@@ -76,6 +94,8 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
       window.location.hash = window.location.hash;
     }
   };
+
+  const deweyDisplay = formatDeweyDisplay(novel.deweyDecimal, novel.deweyCategoryName);
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-10 text-[#2C2C2C] font-cairo">
@@ -141,6 +161,15 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 <span className={`px-3 py-1 rounded-lg text-xs font-bold border backdrop-blur-md shadow-xs ${statusConfig.classes}`}>
                   {statusConfig.label}
                 </span>
+                {novel.deweyDecimal && (
+                  <span
+                    className="px-3 py-1 rounded-lg text-xs font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25 flex items-center gap-1"
+                    title={deweyDisplay}
+                  >
+                    <span>ديوي: {novel.deweyDecimal}</span>
+                    {novel.deweyCategoryName && <span className="hidden sm:inline">({novel.deweyCategoryName})</span>}
+                  </span>
+                )}
                 {novel.genres.map(g => (
                   <span
                     key={g}
@@ -197,6 +226,18 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                     <span>ابدأ قراءة الفصل الأول</span>
                   </button>
                 )}
+
+                {/* Complete Novel PDF Generator & Downloader */}
+                <button
+                  type="button"
+                  id="export-novel-pdf-btn"
+                  onClick={() => setIsPdfModalOpen(true)}
+                  className="px-5 py-3 rounded-xl bg-gradient-to-r from-[#4A5D4E] to-[#36483A] hover:from-[#3C4C3F] hover:to-[#2C3B2F] text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center gap-2 cursor-pointer active:scale-95 group"
+                  title="تنزيل كل فصول الرواية في بي دي اف واحد منسق جميل مع غلاف وصفحات منسقة بنفس خط الموقع"
+                >
+                  <FileDown className="w-4 h-4 transition-transform group-hover:-translate-y-0.5 text-amber-200" />
+                  <span>تحميل الرواية كاملة (PDF منسق)</span>
+                </button>
 
                 <button
                   type="button"
@@ -345,6 +386,26 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    id={`copy-chapter-link-${ch.id}`}
+                    onClick={(e) => handleCopyChapterLink(e, ch)}
+                    className="p-2 rounded-lg border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] hover:border-[#4A5D4E]/40 text-[#4A4742] text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer"
+                    title={`نسخ رابط الفصل المباشر (${ch.title})`}
+                  >
+                    {copiedChapterId === ch.id ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-600" />
+                        <span className="text-[11px] text-emerald-700 font-bold">تم نسخ الرابط!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Link className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                        <span className="text-[11px] hidden sm:inline text-[#5A5751]">رابط الفصل</span>
+                      </>
+                    )}
+                  </button>
+
                   <span className="text-xs font-bold text-[#4A5D4E] group-hover:-translate-x-1 transition-transform flex items-center gap-1">
                     <span>قراءة</span>
                     <ChevronLeft className="w-4 h-4" />
@@ -357,11 +418,31 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
 
         {/* Sidebar: Ad Slot & Reader Features & Download Box */}
         <div className="space-y-6">
+          {/* Full Book PDF Download Card */}
+          <div className="p-5 rounded-2xl bg-gradient-to-br from-[#4A5D4E]/10 via-[#4A5D4E]/5 to-transparent border-2 border-[#4A5D4E]/30 shadow-sm space-y-3">
+            <div className="flex items-center gap-2 text-[#2D4532] font-bold text-sm font-amiri">
+              <FileDown className="w-5 h-5 text-[#4A5D4E]" />
+              <span>تحميل الكتاب كاملاً بصيغة PDF</span>
+            </div>
+            <p className="text-xs text-[#6E6A64] leading-relaxed">
+              قم بتحميل جميع فصول الرواية مجمعة في كتاب إلكتروني فاخر مع غلاف كامل وفهرس ديوي وتنسيق طباعي احترافي بنفس خطوط الموقع.
+            </p>
+            <button
+              type="button"
+              id="sidebar-generate-pdf-modal-btn"
+              onClick={() => setIsPdfModalOpen(true)}
+              className="w-full py-3 px-4 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
+            >
+              <FileDown className="w-4 h-4 text-amber-200" />
+              <span>تنزيل جميع الفصول في PDF واحد</span>
+            </button>
+          </div>
+
           {novel.pdfDownloadUrl && (
             <div className="p-5 rounded-2xl bg-gradient-to-br from-[#C88A3B]/10 via-[#C88A3B]/5 to-transparent border-2 border-[#C88A3B]/30 shadow-sm space-y-3">
               <div className="flex items-center gap-2 text-[#965A15] font-bold text-sm font-amiri">
                 <Download className="w-5 h-5 text-[#C88A3B]" />
-                <span>النسخة الإلكترونية الكاملة</span>
+                <span>النسخة الإلكترونية السريعة</span>
               </div>
               <p className="text-xs text-[#6E6A64] leading-relaxed">
                 يمكنك تحميل هذا العمل بصيغة ملف مباشر للقراءة دون اتصال بالإنترنت على هاتفك أو حاسوبك.
@@ -380,7 +461,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 className="w-full py-3 px-4 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-95"
               >
                 <Download className="w-4 h-4" />
-                <span>{novel.downloadButtonText || 'تحميل الكتاب الآن'}</span>
+                <span>{novel.downloadButtonText || 'تحميل الملف المباشر'}</span>
               </a>
             </div>
           )}
@@ -412,6 +493,14 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Novel PDF Download Modal */}
+      <NovelPdfDownloadModal
+        isOpen={isPdfModalOpen}
+        onClose={() => setIsPdfModalOpen(false)}
+        novel={novel}
+        chapters={sortedChapters}
+      />
     </div>
   );
 };
