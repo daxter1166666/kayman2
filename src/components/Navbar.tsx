@@ -76,7 +76,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
             <div>
-              <span className="font-amiri font-bold text-lg sm:text-2xl tracking-tight text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors leading-tight block">
+              <span className="font-amiri font-bold text-lg sm:text-2xl text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors leading-tight block">
                 {brandName}
               </span>
               <span className="text-[11px] sm:text-xs font-cairo text-[#4A5D4E] block mt-0.5 font-semibold">

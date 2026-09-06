@@ -684,6 +684,45 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                     ضبط متساوي (Justify)
                   </button>
                 </div>
+
+                {/* 5. Paragraph Spacing */}
+                <label className="text-xs font-bold block mt-3 mb-1 opacity-80">المسافة بين الفقرات</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    id="para-spacing-normal-btn"
+                    onClick={() =>
+                      onUpdateReaderSettings({
+                        ...readerSettings,
+                        paragraphSpacing: 'normal',
+                      })
+                    }
+                    className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                      readerSettings.paragraphSpacing !== 'spacious'
+                        ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
+                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    مريح (قياسي)
+                  </button>
+                  <button
+                    type="button"
+                    id="para-spacing-spacious-btn"
+                    onClick={() =>
+                      onUpdateReaderSettings({
+                        ...readerSettings,
+                        paragraphSpacing: 'spacious',
+                      })
+                    }
+                    className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                      readerSettings.paragraphSpacing === 'spacious'
+                        ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
+                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                    }`}
+                  >
+                    واسع (أدبي)
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -702,7 +741,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             <span>{novel.title}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-amiri font-bold tracking-tight mb-3">
+          <h1 className="text-2xl sm:text-4xl font-amiri font-bold mb-3" style={{ letterSpacing: 'normal' }}>
             الفصل {chapter.chapterNumber}: {chapter.title}
           </h1>
 
@@ -780,14 +819,18 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           ref={contentRef}
           className={`${fontClass} ${lineHeightClass} ${
             readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
-          } space-y-4 select-text cursor-text selection:bg-[#4A5D4E]/20`}
-          style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
+          } select-text cursor-text selection:bg-[#4A5D4E]/20`}
+          style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text', letterSpacing: 'normal' }}
         >
           {paragraphs.map((para, idx) => (
             <p
               key={`p-${idx}`}
-              className="leading-relaxed sm:leading-loose text-justify [text-justify:inter-word] m-0"
-              style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word' }}
+              className={`leading-relaxed sm:leading-loose ${
+                readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
+              } ${
+                readerSettings.paragraphSpacing === 'spacious' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-7'
+              } last:mb-0`}
+              style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word', letterSpacing: 'normal' }}
             >
               {para}
             </p>

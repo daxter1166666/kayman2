@@ -99,6 +99,8 @@ function paginateChaptersWithDomMeasurement(
   measureBox.style.lineHeight = options.lineHeight;
   measureBox.style.direction = 'rtl';
   measureBox.style.textAlign = 'justify';
+  measureBox.style.letterSpacing = 'normal';
+  measureBox.style.wordSpacing = 'normal';
   measureBox.style.opacity = '0';
   measureBox.style.pointerEvents = 'none';
   measureBox.style.zIndex = '-99999';
@@ -465,14 +467,14 @@ export class PdfExportService {
                 </div>
 
                 <!-- Chapter Rows with clean dotted lines -->
-                <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div style="display: flex; flex-direction: column; gap: 16px;">
                   ${pageChapters.map(ch => `
-                    <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 14.5px; line-height: 1.6;">
-                      <span style="font-weight: 700; color: #222222; white-space: nowrap;">
+                    <div style="display: flex; align-items: baseline; justify-content: space-between; font-size: 15px; line-height: 1.6; direction: rtl;">
+                      <span style="font-weight: 700; color: #222222; max-width: 520px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: normal;">
                         الفصل ${ch.chapterNumber}: ${ch.title}
                       </span>
-                      <span style="flex-grow: 1; border-bottom: 1.5px dotted #999999; margin: 0 14px; height: 1px;"></span>
-                      <span style="font-family: 'Amiri', serif; font-size: 14.5px; font-weight: bold; color: #333333; white-space: nowrap;">
+                      <span style="flex-grow: 1; border-bottom: 1.5px dotted #888888; margin: 0 14px; height: 1px;"></span>
+                      <span style="font-family: 'Amiri', serif; font-size: 15px; font-weight: 700; color: #333333; white-space: nowrap; letter-spacing: normal;">
                         ${chapterStartPages[ch.id]}
                       </span>
                     </div>
@@ -514,10 +516,10 @@ export class PdfExportService {
               ${isFirstPage ? `
                 <!-- Dignified Centered Chapter Title on the first page -->
                 <div style="text-align: center; margin: 25px 0 35px 0;">
-                  <div style="font-size: 13px; font-weight: 600; color: #666666; margin-bottom: 8px; letter-spacing: 0.5px;">
+                  <div style="font-size: 13.5px; font-weight: 600; color: #555555; margin-bottom: 8px; letter-spacing: normal;">
                     — الفصل ${ch.chapterNumber} —
                   </div>
-                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #111111; margin: 0 0 14px 0; line-height: 1.4;">
+                  <h2 style="font-family: 'Amiri', serif; font-size: 26px; font-weight: 700; color: #111111; margin: 0 0 14px 0; line-height: 1.4; letter-spacing: normal;">
                     ${ch.title}
                   </h2>
                   <div style="width: 45px; height: 1.5px; background: #222222; margin: 0 auto;"></div>
@@ -529,7 +531,7 @@ export class PdfExportService {
                 ${pageData.paragraphs.map((p, pIdx) => {
                   const isSplitBottom = !isLastPage && pIdx === pageData.paragraphs.length - 1;
                   return `
-                    <p style="margin: 0 0 ${isSplitBottom ? '0' : '16px'} 0; font-size: ${bodyFontSize}; line-height: ${lineHeight}; text-align: justify; text-justify: inter-word; direction: rtl; unicode-bidi: isolate; word-break: break-word; letter-spacing: 0;">
+                    <p style="margin: 0 0 ${isSplitBottom ? '0' : '16px'} 0; font-size: ${bodyFontSize}; line-height: ${lineHeight}; text-align: justify; text-justify: inter-word; direction: rtl; unicode-bidi: isolate; word-break: break-word; letter-spacing: normal;">
                       ${p}
                     </p>
                   `;
@@ -564,6 +566,9 @@ export class PdfExportService {
     container.style.pointerEvents = 'none';
     container.style.zIndex = '-99999';
     container.style.background = '#FFFFFF';
+    container.style.direction = 'rtl';
+    container.style.letterSpacing = 'normal';
+    container.style.wordSpacing = 'normal';
     document.body.appendChild(container);
 
     try {
@@ -596,6 +601,21 @@ export class PdfExportService {
 
         container.innerHTML = `
           <style>
+            #pdf-render-scratchpad,
+            .pdf-page,
+            .pdf-page *,
+            .pdf-page h1,
+            .pdf-page h2,
+            .pdf-page h3,
+            .pdf-page p,
+            .pdf-page div,
+            .pdf-page span {
+              letter-spacing: normal !important;
+              word-spacing: normal !important;
+              text-rendering: optimizeLegibility !important;
+              font-feature-settings: "liga" 1, "calt" 1 !important;
+              -webkit-font-smoothing: antialiased !important;
+            }
             .pdf-page {
               box-sizing: border-box !important;
               width: 794px !important;
@@ -604,10 +624,10 @@ export class PdfExportService {
               max-height: 1123px !important;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
+              direction: rtl !important;
+              text-align: right !important;
             }
             .pdf-page p {
-              word-spacing: 0px !important;
-              letter-spacing: 0px !important;
               text-indent: 0px !important;
             }
           </style>
