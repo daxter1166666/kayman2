@@ -34,7 +34,6 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
   const [isDraggingFavicon, setIsDraggingFavicon] = useState<boolean>(false);
   const [isDraggingPwaIcon, setIsDraggingPwaIcon] = useState<boolean>(false);
@@ -43,17 +42,9 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
 
-  const adminDirectUrl = `${window.location.origin}/?admin=true`;
-
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3500);
-  };
-
-  const handleCopyAdminUrl = () => {
-    navigator.clipboard.writeText(adminDirectUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   // Image Upload helper from file
@@ -398,32 +389,12 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
           </div>
           <div>
             <h3 className="font-amiri font-bold text-xl text-[#2C2C2C]">
-              إعدادات أمان حساب الأدمن / الكاتب والرابط السري
+              إعدادات أمان حساب الأدمن / الكاتب
             </h3>
             <p className="text-xs text-[#6E6A64]">
-              تخصيص اسم المستخدم وكلمة المرور والحصول على رابط الدخول السري للوحة التحكم
+              تخصيص اسم المستخدم وكلمة المرور للوحة التحكم
             </p>
           </div>
-        </div>
-
-        {/* Secret URL Box */}
-        <div className="p-4 bg-[#F7F5EE] border border-[#E5E2D9] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div>
-            <span className="text-xs font-bold text-[#2C2C2C] block">
-              رابط الدخول المباشر والسري للوحة التحكم (خاص بك ككاتب):
-            </span>
-            <span className="text-xs font-mono text-[#4A5D4E] font-bold dir-ltr block mt-0.5">
-              {adminDirectUrl}
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleCopyAdminUrl}
-            className="px-4 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs"
-          >
-            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-            <span>{copiedLink ? 'تم النسخ!' : 'نسخ الرابط'}</span>
-          </button>
         </div>
 
         {errorMessage && (

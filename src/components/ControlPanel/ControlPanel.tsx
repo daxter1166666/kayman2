@@ -59,8 +59,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onOpenLegalPage,
 }) => {
   const [activeTab, setActiveTab] = useState<string>('author_profile');
-  const [copiedLink, setCopiedLink] = useState<boolean>(false);
-
   const tabs = [
     { id: 'rich_editor', label: 'محرر النصوص المتقدم', icon: Edit3 },
     { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
@@ -80,45 +78,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     { id: 'settings', label: 'الهوية والأمان والنسخ', icon: Settings },
   ];
 
-  const adminDirectUrl = `${window.location.origin}/?admin=true`;
-
-  const handleCopyAdminUrl = () => {
-    navigator.clipboard.writeText(adminDirectUrl);
-    setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 3000);
-  };
-
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] pb-20 font-cairo">
-      {/* Secret Link Notification Header */}
-      <div className="bg-[#4A5D4E]/10 border-b border-[#4A5D4E]/20 px-4 py-2 text-xs">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
-          <div className="flex items-center gap-2 text-[#4A5D4E]">
-            <ShieldCheck className="w-4 h-4 shrink-0" />
-            <span>
-              <strong>رابط الدخول المباشر للوحة التحكم (مخفي عن القراء):</strong> يمكنك نسخ هذا الرابط والاحتفاظ به للدخول المباشر في أي وقت.
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={handleCopyAdminUrl}
-            className="px-3 py-1 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs shrink-0 text-[11px]"
-          >
-            {copiedLink ? (
-              <>
-                <Check className="w-3.5 h-3.5" />
-                <span>تم نسخ الرابط السري</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-3.5 h-3.5" />
-                <span>نسخ الرابط السري: {adminDirectUrl}</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       {/* Control Panel Sticky Sub-Header */}
       <div className="sticky top-0 z-30 bg-[#FDFCF8]/95 backdrop-blur-md border-b border-[#E5E2D9] px-4 py-3">
         <div className="max-w-7xl mx-auto space-y-3">

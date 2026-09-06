@@ -753,7 +753,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                     {filteredNovels.map(novel => {
                       const count = chapters.filter(c => c.novelId === novel.id).length;
                       return (
@@ -771,8 +771,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Mid-Catalog Corporate Sponsor / Ad Unit */}
-            <AdSlot location="mid_chapter" adSettings={adSettings} className="my-12" />
+            {/* Catalog Footer Ad Unit */}
+            <AdSlot location="footer" adSettings={adSettings} className="my-10" />
           </main>
         )}
       </div>

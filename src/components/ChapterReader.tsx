@@ -282,7 +282,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
   // Clean chapter content and extract proper literary paragraphs (removes any HTML/CSS codes)
   const paragraphs = useMemo(() => extractCleanParagraphs(chapter.content), [chapter.content]);
-  const midPoint = Math.floor(paragraphs.length / 2);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeStyles.bg} ${themeStyles.text} font-cairo`}>
@@ -776,36 +775,26 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
         )}
 
-        {/* Reading Text Body - Copy and Selection Fully Enabled */}
+        {/* Reading Text Body - Continuous and Sequentially Filling the Page */}
         <article
           ref={contentRef}
           className={`${fontClass} ${lineHeightClass} ${
-            readerSettings.textAlign === 'justify' ? 'text-justify' : 'text-right'
-          } space-y-6 sm:space-y-8 select-text cursor-text selection:bg-[#4A5D4E]/20`}
+            readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
+          } space-y-4 select-text cursor-text selection:bg-[#4A5D4E]/20`}
           style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
         >
-          {/* Render first half */}
-          {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
-            <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
+          {paragraphs.map((para, idx) => (
+            <p
+              key={`p-${idx}`}
+              className="leading-relaxed sm:leading-loose text-justify [text-justify:inter-word] m-0"
+              style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word' }}
+            >
               {para}
             </p>
           ))}
 
-          {/* Mid-Chapter Ad Placement */}
-          {paragraphs.length > 2 && (
-            <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
-          )}
-
-          {/* Render second half */}
-          {paragraphs.length > 2 &&
-            paragraphs.slice(midPoint).map((para, idx) => (
-              <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
-                {para}
-              </p>
-            ))}
-
           {/* Chapter License Notice */}
-          <div className={`mt-10 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
+          <div className={`mt-8 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center shrink-0">
@@ -834,15 +823,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
         </article>
 
-        {/* Decorative Section Separator */}
-        <div className="flex items-center justify-center gap-3 my-12 opacity-40">
-          <span className="h-px w-16 bg-current" />
-          <span className="text-[#C88A3B]">✦ ✦ ✦</span>
-          <span className="h-px w-16 bg-current" />
-        </div>
-
         {/* Chapter End Ad Placement */}
-        <AdSlot location="chapter_end" adSettings={adSettings} className="mb-8" />
+        <AdSlot location="chapter_end" adSettings={adSettings} className="my-6" />
 
         {/* Interactive Reader Actions Bar (Like, Prev/Next Chapters) */}
         <div
