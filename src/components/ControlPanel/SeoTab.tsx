@@ -283,7 +283,7 @@ export const SeoTab: React.FC<SeoTabProps> = ({ novels, chapters, onRefreshData 
                 type="url"
                 value={settings.canonicalBaseUrl}
                 onChange={e => setSettings({ ...settings, canonicalBaseUrl: e.target.value })}
-                placeholder="https://aymankinani.com"
+                placeholder="https://www.aymankinani.org"
                 className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FDFCF8] text-xs font-mono focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
               />
               <p className="text-[11px] text-[#6E6A64]">

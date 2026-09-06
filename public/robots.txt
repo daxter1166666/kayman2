@@ -18,5 +18,7 @@ Disallow: /api/admin/
 # Disallow common bot scrapers if needed or set crawl-delay
 Crawl-delay: 1
 
-# Sitemap reference
-Sitemap: https://aymankinani.com/sitemap.xml
+# Sitemap & Feeds references
+Sitemap: https://www.aymankinani.org/sitemap.xml
+Sitemap: https://www.aymankinani.org/rss.xml
+Sitemap: https://www.aymankinani.org/atom.xml

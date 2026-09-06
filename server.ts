@@ -17,7 +17,6 @@ import {
   serverDeleteChapter,
   serverFetchAllChapters,
   serverFetchAllSyncData,
-  serverIncrementView,
 } from './src/server/supabaseServer';
 
 import {
@@ -34,7 +33,7 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const distPath = path.resolve(process.cwd(), 'dist');
 
-  app.use(express.json());
+  app.use(express.json({ limit: '25mb' }));
 
   // Setup Vite in development or static serving in production
   let vite: any = null;
@@ -263,48 +262,50 @@ async function startServer() {
     }
   });
 
-  app.post('/api/views/increment', async (req, res) => {
-    try {
-      const { novelId, chapterId } = req.body || {};
-      if (!novelId && !chapterId) {
-        return res.status(400).json({ success: false, error: 'novelId or chapterId is required' });
-      }
-      const result = await serverIncrementView(novelId, chapterId);
-      res.json(result);
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || String(err) });
-    }
-  });
+  // Helper to determine accurate public domain (always strictly https://www.aymankinani.org for production SEO consistency)
+  function getRequestDomain(_req?: express.Request): string {
+    return 'https://www.aymankinani.org';
+  }
+
+  // Helper to escape XML characters
+  function escapeXml(unsafe: string): string {
+    if (!unsafe) return '';
+    return unsafe
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&apos;');
+  }
 
   // ==========================================
-  // 2. SEO Files: robots.txt & Dynamic sitemap.xml
+  // 2. SEO Files: robots.txt, sitemap.xml, rss.xml, atom.xml
   // ==========================================
   app.get('/robots.txt', (req, res) => {
-    const host = req.get('host') || 'aymankinani.com';
-    const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
+    const domain = getRequestDomain(req);
     const robots = [
       'User-agent: *',
       'Allow: /',
       'Disallow: /admin',
       'Disallow: /?admin=true',
       '',
-      `Sitemap: ${protocol}://${host}/sitemap.xml`,
+      `Sitemap: ${domain}/sitemap.xml`,
+      `Sitemap: ${domain}/rss.xml`,
+      `Sitemap: ${domain}/atom.xml`,
     ].join('\n');
 
-    res.type('text/plain').send(robots);
+    res.type('text/plain; charset=utf-8').send(robots);
   });
 
   app.get('/sitemap.xml', async (req, res) => {
     try {
-      const host = req.get('host') || 'aymankinani.com';
-      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-      const domain = `${protocol}://${host}`;
-
+      const domain = getRequestDomain(req);
       const { novels, chapters } = await fetchAllForSitemap();
 
       const urlsXml = [
         `  <url>`,
         `    <loc>${domain}/</loc>`,
+        `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>`,
         `    <changefreq>daily</changefreq>`,
         `    <priority>1.0</priority>`,
         `  </url>`,
@@ -312,69 +313,169 @@ async function startServer() {
 
       // Add novels
       for (const novel of novels) {
+        const novelUrl = `${domain}/novel/${encodeURIComponent(novel.slug)}`;
+        const hasValidHttpImage = novel.coverImage && novel.coverImage.startsWith('http') && !novel.coverImage.startsWith('data:');
         urlsXml.push(
           `  <url>`,
-          `    <loc>${domain}/novel/${encodeURIComponent(novel.slug)}</loc>`,
+          `    <loc>${novelUrl}</loc>`,
           `    <lastmod>${novel.updatedAt.split('T')[0]}</lastmod>`,
           `    <changefreq>weekly</changefreq>`,
           `    <priority>0.9</priority>`,
+          ...(hasValidHttpImage ? [
+            `    <image:image>`,
+            `      <image:loc>${escapeXml(novel.coverImage)}</image:loc>`,
+            `      <image:title>${escapeXml(novel.title)}</image:title>`,
+            `    </image:image>`,
+          ] : []),
           `  </url>`
         );
       }
 
-      // Add chapters
+      // Add chapters (clean single canonical URL per chapter to avoid duplicates)
       for (const ch of chapters) {
         const novelSlugPart = ch.novelSlug || ch.novelId;
+        const chapterUrl = `${domain}/novel/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
         urlsXml.push(
           `  <url>`,
-          `    <loc>${domain}/novel/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}</loc>`,
+          `    <loc>${chapterUrl}</loc>`,
           `    <lastmod>${ch.updatedAt.split('T')[0]}</lastmod>`,
           `    <changefreq>monthly</changefreq>`,
           `    <priority>0.8</priority>`,
-          `  </url>`,
-          `  <url>`,
-          `    <loc>${domain}/novel/chapter-${ch.chapterNumber}</loc>`,
-          `    <lastmod>${ch.updatedAt.split('T')[0]}</lastmod>`,
-          `    <changefreq>monthly</changefreq>`,
-          `    <priority>0.7</priority>`,
           `  </url>`
         );
       }
 
       const sitemapXml = `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
 ${urlsXml.join('\n')}
 </urlset>`;
 
-      res.type('application/xml').send(sitemapXml);
+      res.type('application/xml; charset=utf-8').send(sitemapXml);
     } catch (err) {
       console.error('sitemap generation error:', err);
       res.status(500).type('text/plain').send('Error generating sitemap');
     }
   });
 
+  // Handler for RSS 2.0 Feed (/rss.xml, /feed.xml, /feed)
+  async function handleRssFeed(req: express.Request, res: express.Response) {
+    try {
+      const domain = getRequestDomain(req);
+      const { novels, chapters } = await fetchAllForSitemap();
+
+      const itemsXml: string[] = [];
+
+      // Add novel items
+      for (const n of novels) {
+        const novelUrl = `${domain}/novel/${encodeURIComponent(n.slug)}`;
+        itemsXml.push(`    <item>
+      <title>${escapeXml(n.title)} - بقلم ${escapeXml(n.author || 'أيمن كناني')}</title>
+      <link>${novelUrl}</link>
+      <guid isPermaLink="true">${novelUrl}</guid>
+      <pubDate>${new Date(n.updatedAt).toUTCString()}</pubDate>
+      <description>${escapeXml(n.synopsis || `كتاب ${n.title} للمؤلف أيمن كناني. قراءة وتحميل مجاني.`)}</description>
+    </item>`);
+      }
+
+      // Add recent chapters (sorted latest first)
+      const sortedChapters = [...chapters].reverse();
+      for (const ch of sortedChapters) {
+        const chUrl = `${domain}/novel/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
+        itemsXml.push(`    <item>
+      <title>${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
+      <link>${chUrl}</link>
+      <guid isPermaLink="true">${chUrl}</guid>
+      <pubDate>${new Date(ch.updatedAt).toUTCString()}</pubDate>
+      <description>${escapeXml(`قراءة ${ch.title} من ${ch.novelTitle} للمؤلف أيمن كناني على المنصة الرسمية.`)}</description>
+    </item>`);
+      }
+
+      const rssXml = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب</title>
+    <link>${domain}/</link>
+    <description>المنصة الرسمية المعتمدة لنشر وقراءة مؤلفات وكتب وروايات الكاتب أيمن كناني مجاناً</description>
+    <language>ar</language>
+    <atom:link href="${domain}/rss.xml" rel="self" type="application/rss+xml" />
+    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
+${itemsXml.join('\n')}
+  </channel>
+</rss>`;
+
+      res.type('application/rss+xml; charset=utf-8').send(rssXml);
+    } catch (err) {
+      console.error('RSS generation error:', err);
+      res.status(500).type('text/plain').send('Error generating RSS feed');
+    }
+  }
+
+  app.get('/rss.xml', handleRssFeed);
+  app.get('/feed.xml', handleRssFeed);
+  app.get('/feed', handleRssFeed);
+
+  // Handler for Atom 1.0 Feed (/atom.xml)
+  app.get('/atom.xml', async (req, res) => {
+    try {
+      const domain = getRequestDomain(req);
+      const { novels, chapters } = await fetchAllForSitemap();
+
+      const entriesXml: string[] = [];
+
+      for (const n of novels) {
+        const novelUrl = `${domain}/novel/${encodeURIComponent(n.slug)}`;
+        entriesXml.push(`  <entry>
+    <title>${escapeXml(n.title)}</title>
+    <link href="${novelUrl}" />
+    <id>${novelUrl}</id>
+    <updated>${new Date(n.updatedAt).toISOString()}</updated>
+    <summary>${escapeXml(n.synopsis || `كتاب ${n.title} للمؤلف أيمن كناني.`)}</summary>
+    <author>
+      <name>${escapeXml(n.author || 'أيمن كناني')}</name>
+    </author>
+  </entry>`);
+      }
+
+      const sortedChapters = [...chapters].reverse();
+      for (const ch of sortedChapters) {
+        const chUrl = `${domain}/novel/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
+        entriesXml.push(`  <entry>
+    <title>${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
+    <link href="${chUrl}" />
+    <id>${chUrl}</id>
+    <updated>${new Date(ch.updatedAt).toISOString()}</updated>
+    <summary>${escapeXml(`قراءة ${ch.title} من ${ch.novelTitle} بقلم أيمن كناني.`)}</summary>
+    <author>
+      <name>أيمن كناني</name>
+    </author>
+  </entry>`);
+      }
+
+      const atomXml = `<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>أيمن كناني (Ayman Kinani) - المنصة الرسمية</title>
+  <subtitle>المنصة الرسمية لنشر وقراءة مؤلفات وكتب الكاتب أيمن كناني</subtitle>
+  <link href="${domain}/" />
+  <link rel="self" href="${domain}/atom.xml" />
+  <id>${domain}/</id>
+  <updated>${new Date().toISOString()}</updated>
+  <author>
+    <name>أيمن كناني</name>
+    <uri>${domain}/</uri>
+  </author>
+${entriesXml.join('\n')}
+</feed>`;
+
+      res.type('application/atom+xml; charset=utf-8').send(atomXml);
+    } catch (err) {
+      console.error('Atom generation error:', err);
+      res.status(500).type('text/plain').send('Error generating Atom feed');
+    }
+  });
+
   // ==========================================
   // 3. SERVER-SIDE RENDERING (SSR) HANDLERS
   // ==========================================
-
-  // Helper to prevent database timeouts from blocking SSR responses
-  async function withTimeout<T>(promise: Promise<T>, timeoutMs: number = 3500): Promise<T | null> {
-    let timer: NodeJS.Timeout;
-    const timeoutPromise = new Promise<null>((resolve) => {
-      timer = setTimeout(() => {
-        console.warn(`[SSR Timeout] Database request exceeded ${timeoutMs}ms, falling back to client SPA.`);
-        resolve(null);
-      }, timeoutMs);
-    });
-    try {
-      const result = await Promise.race([promise, timeoutPromise]);
-      clearTimeout(timer!);
-      return result;
-    } catch (err) {
-      clearTimeout(timer!);
-      return null;
-    }
-  }
 
   /**
    * SSR Chapter Handler for:
@@ -390,12 +491,10 @@ ${urlsXml.join('\n')}
     chapterIdentifier: string
   ) {
     try {
-      const host = req.get('host') || 'aymankinani.com';
-      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-      const domain = `${protocol}://${host}`;
+      const domain = getRequestDomain(req);
 
-      // 1. Fetch from Supabase with safe 3.5s timeout to prevent hung requests
-      const ssrData = await withTimeout(fetchChapterFromSupabaseForSSR(novelIdentifier, chapterIdentifier), 3500);
+      // 1. Fetch from Supabase
+      const ssrData = await fetchChapterFromSupabaseForSSR(novelIdentifier, chapterIdentifier);
 
       if (!ssrData) {
         // Fallback or 404
@@ -482,11 +581,9 @@ ${urlsXml.join('\n')}
    */
   async function handleNovelSSR(req: express.Request, res: express.Response, novelIdentifier: string) {
     try {
-      const host = req.get('host') || 'aymankinani.com';
-      const protocol = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https' ? 'https' : 'http';
-      const domain = `${protocol}://${host}`;
+      const domain = getRequestDomain(req);
 
-      const novelData = await withTimeout(fetchNovelFromSupabaseForSSR(novelIdentifier), 3500);
+      const novelData = await fetchNovelFromSupabaseForSSR(novelIdentifier);
 
       if (!novelData) {
         const template = await getBaseTemplate(req.originalUrl);

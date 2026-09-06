@@ -271,35 +271,61 @@ export async function fetchNovelFromSupabaseForSSR(
 }
 
 /**
- * Fetches all published novels and chapters for dynamic sitemap.xml
+ * Fetches all published novels and chapters for dynamic sitemap.xml, rss.xml, and atom.xml feeds
  */
 export async function fetchAllForSitemap(): Promise<{
-  novels: { id: string; slug: string; updatedAt: string }[];
-  chapters: { id: string; novelId: string; novelSlug?: string; slug: string; chapterNumber: number; updatedAt: string }[];
+  novels: {
+    id: string;
+    title: string;
+    slug: string;
+    synopsis: string;
+    author: string;
+    coverImage: string;
+    updatedAt: string;
+  }[];
+  chapters: {
+    id: string;
+    novelId: string;
+    novelSlug: string;
+    novelTitle: string;
+    title: string;
+    slug: string;
+    chapterNumber: number;
+    updatedAt: string;
+  }[];
 }> {
   const client = getServerSupabase();
   try {
     const [nRes, cRes] = await Promise.all([
-      client.from('novels').select('id, slug, updated_at, created_at'),
-      client.from('chapters').select('id, novel_id, slug, chapter_number, published_at, updated_at'),
+      client.from('novels').select('id, title, slug, synopsis, description, author, cover_image, updated_at, created_at'),
+      client.from('chapters').select('id, novel_id, title, slug, chapter_number, published_at, updated_at').order('chapter_number', { ascending: true }),
     ]);
 
     const novels = (nRes.data || []).map((n: any) => ({
       id: n.id,
+      title: n.title || 'مؤلفات أيمن كناني',
       slug: n.slug || n.id,
+      synopsis: n.synopsis || n.description || '',
+      author: n.author || 'أيمن كناني',
+      coverImage: n.cover_image || '',
       updatedAt: n.updated_at || n.created_at || new Date().toISOString(),
     }));
 
-    const novelSlugMap = new Map(novels.map(n => [n.id, n.slug]));
+    const novelMap = new Map(novels.map(n => [n.id, n]));
 
-    const chapters = (cRes.data || []).map((c: any) => ({
-      id: c.id,
-      novelId: c.novel_id,
-      novelSlug: novelSlugMap.get(c.novel_id),
-      slug: c.slug || `chapter-${c.chapter_number}`,
-      chapterNumber: c.chapter_number || 1,
-      updatedAt: c.updated_at || c.published_at || new Date().toISOString(),
-    }));
+    const chapters = (cRes.data || []).map((c: any) => {
+      const parentNovel = novelMap.get(c.novel_id);
+      return {
+        id: c.id,
+        novelId: c.novel_id,
+        novelSlug: parentNovel?.slug || c.novel_id,
+        novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
+        title: c.title || `الفصل ${c.chapter_number}`,
+        slug: c.slug || `chapter-${c.chapter_number}`,
+        chapterNumber: c.chapter_number || 1,
+        updatedAt: c.updated_at || c.published_at || new Date().toISOString(),
+      };
+    });
 
     return { novels, chapters };
   } catch (err) {

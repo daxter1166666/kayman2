@@ -671,7 +671,19 @@ export const storageService = {
 
   // --- Author Profile Management ---
   getAuthorProfile(): AuthorProfile {
-    return getStored<AuthorProfile>(KEYS.AUTHOR_PROFILE, INITIAL_AUTHOR_PROFILE);
+    const profile = getStored<AuthorProfile>(KEYS.AUTHOR_PROFILE, INITIAL_AUTHOR_PROFILE);
+    const resolved = {
+      ...INITIAL_AUTHOR_PROFILE,
+      ...(profile || {}),
+      socialLinks: {
+        ...INITIAL_AUTHOR_PROFILE.socialLinks,
+        ...(profile?.socialLinks || {}),
+      },
+    };
+    if (resolved.socialLinks.website && resolved.socialLinks.website.includes('aymankinani.com')) {
+      resolved.socialLinks.website = resolved.socialLinks.website.replace('aymankinani.com', 'www.aymankinani.org');
+    }
+    return resolved;
   },
 
   saveAuthorProfile(profile: Partial<AuthorProfile>): AuthorProfile {
@@ -696,10 +708,14 @@ export const storageService = {
   // --- SEO & Search Engines Settings ---
   getSeoSettings(): SeoSettings {
     const stored = getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
-    return {
+    const settings = {
       ...INITIAL_SEO_SETTINGS,
       ...(stored || {}),
     };
+    if (settings.canonicalBaseUrl && settings.canonicalBaseUrl.includes('aymankinani.com')) {
+      settings.canonicalBaseUrl = settings.canonicalBaseUrl.replace('aymankinani.com', 'www.aymankinani.org');
+    }
+    return settings;
   },
 
   saveSeoSettings(settings: Partial<SeoSettings>): SeoSettings {

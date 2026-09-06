@@ -50,9 +50,15 @@ class SeoService {
     }
 
     // 4. Resolve Canonical URL & Page URL
-    const baseUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    let baseUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    if (baseUrl.includes('aymankinani.com')) {
+      baseUrl = baseUrl.replace('aymankinani.com', 'www.aymankinani.org');
+    }
     const currentPath = options.url || (window.location.pathname + window.location.search);
-    const fullUrl = options.canonicalUrl || `${baseUrl}${currentPath}`;
+    let fullUrl = options.canonicalUrl || `${baseUrl}${currentPath}`;
+    if (fullUrl.includes('aymankinani.com')) {
+      fullUrl = fullUrl.replace('aymankinani.com', 'www.aymankinani.org');
+    }
 
     // 5. Resolve Share Image
     const shareImage = options.ogImage || seoSettings.ogDefaultImage || branding.logoUrl || '';
@@ -82,7 +88,7 @@ class SeoService {
     this.setMetaTag('property', 'og:description', finalDesc);
     this.setMetaTag('property', 'og:type', options.ogType || 'website');
     this.setMetaTag('property', 'og:url', fullUrl);
-    this.setMetaTag('property', 'og:site_name', branding.siteName || 'أيمن كناني (Ayman Kinani)');
+    this.setMetaTag('property', 'og:site_name', 'أيمن كناني - المنصة الرسمية');
     this.setMetaTag('property', 'og:locale', 'ar_AR');
     if (shareImage) {
       this.setMetaTag('property', 'og:image', shareImage);
@@ -227,13 +233,14 @@ class SeoService {
    */
   private setCanonicalLink(url: string): void {
     if (!url) return;
+    const cleanUrl = url.includes('aymankinani.com') ? url.replace('aymankinani.com', 'www.aymankinani.org') : url;
     let link = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
     if (!link) {
       link = document.createElement('link');
       link.setAttribute('rel', 'canonical');
       document.head.appendChild(link);
     }
-    link.setAttribute('href', url);
+    link.setAttribute('href', cleanUrl);
   }
 
   /**

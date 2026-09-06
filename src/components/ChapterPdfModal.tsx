@@ -64,19 +64,19 @@ export const ChapterPdfModal: React.FC<ChapterPdfModalProps> = ({
     };
 
     try {
-      const success = await downloadChapterPdf(novel, chapter, options, (pct) => {
-        setProgressPercent(pct);
+      setProgressPercent(40);
+      await downloadChapterPdf(novel, chapter, {
+        ...options,
+        onProgress: () => {
+          setProgressPercent(80);
+        }
       });
-
-      if (success) {
-        setIsSuccess(true);
-        setTimeout(() => {
-          setIsSuccess(false);
-          onClose();
-        }, 2200);
-      } else {
-        setErrorMessage('تعذر إنشاء الملف مباشرة. يرجى المحاولة مرة أخرى.');
-      }
+      setProgressPercent(100);
+      setIsSuccess(true);
+      setTimeout(() => {
+        setIsSuccess(false);
+        onClose();
+      }, 2200);
     } catch (err: any) {
       console.error('PDF error:', err);
       setErrorMessage('حدث خطأ غير متوقع أثناء معالجة الملف.');

@@ -81,26 +81,67 @@ export default function App() {
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
   // Navigation View State initialized with SSR state or pathname
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(() => {
-    if (initialSSR?.currentView) return initialSSR.currentView;
+  const initialRoute = useMemo(() => {
+    if (initialSSR?.currentView) {
+      return {
+        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal',
+        novelId: (initialSSR.novel?.id || initialSSR.chapter?.novelId || null) as string | null,
+        chapterId: (initialSSR.chapter?.id || null) as string | null,
+      };
+    }
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
-      if (p.includes('/chapter') || p.match(/\/novel\/chapter-\d+/)) return 'reader';
-      if (p.startsWith('/novel/') && !p.endsWith('/novel/')) return 'novel_detail';
+      const urlParams = new URLSearchParams(window.location.search);
+      const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
+      const allChapters = storageService.getChapters();
+      const allNovels = storageService.getNovels();
+
+      if (chapterMatch) {
+        const chIdent = decodeURIComponent(chapterMatch[1]);
+        const numMatch = chIdent.match(/\d+/);
+        const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+        const ch = allChapters.find(c =>
+          c.slug === chIdent ||
+          c.id === chIdent ||
+          `chapter-${c.chapterNumber}` === chIdent ||
+          String(c.chapterNumber) === chIdent ||
+          (parsedNum !== null && c.chapterNumber === parsedNum)
+        );
+        if (ch) {
+          return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+        }
+        if (allChapters.length > 0) {
+          return { view: 'reader' as const, novelId: allChapters[0].novelId, chapterId: allChapters[0].id };
+        }
+        return { view: 'reader' as const, novelId: null, chapterId: null };
+      }
+
+      const chapterParam = urlParams.get('chapter');
+      if (chapterParam) {
+        const ch = allChapters.find(c => c.id === chapterParam || c.slug === chapterParam);
+        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+      }
+
+      if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        const novIdent = decodeURIComponent(novelMatch[1]);
+        const nov = allNovels.find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null };
+        }
+      }
+
+      const novelParam = urlParams.get('novel');
+      if (novelParam) {
+        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null };
+      }
     }
-    return 'catalog';
-  });
+    return { view: 'catalog' as const, novelId: null, chapterId: null };
+  }, [initialSSR]);
 
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(() => {
-    if (initialSSR?.novel?.id) return initialSSR.novel.id;
-    if (initialSSR?.chapter?.novelId) return initialSSR.chapter.novelId;
-    return null;
-  });
-
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(() => {
-    if (initialSSR?.chapter?.id) return initialSSR.chapter.id;
-    return null;
-  });
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(initialRoute.view);
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(initialRoute.novelId);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(initialRoute.chapterId);
 
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
   
@@ -217,7 +258,16 @@ export default function App() {
 
       if (chapterMatch) {
         const chIdent = decodeURIComponent(chapterMatch[1]);
-        const ch = storageService.getChapters().find(c => c.slug === chIdent || c.id === chIdent || `chapter-${c.chapterNumber}` === chIdent || String(c.chapterNumber) === chIdent);
+        const numMatch = chIdent.match(/\d+/);
+        const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+        const allChapters = storageService.getChapters();
+        const ch = allChapters.find(c =>
+          c.slug === chIdent ||
+          c.id === chIdent ||
+          `chapter-${c.chapterNumber}` === chIdent ||
+          String(c.chapterNumber) === chIdent ||
+          (parsedNum !== null && c.chapterNumber === parsedNum)
+        );
         if (ch) {
           setSelectedNovelId(ch.novelId);
           setSelectedChapterId(ch.id);

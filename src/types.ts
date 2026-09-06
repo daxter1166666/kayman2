@@ -139,6 +139,9 @@ export interface Novel {
   pdfDownloadUrl?: string; // Direct PDF link or Drive/Cloud download URL
   pdfFileSize?: string; // e.g. "12.4 MB"
   downloadButtonText?: string; // e.g. "تحميل الكتاب PDF" or custom text
+  description?: string;
+  deweyDecimal?: string;
+  deweyCategoryName?: string;
   tableOfContents?: TableOfContentItem[]; // Manual Table of Contents / فهرس محتويات الكتاب
   seo?: NovelSeoMeta; // إعدادات السيو المخصصة للرواية
 }
@@ -175,6 +178,9 @@ export interface Chapter {
   ratingCount?: number; // إجمالي عدد تقييمات هذا الفصل
   wordCount: number;
   status: ChapterStatus;
+  createdAt?: string;
+  updatedAt?: string;
+  fontFamily?: string;
   seo?: ChapterSeoMeta; // إعدادات وسوم السيو المخصصة لهذا الفصل
 }
 

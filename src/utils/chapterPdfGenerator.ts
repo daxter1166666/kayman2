@@ -16,54 +16,21 @@ function sanitizeFileName(name: string): string {
 export interface GeneratePdfOptions {
   onProgress?: (status: string) => void;
   fontFamily?: string;
-  fontSize?: number;
-  lineHeight?: 'tight' | 'normal' | 'relaxed';
-  includeAuthorNote?: boolean;
 }
-
-export type ChapterPdfOptions = GeneratePdfOptions;
 
 /**
  * Generates a beautifully formatted, book-quality PDF for a chapter
- * with fully connected, authentic Arabic cursive typography matching the chapter reader,
+ * with fully connected, authentic Arabic cursive typography,
  * and triggers automatic browser download.
  */
 export async function downloadChapterPdf(
   novel: Novel,
   chapter: Chapter,
-  options: GeneratePdfOptions = {},
-  progressCallback?: (pct: number) => void
-): Promise<boolean> {
+  options: GeneratePdfOptions = {}
+): Promise<void> {
   const { onProgress } = options;
 
   if (onProgress) onProgress('جاري تحضير وتنسيق صفحات الفصل...');
-  if (progressCallback) progressCallback(15);
-
-  // Map font family selection to exact CSS font family stack
-  let activeFontFamily = "'Amiri', 'Traditional Arabic', serif";
-  if (options.fontFamily) {
-    const fLower = options.fontFamily.toLowerCase();
-    if (fLower.includes('cairo')) {
-      activeFontFamily = "'Cairo', system-ui, sans-serif";
-    } else if (fLower.includes('readex')) {
-      activeFontFamily = "'Readex Pro', system-ui, sans-serif";
-    } else if (fLower.includes('tajawal')) {
-      activeFontFamily = "'Tajawal', system-ui, sans-serif";
-    } else if (fLower.includes('scheherazade')) {
-      activeFontFamily = "'Scheherazade New', serif";
-    } else if (fLower.includes('lora')) {
-      activeFontFamily = "'Lora', serif";
-    } else if (fLower.includes('amiri')) {
-      activeFontFamily = "'Amiri', 'Traditional Arabic', serif";
-    }
-  }
-
-  const activeFontSize = options.fontSize ? `${options.fontSize}px` : '18px';
-  let activeLineHeight = '2.2';
-  if (options.lineHeight === 'tight') activeLineHeight = '1.8';
-  else if (options.lineHeight === 'relaxed') activeLineHeight = '2.5';
-
-  const shouldIncludeAuthorNote = options.includeAuthorNote !== false;
 
   // Create temporary container for pristine print rendering
   // We keep it in viewport bounds with opacity 0.01 so the browser layout and font shaping engines (HarfBuzz)
@@ -78,11 +45,23 @@ export async function downloadChapterPdf(
   container.style.width = '800px';
   container.style.background = '#FFFFFF';
   container.style.color = '#1A1A1A';
-  container.style.fontFamily = activeFontFamily;
+  const chosenFont = options.fontFamily || 'amiri';
+  let fontStack = "'Amiri', 'Traditional Arabic', serif";
+  if (chosenFont === 'cairo') {
+    fontStack = "'Cairo', sans-serif";
+  } else if (chosenFont === 'readex') {
+    fontStack = "'Readex Pro', sans-serif";
+  } else if (chosenFont === 'tajawal') {
+    fontStack = "'Tajawal', sans-serif";
+  } else if (chosenFont === 'scheherazade') {
+    fontStack = "'Scheherazade New', 'Amiri', serif";
+  }
+
+  container.style.fontFamily = fontStack;
   container.style.padding = '44px 52px';
   container.style.boxSizing = 'border-box';
-  container.style.lineHeight = activeLineHeight;
-  container.style.fontSize = activeFontSize;
+  container.style.lineHeight = '2.2';
+  container.style.fontSize = '18px';
   container.style.zIndex = '-9999';
   container.style.opacity = '0.01';
   container.style.pointerEvents = 'none';
@@ -102,7 +81,7 @@ export async function downloadChapterPdf(
       .map(p => p.trim())
       .filter(Boolean);
     formattedContentHtml = paragraphs
-      .map(p => `<p style="margin-bottom: 1.4rem; text-indent: 1.5rem; text-align: justify; text-justify: inter-word; letter-spacing: normal; word-break: normal; line-height: ${activeLineHeight}; font-family: ${activeFontFamily};">${p}</p>`)
+      .map(p => `<p style="margin-bottom: 1.4rem; text-indent: 1.5rem; text-align: justify; text-justify: inter-word; letter-spacing: normal; word-break: normal; line-height: 2.2;">${p}</p>`)
       .join('');
   }
 
@@ -110,14 +89,14 @@ export async function downloadChapterPdf(
   const readingTime = Math.max(1, Math.ceil(chapter.wordCount / 200));
 
   container.innerHTML = `
-    <div style="direction: rtl; text-align: right; color: #1f2421; font-family: ${activeFontFamily}; letter-spacing: normal; word-spacing: normal;">
+    <div style="direction: rtl; text-align: right; color: #1f2421; font-family: 'Amiri', 'Cairo', 'Traditional Arabic', serif; letter-spacing: normal; word-spacing: normal;">
       <!-- Header Banner / Title Section -->
       <div style="text-align: center; border-bottom: 2px solid #4A5D4E; padding-bottom: 24px; margin-bottom: 32px;">
         <div style="display: inline-block; background-color: #F3F6F4; color: #354738; font-size: 14px; font-weight: bold; padding: 4px 18px; border-radius: 9999px; border: 1px solid #D1DED4; margin-bottom: 14px; font-family: 'Cairo', sans-serif; letter-spacing: normal;">
           ${novel.title}
         </div>
         
-        <h1 style="font-size: 30px; font-weight: bold; margin: 0 0 12px 0; color: #1a1a1a; line-height: 1.5; font-family: ${activeFontFamily}; letter-spacing: normal;">
+        <h1 style="font-size: 30px; font-weight: bold; margin: 0 0 12px 0; color: #1a1a1a; line-height: 1.5; font-family: 'Amiri', serif; letter-spacing: normal;">
           الفصل ${chapter.chapterNumber}: ${chapter.title}
         </h1>
 
@@ -131,14 +110,14 @@ export async function downloadChapterPdf(
           <span><strong>المنصة الرسمية:</strong> aymankinani.org</span>
         </div>
 
-        <div style="margin-top: 14px; color: #C88A3B; font-size: 14px; font-family: 'Cairo', sans-serif;">
-          --- الفصل ${chapter.chapterNumber} ---
+        <div style="margin-top: 14px; color: #C88A3B; font-size: 16px; letter-spacing: 4px;">
+          ✦ ✦ ✦
         </div>
       </div>
 
-      <!-- Author Note (if present and requested) -->
+      <!-- Author Note (if present) -->
       ${
-        shouldIncludeAuthorNote && chapter.authorNote
+        chapter.authorNote
           ? `
         <div style="background-color: #FAF8F5; border-right: 4px solid #C88A3B; padding: 14px 20px; border-radius: 8px; margin-bottom: 28px; font-size: 15px; color: #3c3832; font-family: 'Cairo', sans-serif; letter-spacing: normal;">
           <div style="font-weight: bold; color: #965A15; margin-bottom: 4px; font-size: 13px;">
@@ -153,13 +132,13 @@ export async function downloadChapterPdf(
       }
 
       <!-- Chapter Body Content -->
-      <div class="pdf-chapter-body" style="font-size: ${activeFontSize}; line-height: ${activeLineHeight}; color: #1a1a1a; text-align: justify; text-justify: inter-word; letter-spacing: normal; word-break: normal; font-family: ${activeFontFamily};">
+      <div class="pdf-chapter-body" style="font-size: 18px; line-height: 2.2; color: #1a1a1a; text-align: justify; text-justify: inter-word; letter-spacing: normal; word-break: normal;">
         ${formattedContentHtml}
       </div>
 
-      <!-- Book End Divider -->
-      <div style="text-align: center; margin: 40px 0 24px 0; color: #4A5D4E; font-size: 14px; font-family: 'Cairo', sans-serif;">
-        --- نهاية الفصل ---
+      <!-- Book End Decorative Separator -->
+      <div style="text-align: center; margin: 40px 0 24px 0; color: #4A5D4E; font-size: 18px; letter-spacing: 6px;">
+        ❖ ❖ ❖
       </div>
 
       <!-- Book Footer & Rights Section -->
@@ -354,13 +333,25 @@ export async function downloadChapterPdf(
           'FAST'
         );
 
-        // Footer is already beautifully included inside the rendered chapter slice container
-        // We do not add raw unshaped text overlays that cause strange symbols in Arabic
+        // Draw running footer at bottom
+        pdf.setFontSize(8);
+        pdf.setTextColor(130, 130, 130);
+        pdf.text(
+          `صفحة ${pageIdx + 1} من ${totalPages}`,
+          pageWidthMm / 2,
+          pageHeightMm - marginBottomMm + 7,
+          { align: 'center' }
+        );
+        pdf.text(
+          `aymankinani.org`,
+          marginXMm,
+          pageHeightMm - marginBottomMm + 7,
+          { align: 'left' }
+        );
       }
     }
 
     if (onProgress) onProgress('جاري بدء تنزيل الملف...');
-    if (progressCallback) progressCallback(95);
 
     const rawFileName = `${novel.title} - الفصل ${chapter.chapterNumber} - ${chapter.title}.pdf`;
     const cleanFileName = sanitizeFileName(rawFileName) || `Chapter-${chapter.chapterNumber}.pdf`;
@@ -368,11 +359,6 @@ export async function downloadChapterPdf(
     pdf.save(cleanFileName);
 
     if (onProgress) onProgress('تم تنزيل الفصل بنجاح!');
-    if (progressCallback) progressCallback(100);
-    return true;
-  } catch (err) {
-    console.error('downloadChapterPdf error:', err);
-    return false;
   } finally {
     if (container.parentNode) {
       container.parentNode.removeChild(container);
@@ -381,14 +367,9 @@ export async function downloadChapterPdf(
 }
 
 /**
- * Backward compatibility alias for downloadChapterPdf
- */
-export const downloadChapterAsPdf = downloadChapterPdf;
-
-/**
  * Native browser print / save as PDF function with 100% crisp vector Arabic typography.
  */
-export function printChapterDocument(novel: Novel, chapter: Chapter, options: GeneratePdfOptions = {}): void {
+export function printChapterDocument(novel: Novel, chapter: Chapter): void {
   const iframe = document.createElement('iframe');
   iframe.style.position = 'fixed';
   iframe.style.right = '0';
@@ -398,24 +379,6 @@ export function printChapterDocument(novel: Novel, chapter: Chapter, options: Ge
   iframe.style.border = 'none';
   iframe.style.opacity = '0';
   document.body.appendChild(iframe);
-
-  let activeFontFamily = "'Amiri', 'Traditional Arabic', serif";
-  if (options.fontFamily) {
-    const fLower = options.fontFamily.toLowerCase();
-    if (fLower.includes('cairo')) {
-      activeFontFamily = "'Cairo', system-ui, sans-serif";
-    } else if (fLower.includes('readex')) {
-      activeFontFamily = "'Readex Pro', system-ui, sans-serif";
-    } else if (fLower.includes('tajawal')) {
-      activeFontFamily = "'Tajawal', system-ui, sans-serif";
-    } else if (fLower.includes('scheherazade')) {
-      activeFontFamily = "'Scheherazade New', serif";
-    } else if (fLower.includes('lora')) {
-      activeFontFamily = "'Lora', serif";
-    } else if (fLower.includes('amiri')) {
-      activeFontFamily = "'Amiri', 'Traditional Arabic', serif";
-    }
-  }
 
   const isHtml = /<[a-z][\s\S]*>/i.test(chapter.content);
   let bodyHtml = '';
@@ -440,14 +403,14 @@ export function printChapterDocument(novel: Novel, chapter: Chapter, options: Ge
       <title>${novel.title} - الفصل ${chapter.chapterNumber}: ${chapter.title}</title>
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&family=Readex+Pro:wght@400;600;700&family=Tajawal:wght@400;700&family=Scheherazade+New:wght@400;700&display=swap" rel="stylesheet">
+      <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
       <style>
         @page {
           size: A4 portrait;
           margin: 20mm 15mm 20mm 15mm;
         }
         body {
-          font-family: ${activeFontFamily};
+          font-family: 'Amiri', 'Cairo', 'Traditional Arabic', serif;
           font-size: 15pt;
           line-height: 2.3;
           color: #1a1a1a;
@@ -457,7 +420,7 @@ export function printChapterDocument(novel: Novel, chapter: Chapter, options: Ge
           padding: 0;
         }
         h1 {
-          font-family: ${activeFontFamily};
+          font-family: 'Amiri', serif;
           font-size: 24pt;
           text-align: center;
           margin: 8px 0 12px 0;
@@ -540,7 +503,50 @@ export function printChapterDocument(novel: Novel, chapter: Chapter, options: Ge
   }, 600);
 }
 
+export interface ChapterPdfOptions {
+  fontFamily?: string;
+  fontSize?: number;
+  lineHeight?: 'tight' | 'normal' | 'relaxed';
+  includeAuthorNote?: boolean;
+}
+
 /**
- * Backward compatibility alias for printChapterDocument
+ * Compatibility wrapper for ChapterPdfModal: generates high quality PDF using canvas rendering
  */
-export const printChapterAsPdf = printChapterDocument;
+export async function downloadChapterAsPdf(
+  novel: Novel,
+  chapter: Chapter,
+  options: ChapterPdfOptions = {},
+  onProgress?: (pct: number) => void
+): Promise<boolean> {
+  try {
+    if (onProgress) onProgress(15);
+    await downloadChapterPdf(novel, chapter, {
+      fontFamily: options.fontFamily,
+      onProgress: (status) => {
+        if (!onProgress) return;
+        if (status.includes('تحضير')) onProgress(35);
+        else if (status.includes('التقاط') || status.includes('رسم')) onProgress(70);
+        else if (status.includes('تقسيم')) onProgress(85);
+        else if (status.includes('تنزيل') || status.includes('حفظ')) onProgress(100);
+      },
+    });
+    if (onProgress) onProgress(100);
+    return true;
+  } catch (err) {
+    console.error('Failed to download chapter PDF:', err);
+    return false;
+  }
+}
+
+/**
+ * Compatibility wrapper for direct printing
+ */
+export function printChapterAsPdf(
+  novel: Novel,
+  chapter: Chapter,
+  _options?: ChapterPdfOptions
+): void {
+  printChapterDocument(novel, chapter);
+}
+

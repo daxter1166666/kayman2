@@ -1,4 +1,5 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
+import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
 
 export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
 export const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?w=1600&auto=format&fit=crop&q=80';
@@ -25,7 +26,7 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
     goodreads: 'https://goodreads.com/aymankinani',
     whatsapp: 'https://wa.me/966500000000',
     email: 'aymankinani.author@gmail.com',
-    website: 'https://aymankinani.com'
+    website: 'https://www.aymankinani.org'
   }
 };
 
@@ -42,7 +43,7 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   defaultTitle: 'أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب والروايات',
   defaultDescription: 'المنصة الرسمية المعتمدة لنشر وقراءة وتحميل مؤلفات وكتب وروايات ومقالات الكاتب أيمن كناني مجاناً بصيغة PDF وقراءة تفاعلية مباشرة.',
   keywords: 'أيمن كناني, Ayman Kinani, روايات أيمن كناني, كتب أيمن كناني, تحميل كتب PDF, قراءة روايات اونلاين, روايات عربية, أدب وفلسفة',
-  canonicalBaseUrl: 'https://aymankinani.com',
+  canonicalBaseUrl: 'https://www.aymankinani.org',
   authorName: 'أيمن كناني',
   twitterHandle: '@aymankinani',
   googleVerificationCode: '',
@@ -136,9 +137,9 @@ CC BY-NC 4.0
   lastUpdated: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }),
 };
 
-export const INITIAL_NOVELS: Novel[] = [];
+export const INITIAL_NOVELS: Novel[] = BAKED_NOVELS;
 
-export const INITIAL_CHAPTERS: Chapter[] = [];
+export const INITIAL_CHAPTERS: Chapter[] = BAKED_CHAPTERS;
 
 export const INITIAL_COMMENTS: Comment[] = [];
 

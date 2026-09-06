@@ -1,84 +1,78 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
-  <!-- Core Static Pages -->
+  <!-- الصفحة الرئيسية -->
   <url>
-    <loc>https://aymankinani.com/</loc>
-    <lastmod>2026-09-03</lastmod>
+    <loc>https://www.aymankinani.org/</loc>
+    <lastmod>2026-09-06</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
   </url>
+
+  <!-- كتاب: أخلاق الباحث المسلم المعاصر -->
   <url>
-    <loc>https://aymankinani.com/?view=novels</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>daily</changefreq>
-    <priority>0.9</priority>
-  </url>
-  <url>
-    <loc>https://aymankinani.com/?view=about</loc>
-    <lastmod>2026-09-03</lastmod>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1</loc>
+    <lastmod>2026-09-06</lastmod>
     <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+    <image:image>
+      <image:loc>https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&amp;auto=format&amp;fit=crop&amp;q=80</image:loc>
+      <image:title>أخلاق الباحث المسلم المعاصر - أيمن كناني</image:title>
+    </image:image>
+  </url>
+
+  <!-- فصول الكتاب الرسمية -->
+  <url>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-1--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?view=donate</loc>
-    <lastmod>2026-09-03</lastmod>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-2--</loc>
+    <lastmod>2026-09-06</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.7</priority>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?legal=contact</loc>
-    <lastmod>2026-09-03</lastmod>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-3--</loc>
+    <lastmod>2026-09-06</lastmod>
     <changefreq>monthly</changefreq>
-    <priority>0.6</priority>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?legal=terms</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-4--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?legal=privacy</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-5--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?legal=dmca</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>yearly</changefreq>
-    <priority>0.4</priority>
-  </url>
-
-  <!-- Canonical Novel Entries for Ayman Kinani -->
-  <url>
-    <loc>https://aymankinani.com/?novel=novel-1</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
-      <image:title>أطياف الذاكرة المنسية</image:title>
-    </image:image>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-6--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?novel=novel-2</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1512820790803-83ca734da794?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
-      <image:title>صدى الصمت الأخير</image:title>
-    </image:image>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-7--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://aymankinani.com/?novel=novel-3</loc>
-    <lastmod>2026-09-03</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-    <image:image>
-      <image:loc>https://images.unsplash.com/photo-1476275466078-4007374efbbe?q=80&amp;w=1000&amp;auto=format&amp;fit=crop</image:loc>
-      <image:title>مفترق الأقدار</image:title>
-    </image:image>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-8--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://www.aymankinani.org/novel/%D8%A3%D8%AE%D9%84%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%A7%D8%AD%D8%AB-%D8%A7%D9%84%D9%85%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%85%D8%B9%D8%A7%D8%B5%D8%B1/chapter/chapter-9--</loc>
+    <lastmod>2026-09-06</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
   </url>
 </urlset>

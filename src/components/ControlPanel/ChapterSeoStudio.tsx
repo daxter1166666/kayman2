@@ -76,7 +76,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
 
   const seoSettings = storageService.getSeoSettings();
   const branding = storageService.getSiteBranding();
-  const siteDomain = (seoSettings.canonicalBaseUrl || 'https://aymankinani.com').replace(/\/$/, '');
+  const siteDomain = (seoSettings.canonicalBaseUrl || 'https://www.aymankinani.org').replace(/\/$/, '');
 
   // Computed displayed title (custom or fallback)
   const displayTitle = useMemo(() => {

@@ -336,7 +336,8 @@ export function generateChapterSeoTags({
   const excerpt = chapter.seo?.metaDescription?.trim()
     || cleanExcerpt(chapter.content, 180)
     || `${chapter.title} من رواية ${novel.title} بقلم ${novel.author}. قراءة مباشرة كاملة مجاناً.`;
-  const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const rawCanonical = chapter.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const canonicalUrl = rawCanonical.replace(/https?:\/\/(?:www\.)?aymankinani\.com/g, 'https://www.aymankinani.org');
   const coverImage = chapter.seo?.ogImage?.trim()
     || novel.bannerImage
     || novel.coverImage
@@ -453,7 +454,8 @@ export function generateNovelSeoTags({
 } {
   const pageTitle = novel.seo?.metaTitle?.trim() || `${novel.title} | بقلم ${novel.author || 'أيمن كناني'}`;
   const excerpt = novel.seo?.metaDescription?.trim() || cleanExcerpt(novel.synopsis, 180) || `رواية ${novel.title} للمؤلف ${novel.author}. تصفح الفصول واقرأ مباشرة على المنصة الرسمية.`;
-  const canonicalUrl = novel.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const rawCanonical = novel.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const canonicalUrl = rawCanonical.replace(/https?:\/\/(?:www\.)?aymankinani\.com/g, 'https://www.aymankinani.org');
   const coverImage = novel.seo?.ogImage?.trim() || novel.coverImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
   const authorName = novel.seo?.authorName?.trim() || novel.author || 'أيمن كناني';
   const robotsDirective = novel.seo?.noIndex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large';
@@ -481,6 +483,7 @@ export function generateNovelSeoTags({
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:image" content="${escapeHtml(coverImage)}" />
     <meta property="og:image:alt" content="${escapeHtml(novel.title)}" />
+    <meta property="og:site_name" content="أيمن كناني - المنصة الرسمية" />
     <meta property="og:locale" content="ar_AR" />
     <meta property="book:author" content="${escapeHtml(authorName)}" />
 
