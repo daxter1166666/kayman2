@@ -13,7 +13,6 @@ import {
 import { Category, Novel } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
-import { toArabicGenre } from '../../utils/genreHelper';
 
 interface CategoryManagerTabProps {
   novels: Novel[];
@@ -61,28 +60,22 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
     e.preventDefault();
     setErrorMessage(null);
 
-    const finalArabic = arabicName.trim();
-    if (!finalArabic) {
-      setErrorMessage('يرجى كتابة اسم القسم بالعربية');
+    if (!arabicName.trim() || !englishName.trim()) {
+      setErrorMessage('يرجى كتابة الاسم بالعربية والاسم المعرف (بالإنجليزية)');
       return;
     }
 
-    // Auto-generate english identifier if not provided
-    const safeEnglishSlug = englishName.trim() || 
-      finalArabic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 
-      `cat-${Date.now()}`;
-
     if (editingCatId) {
       storageService.updateCategory(editingCatId, {
-        arabicName: finalArabic,
-        name: safeEnglishSlug,
+        arabicName: arabicName.trim(),
+        name: englishName.trim(),
         description: description.trim(),
       });
       showToast('تم تحديث بيانات القسم بنجاح ومزامنته سحابياً!');
     } else {
       storageService.addCategory({
-        arabicName: finalArabic,
-        name: safeEnglishSlug,
+        arabicName: arabicName.trim(),
+        name: englishName.trim(),
         description: description.trim(),
       });
       showToast('تمت إضافة القسم الجديد بنجاح ومزامنته سحابياً!');
@@ -97,7 +90,7 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
 
   const handleDeleteCategory = (cat: Category) => {
     // Check how many books/novels are using this category
-    const count = novels.filter(n => n.genres.some(g => g === cat.name || g === cat.arabicName || toArabicGenre(g) === cat.arabicName)).length;
+    const count = novels.filter(n => n.genres.includes(cat.name) || n.genres.includes(cat.arabicName)).length;
     const confirmText = count > 0
       ? `تحذير: هذا القسم مرتبط حالياً بـ (${count}) كتاب ومؤلف. هل أنت متأكد من حذفه؟`
       : `هل أنت متأكد من حذف قسم "${cat.arabicName}"؟`;
@@ -192,15 +185,16 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-[#2C2C2C] mb-1">
-                  المعرف اللاتيني (اختياري - يتم إنشاؤه تلقائياً إن تُرِك فارغاً)
+                  المعرف / الاسم الإنجليزي (ID/Slug) <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
-                  placeholder="اختياري (مثال: Islamic, Philosophy...)"
+                  placeholder="مثال: Philosophy, Literature, Self-Development..."
                   value={englishName}
                   onChange={e => setEnglishName(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:border-[#4A5D4E] focus:ring-1 focus:ring-[#4A5D4E] focus:outline-none font-mono text-left"
                   dir="ltr"
+                  required
                 />
               </div>
 
@@ -249,7 +243,7 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
               {categories.map((cat) => {
-                const bookCount = novels.filter(n => n.genres.some(g => g === cat.name || g === cat.arabicName || toArabicGenre(g) === cat.arabicName)).length;
+                const bookCount = novels.filter(n => n.genres.includes(cat.name) || n.genres.includes(cat.arabicName)).length;
                 const isSelectedForEdit = editingCatId === cat.id;
 
                 return (

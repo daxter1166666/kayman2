@@ -34,22 +34,23 @@ export const AdSlot: React.FC<AdSlotProps> = ({ location, adSettings, className 
 
   // Google AdSense rendering
   if (placement.type === 'adsense') {
-    const isTestMode = Boolean(adSettings.googleAdSense?.testMode);
-    const publisherId = adSettings.googleAdSense?.publisherId?.trim();
-    const slotId = placement.adSlotId?.trim();
+    const isTestMode = adSettings.googleAdSense.testMode;
+    const publisherId = adSettings.googleAdSense.publisherId;
+    const slotId = placement.adSlotId;
 
-    // Never show test mode preview, mock boxes, or demo advertisements on the UI
-    if (!adSettings.googleAdSense?.enabled || isTestMode || !publisherId || publisherId === 'ca-pub-9842103859124012' || !slotId) {
+    // Do not show test mode preview or placeholder banner on the user interface
+    if (isTestMode || !adSettings.googleAdSense.enabled || !publisherId || !slotId) {
       return null;
     }
 
     return (
       <aside 
         id={`ad-slot-${location}`}
-        aria-label="Advertisement"
+        aria-label="إعلان"
         className={`my-6 mx-auto w-full transition-all duration-300 ${className}`}
       >
         <div className="w-full flex justify-center py-1">
+          {/* Live Google AdSense display unit */}
           <ins
             className="adsbygoogle"
             style={{ display: 'block', textAlign: 'center', width: '100%' }}
@@ -88,7 +89,7 @@ export const AdSlot: React.FC<AdSlotProps> = ({ location, adSettings, className 
           className="block relative border border-[#E5E2D9] hover:border-[#4A5D4E] bg-[#FFFFFF] hover:bg-[#FDFCF8] transition-all rounded-b p-4 overflow-hidden shadow-xs"
         >
           <div className="flex flex-col sm:flex-row items-center gap-4">
-            {Boolean(sponsor.imageUrl?.trim()) && (
+            {sponsor.imageUrl && (
               <img
                 src={sponsor.imageUrl}
                 alt={sponsor.sponsorName}

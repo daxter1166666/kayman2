@@ -33,7 +33,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
 
@@ -48,8 +48,8 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
     setIsLoading(true);
 
-    try {
-      const success = await storageService.loginAdminAsync(username, password);
+    setTimeout(() => {
+      const success = storageService.loginAdmin(username, password);
       setIsLoading(false);
 
       if (success) {
@@ -61,10 +61,7 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
       } else {
         setErrorMessage('بيانات الدخول غير صحيحة! يرجى التحقق من اسم المستخدم وكلمة المرور.');
       }
-    } catch (err) {
-      setIsLoading(false);
-      setErrorMessage('حدث خطأ غير متوقع أثناء تسجيل الدخول');
-    }
+    }, 400);
   };
 
   return (

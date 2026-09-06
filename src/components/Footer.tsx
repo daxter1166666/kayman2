@@ -18,7 +18,7 @@ export const Footer: React.FC<FooterProps> = ({
 }) => {
   const brandName = siteBranding?.siteName || 'أيمن كناني | Ayman Kinani';
   const brandSubtitle = siteBranding?.siteSubtitle || 'المنصة الرسمية لنشر المؤلفات والكتب';
-  const footerText = siteBranding?.footerText || `جميع الحقوق محفوظة للكاتب ${brandName} © ${new Date().getFullYear()}`;
+  const footerText = siteBranding?.footerText || `مرخص بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - ${brandName} © ${new Date().getFullYear()}`;
 
   return (
     <footer className="bg-[#F7F5EE] border-t border-[#E5E2D9] text-[#6E6A64] text-xs font-cairo mt-16">
@@ -132,15 +132,19 @@ export const Footer: React.FC<FooterProps> = ({
           {/* Publication & Rights statement */}
           <div>
             <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C2C2C] mb-3">
-              الملكية الفكرية وحقوق النشر
+              ترخيص المشاع الإبداعي وحق المؤلف
             </h4>
             <p className="text-[11px] text-[#6E6A64] leading-relaxed mb-3">
-              جميع الأعمال الأدبية والفكرية المنشورة في هذه المنصة محفوظة بحقوق الطبع والنشر للمؤلف، وتخضع للقوانين المنظمة لحماية الملكية الفكرية وحق القراءة الحرة.
+              هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
             </p>
-            <div className="flex items-center gap-2 text-[11px] text-[#4A5D4E] font-medium">
+            <button
+              type="button"
+              onClick={() => onOpenLegalPage('licenses')}
+              className="flex items-center gap-2 text-[11px] text-[#4A5D4E] hover:underline font-medium cursor-pointer"
+            >
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>منصة رسمية لحفظ ونشر الإبداع الأدبي</span>
-            </div>
+              <span>عرض تفاصيل ترخيص المشاع الإبداعي (CC BY-NC 4.0)</span>
+            </button>
           </div>
         </div>
 

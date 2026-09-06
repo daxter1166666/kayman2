@@ -5,6 +5,7 @@ import { AuthorProfileTab } from './AuthorProfileTab';
 import { DonationsTab } from './DonationsTab';
 import { SupabaseTab } from './SupabaseTab';
 import { ChapterPublisherTab } from './ChapterPublisherTab';
+import { RichEditorStudioTab } from './RichEditorStudioTab';
 import { NovelManagerTab } from './NovelManagerTab';
 import { CategoryManagerTab } from './CategoryManagerTab';
 import { LegalAndContactManagerTab } from './LegalAndContactManagerTab';
@@ -13,9 +14,6 @@ import { AdSenseComplianceTab } from './AdSenseComplianceTab';
 import { CommentModeratorTab } from './CommentModeratorTab';
 import { SettingsTab } from './SettingsTab';
 import { SeoTab } from './SeoTab';
-import { RichEditorStudioTab } from './RichEditorStudioTab';
-import { NovelSeoStudio } from './NovelSeoStudio';
-import { ChapterSeoStudio } from './ChapterSeoStudio';
 import {
   LayoutDashboard,
   User,
@@ -34,8 +32,10 @@ import {
   Copy,
   Check,
   Search,
-  Edit3
+  RotateCcw,
+  Feather
 } from 'lucide-react';
+import { ResetDataModal } from './ResetDataModal';
 
 interface ControlPanelProps {
   novels: Novel[];
@@ -58,18 +58,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   onAdminLogout,
   onOpenLegalPage,
 }) => {
-  const [activeTab, setActiveTab] = useState<string>('author_profile');
+  const [activeTab, setActiveTab] = useState<string>('novels');
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
+
   const tabs = [
-    { id: 'rich_editor', label: 'محرر النصوص المتقدم', icon: Edit3 },
-    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
     { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
-    { id: 'novel_seo', label: 'سيو الكتب والروايات', icon: BookOpen },
-    { id: 'chapter_seo', label: 'سيو الفصول الفردية', icon: FileText },
+    { id: 'rich_editor', label: 'محرر الكتب والنصوص (WYSIWYG)', icon: Feather },
+    { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
     { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
-    { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
-    { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
-    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
     { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
+    { id: 'author_profile', label: 'نبذة عني وحسابات التواصل', icon: User },
+    { id: 'supabase', label: 'الربط مع سوباباس (Supabase)', icon: Database },
+    { id: 'donations', label: 'الدعم المالي (PayPal/بنك)', icon: Heart },
     { id: 'categories', label: 'إدارة وتخصيص الأقسام', icon: Layers },
     { id: 'legal_contact', label: 'السياسات ورسائل القراء', icon: FileText },
     { id: 'ads', label: 'إدارة الإعلانات', icon: DollarSign },
@@ -78,8 +79,45 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     { id: 'settings', label: 'الهوية والأمان والنسخ', icon: Settings },
   ];
 
+  const adminDirectUrl = `${window.location.origin}/?admin=true`;
+
+  const handleCopyAdminUrl = () => {
+    navigator.clipboard.writeText(adminDirectUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
+  };
+
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] pb-20 font-cairo">
+      {/* Secret Link Notification Header */}
+      <div className="bg-[#4A5D4E]/10 border-b border-[#4A5D4E]/20 px-4 py-2 text-xs">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2">
+          <div className="flex items-center gap-2 text-[#4A5D4E]">
+            <ShieldCheck className="w-4 h-4 shrink-0" />
+            <span>
+              <strong>رابط الدخول المباشر للوحة التحكم (مخفي عن القراء):</strong> يمكنك نسخ هذا الرابط والاحتفاظ به للدخول المباشر في أي وقت.
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyAdminUrl}
+            className="px-3 py-1 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs shrink-0 text-[11px]"
+          >
+            {copiedLink ? (
+              <>
+                <Check className="w-3.5 h-3.5" />
+                <span>تم نسخ الرابط السري</span>
+              </>
+            ) : (
+              <>
+                <Copy className="w-3.5 h-3.5" />
+                <span>نسخ الرابط السري: {adminDirectUrl}</span>
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
       {/* Control Panel Sticky Sub-Header */}
       <div className="sticky top-0 z-30 bg-[#FDFCF8]/95 backdrop-blur-md border-b border-[#E5E2D9] px-4 py-3">
         <div className="max-w-7xl mx-auto space-y-3">
@@ -106,16 +144,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
               </div>
             </div>
 
-            <button
-              type="button"
-              id="admin-logout-btn"
-              onClick={onAdminLogout}
-              className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
-              title="تسجيل خروج الأدمن"
-            >
-              <LogOut className="w-4 h-4" />
-              <span>تسجيل الخروج</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="cp-top-reset-btn"
+                onClick={() => setIsResetModalOpen(true)}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-[#4A5D4E] bg-[#F7F5EE] hover:bg-[#EAE7DC] border border-[#E5E2D9] flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="مسح التخزين المحلي وإعادة سحب البيانات المحدثة فقط من سوباباس لحل تكرار الكتب"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                <span className="hidden sm:inline">إعادة ضبط ومزامنة البيانات</span>
+                <span className="sm:hidden">إعادة ضبط</span>
+              </button>
+
+              <button
+                type="button"
+                id="admin-logout-btn"
+                onClick={onAdminLogout}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-all cursor-pointer shadow-xs"
+                title="تسجيل خروج الأدمن"
+              >
+                <LogOut className="w-4 h-4" />
+                <span>تسجيل الخروج</span>
+              </button>
+            </div>
           </div>
 
           {/* Multi-Line Wrapped Tab Switcher Bar - Fully visible in multiple rows */}
@@ -188,6 +240,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
 
+        {activeTab === 'rich_editor' && (
+          <RichEditorStudioTab
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+            onNavigateTab={tab => setActiveTab(tab)}
+          />
+        )}
+
         {activeTab === 'publish' && (
           <ChapterPublisherTab
             novels={novels}
@@ -200,9 +261,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
         {activeTab === 'novels' && (
           <NovelManagerTab
             novels={novels}
-            chapters={chapters}
             onRefreshData={onRefreshData}
-            onNavigateTab={tab => setActiveTab(tab)}
           />
         )}
 
@@ -236,44 +295,19 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
 
+        {activeTab === 'seo' && (
+          <SeoTab
+            novels={novels}
+            chapters={chapters}
+            onRefreshData={onRefreshData}
+          />
+        )}
+
         {activeTab === 'comments' && (
           <CommentModeratorTab
             novels={novels}
             chapters={chapters}
             comments={comments}
-            onRefreshData={onRefreshData}
-          />
-        )}
-
-        {activeTab === 'rich_editor' && (
-          <RichEditorStudioTab
-            novels={novels}
-            chapters={chapters}
-            onRefreshData={onRefreshData}
-            onNavigateTab={tab => setActiveTab(tab)}
-          />
-        )}
-
-        {activeTab === 'novel_seo' && (
-          <NovelSeoStudio
-            novels={novels}
-            chapters={chapters}
-            onRefreshData={onRefreshData}
-          />
-        )}
-
-        {activeTab === 'chapter_seo' && (
-          <ChapterSeoStudio
-            novels={novels}
-            chapters={chapters}
-            onRefreshData={onRefreshData}
-          />
-        )}
-
-        {activeTab === 'seo' && (
-          <SeoTab
-            novels={novels}
-            chapters={chapters}
             onRefreshData={onRefreshData}
           />
         )}
@@ -284,6 +318,13 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
           />
         )}
       </main>
+
+      {/* Quick Reset Data Modal from Header */}
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={onRefreshData}
+      />
     </div>
   );
 };

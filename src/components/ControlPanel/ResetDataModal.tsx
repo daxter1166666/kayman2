@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { AlertTriangle, RotateCcw, X, Loader2, CheckCircle2 } from 'lucide-react';
-import { storageService } from '../../services/storageService';
+import { RotateCcw, AlertTriangle, CheckCircle2, RefreshCw, X, Shield, Database, Sparkles } from 'lucide-react';
+import { supabaseService } from '../../services/supabaseService';
 
 interface ResetDataModalProps {
   isOpen: boolean;
@@ -8,117 +8,172 @@ interface ResetDataModalProps {
   onSuccess: () => void;
 }
 
-export const ResetDataModal: React.FC<ResetDataModalProps> = ({
-  isOpen,
-  onClose,
-  onSuccess,
-}) => {
-  const [isResetting, setIsResetting] = useState<boolean>(false);
+export const ResetDataModal: React.FC<ResetDataModalProps> = ({ isOpen, onClose, onSuccess }) => {
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [result, setResult] = useState<{
+    success: boolean;
+    message: string;
+    novelsCount: number;
+    chaptersCount: number;
+  } | null>(null);
 
   if (!isOpen) return null;
 
-  const handleReset = async () => {
-    setIsResetting(true);
+  const handleExecuteReset = async () => {
+    setIsLoading(true);
+    setResult(null);
     try {
-      storageService.resetAllData();
-      // Short delay for user feedback
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      onSuccess();
-      onClose();
-    } catch (err) {
-      console.error('Failed to reset data:', err);
+      const res = await supabaseService.forceResetAndPullFromSupabase();
+      setResult(res);
+      if (res.success) {
+        onSuccess();
+      }
+    } catch (err: any) {
+      setResult({
+        success: false,
+        message: `حدث خطأ غير متوقع: ${err?.message || err}`,
+        novelsCount: 0,
+        chaptersCount: 0,
+      });
     } finally {
-      setIsResetting(false);
+      setIsLoading(false);
     }
+  };
+
+  const handleClose = () => {
+    if (isLoading) return;
+    setResult(null);
+    onClose();
   };
 
   return (
     <div
-      id="reset-data-modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-cairo animate-in fade-in duration-200 overflow-y-auto"
+      id="reset-data-modal-overlay"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs font-cairo animate-fade-in"
+      onClick={handleClose}
     >
-      {/* Click outside to cancel */}
-      <div className="absolute inset-0" onClick={isResetting ? undefined : onClose} />
-
       <div
-        id="reset-data-modal-dialog"
-        className="relative w-full max-w-md bg-[#FFFFFF] border border-[#E5E2D9] rounded-3xl shadow-2xl p-6 sm:p-7 text-right z-10 overflow-hidden my-auto"
+        id="reset-data-modal-container"
+        className="relative w-full max-w-lg bg-[#FFFFFF] rounded-3xl border border-[#E5E2D9] shadow-2xl overflow-hidden"
+        onClick={e => e.stopPropagation()}
       >
-        {/* Top Warning Stripe */}
-        <div className="absolute top-0 inset-x-0 h-1.5 bg-amber-500" />
-
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4 mb-4">
+        {/* Modal Header */}
+        <div className="p-6 bg-gradient-to-r from-rose-50 to-[#FDFCF8] border-b border-[#E5E2D9] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center shrink-0">
+            <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center font-bold shadow-2xs">
               <RotateCcw className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-amiri font-bold text-xl text-[#2C2C2C]">
-                إعادة ضبط البيانات
+              <h3 className="font-amiri font-bold text-lg text-[#2C2C2C]">
+                إعادة ضبط البيانات وتطهير الذاكرة
               </h3>
-              <p className="text-xs text-[#6E6A64]">
-                استعادة البيانات الافتراضية وتحديث الكاش
+              <p className="text-[11px] text-[#6E6A64]">
+                مسح التخزين المحلي وإعادة السحب الإجباري من Supabase
               </p>
             </div>
           </div>
 
           <button
             type="button"
-            onClick={onClose}
-            disabled={isResetting}
-            className="p-2 text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F2EFE9] rounded-full transition-colors cursor-pointer disabled:opacity-50"
-            aria-label="إغلاق"
+            onClick={handleClose}
+            disabled={isLoading}
+            className="w-8 h-8 rounded-xl bg-[#F7F5EE] hover:bg-[#EAE7DC] text-[#6E6A64] hover:text-[#2C2C2C] flex items-center justify-center transition-all cursor-pointer disabled:opacity-50"
+            title="إغلاق"
           >
-            <X className="w-5 h-5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
 
-        {/* Content Details */}
-        <div className="p-4 rounded-2xl bg-[#FBF9F5] border border-[#E5E2D9] mb-5 space-y-2.5 text-xs text-[#5A5751] leading-relaxed">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-            <p>
-              سيؤدي هذا الإجراء إلى مسح التخزين المؤقت في المتصفح وإعادة تحميل بيانات الروايات والفصول الافتراضية الأصلية المحدثة.
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-[#4A5D4E]">
-            <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-            <span>سيتم الاحتفاظ بهوية الموقع وإعدادات الأمان الأساسية.</span>
-          </div>
+        {/* Modal Body */}
+        <div className="p-6 space-y-4">
+          {!result ? (
+            <>
+              <div className="p-4 rounded-2xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs leading-relaxed space-y-2">
+                <div className="flex items-center gap-2 font-bold text-amber-950">
+                  <AlertTriangle className="w-4 h-4 text-amber-700 shrink-0" />
+                  <span>ماذا تفعل هذه الخاصية؟</span>
+                </div>
+                <ul className="space-y-1.5 list-disc list-inside text-[11px] text-amber-900/90 pr-1">
+                  <li>
+                    <strong>مسح التخزين المحلي (localStorage):</strong> إزالة أي نسخ كاش مؤقتة أو مكررة في متصفحك الحالي قد تسبب تكرار الكتب أو الفصول.
+                  </li>
+                  <li>
+                    <strong>سحب نظيف من Supabase:</strong> الاتصال المباشر بالسيرفر السحابي وسحب الكتب والفصول المعتمدة فقط دون استرجاع أي كتب تجريبية أو محذوفة.
+                  </li>
+                  <li>
+                    <strong>أمان تسجيل الدخول:</strong> لن يتم تسجيل خروجك وسيبقى اتصالك باللوحة آمناً.
+                  </li>
+                </ul>
+              </div>
+
+              <div className="p-3.5 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs text-[#5C5954] flex items-center gap-2.5">
+                <Database className="w-4 h-4 text-[#4A5D4E] shrink-0" />
+                <span>
+                  تُستخدم هذه العملية عند ملاحظة تكرار في عناوين الكتب أو الرغبة في مزامنة المتصفح فوراً مع ما هو موجود في قاعدة البيانات.
+                </span>
+              </div>
+            </>
+          ) : (
+            <div
+              className={`p-5 rounded-2xl text-xs font-bold border space-y-2 ${
+                result.success
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                  : 'bg-rose-50 border-rose-200 text-rose-900'
+              }`}
+            >
+              <div className="flex items-center gap-2 text-sm">
+                {result.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+                )}
+                <span>{result.success ? 'اكتملت العملية بنجاح!' : 'فشلت العملية'}</span>
+              </div>
+              <p className="font-normal text-[11px] leading-relaxed text-[#2C2C2C]">
+                {result.message}
+              </p>
+              {result.success && (
+                <div className="pt-2 border-t border-emerald-200 flex items-center justify-between text-[11px] text-emerald-800">
+                  <span>الكتب المعتمدة الآن: <strong>{result.novelsCount}</strong></span>
+                  <span>الفصول المسجلة: <strong>{result.chaptersCount}</strong></span>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center justify-end gap-3 pt-2">
+        {/* Modal Footer */}
+        <div className="p-5 bg-[#FDFCF8] border-t border-[#E5E2D9] flex items-center justify-end gap-3">
           <button
             type="button"
-            onClick={onClose}
-            disabled={isResetting}
-            className="px-4 py-2.5 rounded-xl border border-[#E5E2D9] text-xs font-bold text-[#6E6A64] hover:bg-[#F2EFE9] transition-all cursor-pointer disabled:opacity-50"
+            onClick={handleClose}
+            disabled={isLoading}
+            className="px-4 py-2.5 rounded-xl bg-[#F7F5EE] hover:bg-[#EAE7DC] text-[#2C2C2C] text-xs font-bold transition-all cursor-pointer disabled:opacity-50"
           >
-            إلغاء
+            {result?.success ? 'إغلاق' : 'إلغاء'}
           </button>
-          <button
-            type="button"
-            id="confirm-reset-data-btn"
-            onClick={handleReset}
-            disabled={isResetting}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold shadow-xs transition-all cursor-pointer disabled:opacity-50"
-          >
-            {isResetting ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span>جاري استعادة البيانات...</span>
-              </>
-            ) : (
-              <>
-                <RotateCcw className="w-4 h-4" />
-                <span>تأكيد إعادة الضبط</span>
-              </>
-            )}
-          </button>
+
+          {!result?.success && (
+            <button
+              type="button"
+              id="confirm-force-reset-btn"
+              onClick={handleExecuteReset}
+              disabled={isLoading}
+              className="px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold flex items-center gap-2 shadow-xs transition-all cursor-pointer disabled:opacity-50"
+            >
+              {isLoading ? (
+                <>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                  <span>جارٍ مسح الكاش والسحب من Supabase...</span>
+                </>
+              ) : (
+                <>
+                  <RotateCcw className="w-4 h-4" />
+                  <span>مسح التخزين المحلي وإعادة السحب الآن</span>
+                </>
+              )}
+            </button>
+          )}
         </div>
       </div>
     </div>

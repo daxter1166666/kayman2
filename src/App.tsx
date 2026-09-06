@@ -25,9 +25,6 @@ import { AdSlot } from './components/AdSlot';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { AuthorProfileSection } from './components/AuthorProfileSection';
 import { DonationModal } from './components/DonationModal';
-import { PWAInstallModal } from './components/PWAInstallModal';
-import { applyBrandingToPWA } from './utils/pwaHelper';
-import { toArabicGenre } from './utils/genreHelper';
 import {
   Sparkles,
   BookOpen,
@@ -45,13 +42,35 @@ import {
   Smartphone,
   Check,
   Heart,
-  Lock
+  Lock,
+  User
 } from 'lucide-react';
 
 export default function App() {
-  // Global Data State
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  // Read SSR Initial Payload if delivered by Server-Side Rendering
+  const initialSSR = typeof window !== 'undefined' ? (window as any).__INITIAL_DATA__ : null;
+
+  // Global Data State seeded with SSR data if available
+  const [novels, setNovels] = useState<Novel[]>(() => {
+    const local = storageService.getNovels();
+    if (initialSSR?.novel) {
+      const merged = [initialSSR.novel, ...local.filter(n => n.id !== initialSSR.novel.id)];
+      storageService.saveNovels(merged);
+      return merged;
+    }
+    return local;
+  });
+
+  const [chapters, setChapters] = useState<Chapter[]>(() => {
+    const local = storageService.getChapters();
+    if (initialSSR?.chapter) {
+      const merged = [initialSSR.chapter, ...local.filter(c => c.id !== initialSSR.chapter.id)];
+      storageService.saveChapters(merged);
+      return merged;
+    }
+    return local;
+  });
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [adSettings, setAdSettings] = useState<AdSettings>(() => storageService.getAdSettings());
@@ -61,11 +80,28 @@ export default function App() {
   const [siteBranding, setSiteBranding] = useState<SiteBranding>(() => storageService.getSiteBranding());
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
-  // Navigation View State - default to catalog (home view for all readers)
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>('catalog');
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
+  // Navigation View State initialized with SSR state or pathname
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(() => {
+    if (initialSSR?.currentView) return initialSSR.currentView;
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      if (p.includes('/chapter') || p.match(/\/novel\/chapter-\d+/)) return 'reader';
+      if (p.startsWith('/novel/') && !p.endsWith('/novel/')) return 'novel_detail';
+    }
+    return 'catalog';
+  });
+
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(() => {
+    if (initialSSR?.novel?.id) return initialSSR.novel.id;
+    if (initialSSR?.chapter?.novelId) return initialSSR.chapter.novelId;
+    return null;
+  });
+
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(() => {
+    if (initialSSR?.chapter?.id) return initialSSR.chapter.id;
+    return null;
+  });
+
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
   
   // Modals & Drawers
@@ -75,12 +111,12 @@ export default function App() {
   const [showBookmarksDrawer, setShowBookmarksDrawer] = useState<boolean>(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
 
   // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
   const [showPwaBanner, setShowPwaBanner] = useState<boolean>(true);
-  const [showPwaInstallModal, setShowPwaInstallModal] = useState<boolean>(false);
 
   // Load initial data
   const refreshData = () => {
@@ -99,7 +135,6 @@ export default function App() {
     refreshData();
 
     // Cross-browser cloud synchronization with Supabase
-    // Fetch latest books, chapters, and tombstones for all readers across phones and browsers
     const doPull = () => {
       supabaseService.pullAllFromSupabase().then(res => {
         if (res) {
@@ -118,17 +153,37 @@ export default function App() {
       }
     };
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (!e.key || e.key.startsWith('ayman_')) {
-        refreshData();
-      }
-    };
-
     window.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', doPull);
-    window.addEventListener('pageshow', doPull);
-    window.addEventListener('storage', handleStorageChange);
-    const syncInterval = setInterval(doPull, 8000);
+    const syncInterval = setInterval(doPull, 45000);
+
+    const handleViewIncremented = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.novelId) {
+        setNovels(prev =>
+          prev.map(n => {
+            if (n.id === detail.novelId) {
+              const updatedViews = detail.novelViews !== undefined ? detail.novelViews : (n.totalViews || 0) + 1;
+              return { ...n, totalViews: Math.max(n.totalViews || 0, updatedViews) };
+            }
+            return n;
+          })
+        );
+      }
+      if (detail.chapterId) {
+        setChapters(prev =>
+          prev.map(c => {
+            if (c.id === detail.chapterId) {
+              const updatedViews = detail.chapterViews !== undefined ? detail.chapterViews : (c.views || 0) + 1;
+              return { ...c, views: Math.max(c.views || 0, updatedViews) };
+            }
+            return c;
+          })
+        );
+      }
+    };
+    window.addEventListener('novel-view-incremented', handleViewIncremented);
 
     // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
@@ -141,12 +196,68 @@ export default function App() {
         setIsAdminLoggedIn(true);
         setCurrentView('control_panel');
       } else {
+        setIsAdminLoggedIn(false);
         setShowAdminLoginModal(true);
+      }
+    } else if (initialSSR?.currentView === 'reader' && initialSSR.chapter) {
+      setSelectedNovelId(initialSSR.novel?.id || initialSSR.chapter.novelId);
+      setSelectedChapterId(initialSSR.chapter.id);
+      setCurrentView('reader');
+    } else if (initialSSR?.currentView === 'novel_detail' && initialSSR.novel) {
+      setSelectedNovelId(initialSSR.novel.id);
+      setCurrentView('novel_detail');
+    } else {
+      const pathname = window.location.pathname;
+      const chapterMatch = pathname.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || pathname.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = pathname.match(/\/novel\/([^/]+)$/i) || pathname.match(/\/book\/([^/]+)$/i);
+
+      const novelParam = urlParams.get('novel');
+      const chapterParam = urlParams.get('chapter');
+      const legalParam = urlParams.get('legal');
+
+      if (chapterMatch) {
+        const chIdent = decodeURIComponent(chapterMatch[1]);
+        const ch = storageService.getChapters().find(c => c.slug === chIdent || c.id === chIdent || `chapter-${c.chapterNumber}` === chIdent || String(c.chapterNumber) === chIdent);
+        if (ch) {
+          setSelectedNovelId(ch.novelId);
+          setSelectedChapterId(ch.id);
+          setCurrentView('reader');
+        }
+      } else if (chapterParam) {
+        const chapter = storageService.getChapterById(chapterParam);
+        if (chapter) {
+          setSelectedNovelId(chapter.novelId);
+          setSelectedChapterId(chapterParam);
+          setCurrentView('reader');
+        }
+      } else if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        const novIdent = decodeURIComponent(novelMatch[1]);
+        const nov = storageService.getNovels().find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          setSelectedNovelId(nov.id);
+          setCurrentView('novel_detail');
+        }
+      } else if (novelParam) {
+        setSelectedNovelId(novelParam);
+        setCurrentView('novel_detail');
+      } else if (legalParam && ['terms', 'privacy', 'dmca', 'licenses', 'contact', 'ads_txt'].includes(legalParam)) {
+        setLegalPage(legalParam as any);
+        setCurrentView('legal');
       }
     }
 
-    // Dynamic document title, favicons, Apple touch icons, and Web App Manifest (PWA)
-    applyBrandingToPWA(storageService.getSiteBranding());
+    // Dynamic document title & favicon
+    const currentBranding = storageService.getSiteBranding();
+    if (currentBranding.siteName && !initialSSR) {
+      document.title = `${currentBranding.siteName} - ${currentBranding.siteSubtitle}`;
+    }
+    if (currentBranding.faviconUrl) {
+      const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'shortcut icon';
+      link.href = currentBranding.faviconUrl;
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
 
     // PWA Install prompt listener
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -160,10 +271,9 @@ export default function App() {
     return () => {
       window.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', doPull);
-      window.removeEventListener('pageshow', doPull);
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('novel-view-incremented', handleViewIncremented);
       clearInterval(syncInterval);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
 
@@ -181,21 +291,7 @@ export default function App() {
     if (currentView === 'novel_detail' && selectedNovelId) {
       const novel = novels.find(n => n.id === selectedNovelId);
       if (novel) {
-        const jsonLd = seoService.buildNovelJsonLd(novel, authorProfile);
-        seoService.updateHead({
-          title: `رواية ${novel.title} - تأليف ${novel.author}`,
-          description: novel.synopsis?.slice(0, 160) || `قراءة وتحميل رواية ${novel.title} للكاتب ${novel.author} أونلاين بصيغة PDF.`,
-          keywords: [...(novel.genres || []), ...(novel.tags || []), 'تحميل رواية PDF', 'قراءة رواية'],
-          ogType: 'book',
-          ogImage: novel.coverImage,
-          url: `/?novel=${novel.id}`,
-          author: novel.author,
-          publishedTime: novel.createdAt,
-          modifiedTime: novel.updatedAt,
-          section: novel.genres?.[0] || 'روايات',
-          tags: novel.tags,
-          structuredData: jsonLd,
-        });
+        seoService.updateHeadForNovel(novel, authorProfile);
         return;
       }
     }
@@ -204,20 +300,7 @@ export default function App() {
       const novel = novels.find(n => n.id === selectedNovelId);
       const chapter = chapters.find(c => c.id === selectedChapterId);
       if (novel && chapter) {
-        const jsonLd = seoService.buildChapterJsonLd(chapter, novel, authorProfile);
-        const excerpt = chapter.content?.slice(0, 160).replace(/\n/g, ' ') || '';
-        seoService.updateHead({
-          title: `${chapter.title} - رواية ${novel.title}`,
-          description: `قراءة ${chapter.title} من رواية ${novel.title} للكاتب ${novel.author}. ${excerpt}`,
-          keywords: [chapter.title, novel.title, novel.author, ...(novel.genres || [])],
-          ogType: 'article',
-          ogImage: novel.bannerImage || novel.coverImage,
-          url: `/?novel=${novel.id}&chapter=${chapter.id}`,
-          author: novel.author,
-          publishedTime: chapter.publishedAt,
-          section: novel.title,
-          structuredData: jsonLd,
-        });
+        seoService.updateHeadForChapter(chapter, novel, authorProfile);
         return;
       }
     }
@@ -284,27 +367,16 @@ export default function App() {
     }
   }, [adSettings.adsterra]);
 
-  // Re-apply dynamic branding to Web App Manifest, browser tabs, and Apple Touch Icon
-  useEffect(() => {
-    applyBrandingToPWA(siteBranding);
-  }, [siteBranding]);
-
   const handleInstallPwa = async () => {
     if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          setCanInstallPwa(false);
-          setShowPwaBanner(false);
-        }
-        setDeferredPrompt(null);
-      } catch (err) {
-        console.warn('Install prompt error:', err);
-        setShowPwaInstallModal(true);
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setCanInstallPwa(false);
       }
+      setDeferredPrompt(null);
     } else {
-      setShowPwaInstallModal(true);
+      alert('لتثبيت التطبيق على هاتفك: اضغط على خيارات المتصفح (⋮ أو زر المشاركة في سفاري) ثم اختر "إضافة إلى الشاشة الرئيسية (Add to Home screen)".');
     }
   };
 
@@ -316,15 +388,12 @@ export default function App() {
 
   // Admin Control Panel Handlers
   const handleOpenControlPanel = () => {
-    if (currentView === 'control_panel') {
-      handleNavigateHome();
-      return;
-    }
     if (storageService.isAdminLoggedIn()) {
       setIsAdminLoggedIn(true);
       setCurrentView('control_panel');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      setIsAdminLoggedIn(false);
       setShowAdminLoginModal(true);
     }
   };
@@ -349,21 +418,36 @@ export default function App() {
     setCurrentView('catalog');
     setSelectedNovelId(null);
     setSelectedChapterId(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectNovel = (novelId: string) => {
     setSelectedNovelId(novelId);
     setCurrentView('novel_detail');
+    const novel = novels.find(n => n.id === novelId) || storageService.getNovelById(novelId);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/novel/${novel?.slug || novelId}`);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectChapter = (chapterId: string) => {
-    const chapter = storageService.getChapterById(chapterId);
+    const chapter = chapters.find(c => c.id === chapterId) || storageService.getChapterById(chapterId);
     if (chapter) {
       setSelectedNovelId(chapter.novelId);
       setSelectedChapterId(chapterId);
       setCurrentView('reader');
+      const novel = novels.find(n => n.id === chapter.novelId) || storageService.getNovelById(chapter.novelId);
+      if (typeof window !== 'undefined') {
+        window.history.pushState(
+          {},
+          '',
+          `/novel/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
+        );
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
@@ -422,12 +506,8 @@ export default function App() {
         }
         // Category filter
         if (selectedGenre !== 'All') {
-          const cat = categories.find(c => c.name === selectedGenre || c.arabicName === selectedGenre);
-          const match = novel.genres.some(g => {
-            return g === selectedGenre ||
-                   toArabicGenre(g) === selectedGenre ||
-                   (cat && (g === cat.name || g === cat.arabicName || toArabicGenre(g) === cat.arabicName));
-          });
+          const cat = categories.find(c => c.name === selectedGenre);
+          const match = novel.genres.includes(selectedGenre as any) || (cat && novel.genres.includes(cat.arabicName as any));
           if (!match) return false;
         }
         return true;
@@ -444,44 +524,23 @@ export default function App() {
   const featuredNovel = novels.find(n => n.isFeatured) || novels[0];
 
   // Active novel & chapter objects
-  const currentNovel = selectedNovelId ? novels.find(n => n.id === selectedNovelId) : (novels[0] || null);
+  const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
-  const currentNovelChapters = selectedNovelId ? chapters.filter(c => c.novelId === selectedNovelId) : [];
-
-  // Auto-redirect if currently viewed novel was deleted
-  useEffect(() => {
-    if (selectedNovelId && !novels.some(n => n.id === selectedNovelId)) {
-      setSelectedNovelId(null);
-      setSelectedChapterId(null);
-      if (currentView === 'reader' || currentView === 'novel_detail') {
-        setCurrentView('catalog');
-      }
-    }
-  }, [novels, selectedNovelId, currentView]);
+  const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C]">
+    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">
       {/* PWA Mobile Installation Prompt Banner */}
       {showPwaBanner && (
-        <div id="pwa-install-banner" className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2.5 max-w-2xl">
-            {(siteBranding.pwaIconUrl || siteBranding.faviconUrl || siteBranding.logoUrl) ? (
-              <img
-                src={siteBranding.pwaIconUrl || siteBranding.faviconUrl || siteBranding.logoUrl}
-                alt="App Icon"
-                className="w-5 h-5 rounded-md object-cover shrink-0 border border-white/40 shadow-xs"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <Smartphone className="w-4 h-4 shrink-0 text-amber-200" />
-            )}
+        <div className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-2 max-w-2xl">
+            <Smartphone className="w-4 h-4 shrink-0 text-amber-200" />
             <span>
-              <strong>تطبيق {siteBranding.siteName ? siteBranding.siteName.split('|')[0].trim() : 'أيمن كناني'} متاح الآن:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك الرئيسية.
+              <strong>تطبيق {siteBranding.siteName} متاح الآن:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك الرئيسية.
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              id="pwa-banner-install-btn"
               type="button"
               onClick={handleInstallPwa}
               className="px-3 py-1 bg-white text-[#4A5D4E] font-bold rounded-lg hover:bg-amber-50 transition-colors text-[11px] cursor-pointer shadow-xs whitespace-nowrap"
@@ -509,7 +568,7 @@ export default function App() {
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         isControlPanelOpen={currentView === 'control_panel'}
-        isAdminLoggedIn={isAdminLoggedIn}
+        isAdminLoggedIn={isAdminLoggedIn && storageService.isAdminLoggedIn()}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
         onInstallPwa={handleInstallPwa}
         canInstallPwa={canInstallPwa}
@@ -530,15 +589,6 @@ export default function App() {
         isOpen={showDonationModal}
         onClose={() => setShowDonationModal(false)}
         donationSettings={donationSettings}
-      />
-
-      {/* PWA Mobile Installation Guide Modal */}
-      <PWAInstallModal
-        isOpen={showPwaInstallModal}
-        onClose={() => setShowPwaInstallModal(false)}
-        onNativeInstall={handleInstallPwa}
-        canNativeInstall={Boolean(deferredPrompt)}
-        siteBranding={siteBranding}
       />
 
       {/* VIEW ROUTER */}
@@ -573,9 +623,9 @@ export default function App() {
           />
         )}
 
-        {/* 3. AUTHOR & ADMIN CONTROL PANEL */}
+        {/* 3. AUTHOR & ADMIN CONTROL PANEL (Strictly Protected) */}
         {currentView === 'control_panel' && (
-          isAdminLoggedIn ? (
+          isAdminLoggedIn && storageService.isAdminLoggedIn() ? (
             <ControlPanel
               novels={novels}
               chapters={chapters}
@@ -587,30 +637,31 @@ export default function App() {
               onOpenLegalPage={handleOpenLegalPage}
             />
           ) : (
-            <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center font-cairo bg-[#FDFCF8]">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mb-4 shadow-xs">
+            <div className="max-w-md mx-auto px-4 py-20 text-center font-cairo">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center mb-4 shadow-sm">
                 <Lock className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold font-amiri text-[#2C2C2C] mb-2">لوحة التحكم مقفلة</h2>
-              <p className="text-sm text-[#6E6A64] max-w-md mb-6 leading-relaxed">
-                هذه المنطقة مخصصة لإدارة ونشر المؤلفات من قبل الكاتب فقط. يرجى تسجيل الدخول للوصول إليها.
+              <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] mb-2">
+                منطقة محمية - تسجيل دخول الإدارة مطلوب
+              </h2>
+              <p className="text-xs text-[#6E6A64] mb-6 leading-relaxed">
+                لوحة التحكم الإدارية مخصصة للكاتب والناشر فقط لإدارة الأعمال الأدبية والفصول وإعدادات الموقع.
               </p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center gap-3">
                 <button
                   type="button"
-                  id="lockscreen-login-btn"
+                  id="protected-admin-login-btn"
                   onClick={() => setShowAdminLoginModal(true)}
-                  className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all"
+                  className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  تسجيل دخول الإدارة
+                  تسجيل الدخول كمدير
                 </button>
                 <button
                   type="button"
-                  id="lockscreen-home-btn"
                   onClick={handleNavigateHome}
-                  className="px-6 py-2.5 border border-[#E5E2D9] text-[#2C2C2C] font-bold text-xs rounded-xl hover:bg-[#F7F5EE] cursor-pointer transition-all"
+                  className="px-4 py-2.5 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] font-semibold text-xs hover:bg-[#F7F5EE] transition-all cursor-pointer"
                 >
-                  العودة للموقع
+                  العودة للرئيسية
                 </button>
               </div>
             </div>
@@ -644,7 +695,7 @@ export default function App() {
               <section className="relative rounded-3xl overflow-hidden border border-[#E5E2D9] bg-[#F7F5EE] shadow-xs mb-12">
                 <div className="absolute inset-0 z-0">
                   <img
-                    src={featuredNovel.bannerImage || featuredNovel.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
+                    src={featuredNovel.bannerImage || featuredNovel.coverImage}
                     alt={featuredNovel.title}
                     className="w-full h-full object-cover opacity-10 blur-sm scale-105"
                     referrerPolicy="no-referrer"
@@ -654,7 +705,7 @@ export default function App() {
 
                 <div className="relative z-10 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8">
                   <img
-                    src={featuredNovel.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
+                    src={featuredNovel.coverImage}
                     alt={featuredNovel.title}
                     onClick={() => handleSelectNovel(featuredNovel.id)}
                     className="w-40 sm:w-52 aspect-[2/3] object-cover rounded-2xl shadow-md border-2 border-[#E5E2D9] hover:scale-102 transition-transform cursor-pointer shrink-0"
@@ -671,7 +722,7 @@ export default function App() {
                           key={g}
                           className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]"
                         >
-                          {toArabicGenre(g)}
+                          {g}
                         </span>
                       ))}
                     </div>
@@ -789,7 +840,7 @@ export default function App() {
                     </button>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                     {filteredNovels.map(novel => {
                       const count = chapters.filter(c => c.novelId === novel.id).length;
                       return (
@@ -807,8 +858,8 @@ export default function App() {
               </div>
             )}
 
-            {/* Catalog Footer Ad Unit */}
-            <AdSlot location="footer" adSettings={adSettings} className="my-10" />
+            {/* Mid-Catalog Corporate Sponsor / Ad Unit */}
+            <AdSlot location="mid_chapter" adSettings={adSettings} className="my-12" />
           </main>
         )}
       </div>
@@ -855,7 +906,7 @@ export default function App() {
                           <div className="flex items-center gap-3 overflow-hidden">
                             {book && (
                               <img
-                                src={book.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
+                                src={book.coverImage}
                                 alt={book.title}
                                 className="w-12 h-16 object-cover rounded-lg shrink-0 border border-[#E5E2D9]"
                                 referrerPolicy="no-referrer"
@@ -913,6 +964,90 @@ export default function App() {
         siteBranding={siteBranding}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
       />
+
+      {/* Mobile Sticky Bottom App Bar (Only when not reading a chapter) */}
+      {currentView !== 'reader' && (
+        <nav
+          id="mobile-bottom-app-bar"
+          className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#FDFCF8]/95 backdrop-blur-md border-t border-[#E5E2D9] shadow-lg px-2 py-1 pb-safe"
+        >
+          <div className="grid grid-cols-5 items-center max-w-md mx-auto text-[10px] font-cairo">
+            {/* 1. Home */}
+            <button
+              type="button"
+              id="mobile-nav-home"
+              onClick={handleNavigateHome}
+              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
+                currentView === 'catalog' && !selectedGenre && !searchQuery
+                  ? 'text-[#4A5D4E] font-bold'
+                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <BookOpen className="w-4 h-4 mb-0.5" />
+              <span>الرئيسية</span>
+            </button>
+
+            {/* 2. Catalog Books */}
+            <button
+              type="button"
+              id="mobile-nav-catalog"
+              onClick={() => {
+                if (currentView !== 'catalog') {
+                  handleNavigateHome();
+                }
+                setTimeout(() => {
+                  const el = document.getElementById('catalog-books-section');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth' });
+                  }
+                }, 100);
+              }}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <Layers className="w-4 h-4 mb-0.5" />
+              <span>المكتبة</span>
+            </button>
+
+            {/* 3. Bookmarks with live badge */}
+            <button
+              type="button"
+              id="mobile-nav-bookmarks"
+              onClick={() => setShowBookmarksDrawer(true)}
+              className="relative flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <BookmarkIcon className="w-4 h-4 mb-0.5 text-[#4A5D4E]" />
+              <span>المحفوظات</span>
+              {bookmarks.length > 0 && (
+                <span className="absolute top-0.5 right-2 min-w-[15px] h-[15px] px-1 bg-[#C88A3B] text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-xs">
+                  {bookmarks.length}
+                </span>
+              )}
+            </button>
+
+            {/* 4. Author Bio */}
+            <button
+              type="button"
+              id="mobile-nav-author"
+              onClick={handleScrollToAuthorBio}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
+            >
+              <User className="w-4 h-4 mb-0.5" />
+              <span>الكاتب</span>
+            </button>
+
+            {/* 5. Support / Donation */}
+            <button
+              type="button"
+              id="mobile-nav-support"
+              onClick={() => setShowDonationModal(true)}
+              className="flex flex-col items-center justify-center py-1 rounded-xl text-rose-600 font-semibold transition-all cursor-pointer"
+            >
+              <Heart className="w-4 h-4 mb-0.5 fill-rose-600/20" />
+              <span>دعم</span>
+            </button>
+          </div>
+        </nav>
+      )}
     </div>
   );
 }

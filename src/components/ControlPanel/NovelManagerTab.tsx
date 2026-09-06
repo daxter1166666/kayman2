@@ -686,7 +686,7 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
           </div>
 
           {/* Manual Table of Contents (فهرس محتويات الكتاب) */}
-          <div id="novel-toc-section" className="p-4 sm:p-5 rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] space-y-4 shadow-2xs">
+          <div className="p-4 sm:p-5 rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] space-y-4 shadow-2xs">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[#E5E2D9] pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
@@ -1021,20 +1021,6 @@ export const NovelManagerTab: React.FC<NovelManagerTabProps> = ({
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E2D9]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleStartEdit(novel);
-                    setTimeout(() => {
-                      document.getElementById('novel-toc-section')?.scrollIntoView({ behavior: 'smooth' });
-                    }, 150);
-                  }}
-                  className="px-2.5 py-1.5 rounded-lg text-xs font-bold text-[#4A5D4E] hover:bg-[#4A5D4E]/10 flex items-center gap-1 cursor-pointer transition-colors border border-[#4A5D4E]/20"
-                  title="إدارة وتعديل الفهرس اليدوي لمحتويات هذا الكتاب"
-                >
-                  <ListOrdered className="w-3.5 h-3.5" />
-                  <span>الفهرس ({novel.tableOfContents?.length || 0})</span>
-                </button>
                 <button
                   type="button"
                   onClick={() => {

@@ -17,8 +17,10 @@ import {
   ArrowUpRight,
   Download,
   Globe,
-  Sparkles
+  Sparkles,
+  RotateCcw
 } from 'lucide-react';
+import { ResetDataModal } from './ResetDataModal';
 
 interface SupabaseTabProps {
   novels: Novel[];
@@ -43,6 +45,7 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
   const [savedSuccess, setSavedSuccess] = useState<boolean>(false);
   const [isPulling, setIsPulling] = useState<boolean>(false);
   const [pullResult, setPullResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   // Table Health Check State
   const [tablesStatus, setTablesStatus] = useState<{
@@ -491,6 +494,17 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
                 <Download className="w-4 h-4" />
                 <span>تحميل نسخة احتياطية (JSON)</span>
               </button>
+
+              <button
+                type="button"
+                id="supabase-force-reset-btn"
+                onClick={() => setIsResetModalOpen(true)}
+                className="px-5 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-200 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs"
+                title="مسح التخزين المحلي وإعادة سحب البيانات المحدثة فقط لحل تكرار الكتب"
+              >
+                <RotateCcw className="w-4 h-4 text-rose-600" />
+                <span>إعادة ضبط البيانات ومسح الكاش</span>
+              </button>
             </div>
 
             {config.lastSyncTime && (
@@ -697,6 +711,14 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
           </div>
         </div>
       </div>
+
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={() => {
+          onRefreshData();
+        }}
+      />
     </div>
   );
 };

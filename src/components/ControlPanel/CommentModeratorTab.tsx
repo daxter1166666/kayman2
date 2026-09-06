@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Novel, Chapter, Comment } from '../../types';
 import { storageService } from '../../services/storageService';
-import { ConfirmModal } from '../ConfirmModal';
 import {
   MessageSquare,
   Pin,
@@ -30,7 +29,6 @@ export const CommentModeratorTab: React.FC<CommentModeratorTabProps> = ({
   const [replyingCommentId, setReplyingCommentId] = useState<string | null>(null);
   const [replyContent, setReplyContent] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
-  const [commentToDelete, setCommentToDelete] = useState<Comment | null>(null);
 
   const showToast = (msg: string) => {
     setNotification(msg);
@@ -43,12 +41,12 @@ export const CommentModeratorTab: React.FC<CommentModeratorTabProps> = ({
     showToast('تم تحديث حالة تثبيت التعليق بنجاح');
   };
 
-  const handleConfirmDeleteComment = () => {
-    if (!commentToDelete) return;
-    storageService.deleteComment(commentToDelete.id);
-    onRefreshData();
-    showToast('تم حذف التعليق');
-    setCommentToDelete(null);
+  const handleDelete = (commentId: string) => {
+    if (window.confirm('هل أنت متأكد من رغبتك في حذف هذا التعليق؟')) {
+      storageService.deleteComment(commentId);
+      onRefreshData();
+      showToast('تم حذف التعليق');
+    }
   };
 
   const handleAuthorReply = (targetComment: Comment) => {
@@ -218,7 +216,7 @@ export const CommentModeratorTab: React.FC<CommentModeratorTabProps> = ({
                     <button
                       type="button"
                       id={`delete-mod-comment-btn-${comment.id}`}
-                      onClick={() => setCommentToDelete(comment)}
+                      onClick={() => handleDelete(comment.id)}
                       className="p-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs transition-colors cursor-pointer border border-rose-200"
                       title="حذف التعليق"
                     >
@@ -255,26 +253,6 @@ export const CommentModeratorTab: React.FC<CommentModeratorTabProps> = ({
           })
         )}
       </div>
-
-      {/* Confirmation Modal for Comment Deletion */}
-      <ConfirmModal
-        isOpen={Boolean(commentToDelete)}
-        title="حذف التعليق"
-        message="هل أنت متأكد من رغبتك في حذف هذا التعليق؟ لا يمكن التراجع عن هذا الإجراء."
-        confirmText="نعم، حذف التعليق"
-        cancelText="إلغاء"
-        isDestructive={true}
-        itemDetails={
-          commentToDelete
-            ? {
-                title: `تعليق بواسطة: ${commentToDelete.authorName}`,
-                subtitle: commentToDelete.content,
-              }
-            : undefined
-        }
-        onConfirm={handleConfirmDeleteComment}
-        onCancel={() => setCommentToDelete(null)}
-      />
     </div>
   );
 };
