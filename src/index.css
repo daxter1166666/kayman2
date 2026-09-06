@@ -92,3 +92,95 @@
   background: #4A5D4E;
 }
 
+/* Rich Text Editor & Reader Article Content Styles */
+.rich-editor-content:empty:before {
+  content: attr(data-placeholder);
+  color: #9C988F;
+  pointer-events: none;
+  display: block;
+}
+
+.rich-editor-content h1,
+.reader-article-content h1 {
+  font-size: 1.85rem;
+  font-weight: 800;
+  margin-top: 1.5rem;
+  margin-bottom: 0.75rem;
+  line-height: 1.35;
+  color: #1F2937;
+}
+
+.rich-editor-content h2,
+.reader-article-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-top: 1.25rem;
+  margin-bottom: 0.65rem;
+  line-height: 1.4;
+  color: #2D3748;
+  border-bottom: 1px solid #E5E2D9;
+  padding-bottom: 0.4rem;
+}
+
+.rich-editor-content h3,
+.reader-article-content h3 {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.45;
+  color: #374151;
+}
+
+.rich-editor-content h4,
+.reader-article-content h4 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  margin-top: 0.75rem;
+  margin-bottom: 0.4rem;
+  color: #4B5563;
+}
+
+.rich-editor-content p,
+.reader-article-content p {
+  margin-top: 0.65rem;
+  margin-bottom: 0.65rem;
+}
+
+.rich-editor-content blockquote,
+.reader-article-content blockquote {
+  border-right: 4px solid #4A5D4E;
+  padding: 0.65rem 1.25rem;
+  margin: 1.25rem 0;
+  background-color: rgba(74, 93, 78, 0.06);
+  border-radius: 0.75rem 0 0 0.75rem;
+  font-style: italic;
+  color: #2C2C2C;
+}
+
+.rich-editor-content ul,
+.reader-article-content ul {
+  list-style-type: disc;
+  padding-right: 1.75rem;
+  margin: 0.75rem 0;
+}
+
+.rich-editor-content ol,
+.reader-article-content ol {
+  list-style-type: decimal;
+  padding-right: 1.75rem;
+  margin: 0.75rem 0;
+}
+
+.rich-editor-content li,
+.reader-article-content li {
+  margin-bottom: 0.35rem;
+}
+
+.rich-editor-content hr,
+.reader-article-content hr {
+  margin: 1.75rem 0;
+  border: 0;
+  border-top: 1px dashed #D1CDC4;
+}
+
