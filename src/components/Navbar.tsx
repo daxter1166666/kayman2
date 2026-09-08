@@ -9,7 +9,8 @@ import {
   X,
   Smartphone,
   Heart,
-  User
+  User,
+  Download
 } from 'lucide-react';
 import { SiteBranding } from '../types';
 
@@ -25,6 +26,7 @@ interface NavbarProps {
   onOpenAdminLoginModal: () => void;
   onInstallPwa?: () => void;
   canInstallPwa?: boolean;
+  isStandalone?: boolean;
   siteBranding?: SiteBranding;
   onOpenDonationModal?: () => void;
   onScrollToAuthor?: () => void;
@@ -42,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenAdminLoginModal,
   onInstallPwa,
   canInstallPwa,
+  isStandalone = false,
   siteBranding,
   onOpenDonationModal,
   onScrollToAuthor,
@@ -158,17 +161,17 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            {/* PWA Install Button */}
-            {canInstallPwa && onInstallPwa && (
+            {/* PWA Direct Download / Install Button */}
+            {!isStandalone && onInstallPwa && (
               <button
                 type="button"
                 id="install-pwa-nav-btn"
                 onClick={onInstallPwa}
-                className="px-3 py-2 rounded-xl border border-[#4A5D4E]/30 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
-                title="تنزيل الموقع كتطبيق على الشاشة الرئيسية"
+                className="px-3.5 py-1.5 rounded-xl border border-[#4A5D4E]/30 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                title="تنزيل مباشر لتطبيق أيمن كناني على جهازك"
               >
-                <Smartphone className="w-3.5 h-3.5" />
-                <span>تثبيت التطبيق</span>
+                <Download className="w-3.5 h-3.5 text-[#4A5D4E]" />
+                <span>تنزيل مباشر</span>
               </button>
             )}
 
@@ -328,17 +331,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </button>
               )}
 
-              {canInstallPwa && onInstallPwa && (
+              {!isStandalone && onInstallPwa && (
                 <button
                   type="button"
                   onClick={() => {
                     onInstallPwa();
                     setMobileMenuOpen(false);
                   }}
-                  className="col-span-2 p-3 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/30 text-center font-bold flex items-center justify-center gap-2 shadow-xs"
+                  className="col-span-2 p-3 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-center font-bold flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-98"
                 >
-                  <Smartphone className="w-4 h-4" />
-                  <span>تثبيت تطبيق المنصة على هاتفك</span>
+                  <Download className="w-4 h-4 text-amber-200" />
+                  <span>تنزيل مباشر لتطبيق «أيمن كناني»</span>
                 </button>
               )}
 

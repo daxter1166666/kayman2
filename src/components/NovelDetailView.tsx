@@ -284,10 +284,10 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                       id="download-full-book-formatted-pdf-btn"
                       onClick={() => setIsFullBookPdfModalOpen(true)}
                       className="flex-1 sm:flex-initial px-5 py-3 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm transition-all flex items-center justify-center gap-2 shadow-sm cursor-pointer active:scale-95"
-                      title="تنزيل الكتاب كاملاً بصيغة PDF مع الفهرس وجميع الفصول"
+                      title="تنزيل مباشر للكتاب كاملاً بصيغة PDF مع الفهرس وجميع الفصول"
                     >
                       <Download className="w-4 h-4 text-amber-200" />
-                      <span>تنزيل الكتاب كاملاً (PDF)</span>
+                      <span>تنزيل مباشر للكتاب (PDF)</span>
                     </button>
                   )}
                 </div>

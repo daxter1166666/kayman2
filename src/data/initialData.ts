@@ -33,8 +33,9 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
 export const INITIAL_SITE_BRANDING: SiteBranding = {
   siteName: 'أيمن كناني | Ayman Kinani',
   siteSubtitle: 'المنصة الرسمية لنشر المؤلفات والكتب والروايات',
-  logoUrl: '',
-  faviconUrl: '',
+  logoUrl: '/pwa-512.png',
+  faviconUrl: '/favicon.ico',
+  pwaIconUrl: '/pwa-512.png',
   footerText: 'الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026',
 };
 

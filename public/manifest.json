@@ -1,24 +1,41 @@
 {
-  "short_name": "نوفيليا",
-  "name": "نوفيليا | منصة نشر وقراءة الكتب والروايات",
-  "description": "منصة رقمية حديثة لنشر وقراءة الكتب، الروايات، المقالات الفكرية، والمؤلفات الأدبية المتنوعة",
+  "id": "/",
+  "name": "أيمن كناني - المؤلفات والكتب والروايات",
+  "short_name": "أيمن كناني",
+  "description": "المنصة الرسمية المعتمدة لقراءة وتحميل مؤلفات وكتب وروايات الكاتب أيمن كناني مجاناً بصيغة PDF وقراءة تفاعلية مباشرة",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#FDFCF8",
+  "theme_color": "#4A5D4E",
   "icons": [
     {
       "src": "/pwa-192.png",
       "type": "image/png",
-      "sizes": "192x192"
+      "sizes": "192x192",
+      "purpose": "any"
     },
     {
       "src": "/pwa-512.png",
       "type": "image/png",
-      "sizes": "512x512"
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "/pwa-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "type": "image/png",
+      "sizes": "180x180",
+      "purpose": "any"
     }
   ],
-  "start_url": "/",
-  "background_color": "#FDFCF8",
-  "theme_color": "#4A5D4E",
-  "display": "standalone",
-  "orientation": "portrait-primary",
-  "dir": "rtl",
-  "lang": "ar"
+  "categories": ["books", "literature", "education"]
 }

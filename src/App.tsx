@@ -25,6 +25,8 @@ import { AdSlot } from './components/AdSlot';
 import { AdminLoginModal } from './components/AdminLoginModal';
 import { AuthorProfileSection } from './components/AuthorProfileSection';
 import { DonationModal } from './components/DonationModal';
+import { PWAInstallModal } from './components/PWAInstallModal';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import {
   Sparkles,
   BookOpen,
@@ -43,7 +45,8 @@ import {
   Check,
   Heart,
   Lock,
-  User
+  User,
+  Download
 } from 'lucide-react';
 
 export default function App() {
@@ -154,10 +157,26 @@ export default function App() {
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
   const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
 
-  // PWA Install Prompt State
+  // PWA Install Prompt State & Mobile Standalone Detection
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
   const [showPwaBanner, setShowPwaBanner] = useState<boolean>(true);
+  const [showPwaInstallModal, setShowPwaInstallModal] = useState<boolean>(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           (window.navigator as any).standalone === true;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsStandalone(e.matches);
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Load initial data
   const refreshData = () => {
@@ -417,7 +436,7 @@ export default function App() {
     }
   }, [adSettings.adsterra]);
 
-  const handleInstallPwa = async () => {
+  const handleNativePromptInstall = async () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
@@ -425,9 +444,11 @@ export default function App() {
         setCanInstallPwa(false);
       }
       setDeferredPrompt(null);
-    } else {
-      alert('لتثبيت التطبيق على هاتفك: اضغط على خيارات المتصفح (⋮ أو زر المشاركة في سفاري) ثم اختر "إضافة إلى الشاشة الرئيسية (Add to Home screen)".');
     }
+  };
+
+  const handleInstallPwa = () => {
+    setShowPwaInstallModal(true);
   };
 
   // Update reader settings handler
@@ -581,26 +602,33 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">
       {/* PWA Mobile Installation Prompt Banner */}
-      {showPwaBanner && (
+      {showPwaBanner && !isStandalone && (
         <div className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
-          <div className="flex items-center gap-2 max-w-2xl">
-            <Smartphone className="w-4 h-4 shrink-0 text-amber-200" />
+          <div className="flex items-center gap-2.5 max-w-2xl">
+            <img
+              src={siteBranding.pwaIconUrl || '/pwa-192.png'}
+              alt="تطبيق أيمن كناني"
+              className="w-5 h-5 rounded-md object-cover border border-white/40 shrink-0 shadow-2xs"
+              referrerPolicy="no-referrer"
+            />
             <span>
-              <strong>تطبيق {siteBranding.siteName} متاح الآن:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك الرئيسية.
+              <strong>تطبيق أيمن كناني:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك مع دعم القراءة دون إنترنت.
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
+              id="top-banner-direct-download-btn"
               onClick={handleInstallPwa}
-              className="px-3 py-1 bg-white text-[#4A5D4E] font-bold rounded-lg hover:bg-amber-50 transition-colors text-[11px] cursor-pointer shadow-xs whitespace-nowrap"
+              className="px-3 py-1 bg-white text-[#4A5D4E] font-bold rounded-lg hover:bg-amber-50 transition-colors text-[11px] cursor-pointer shadow-xs whitespace-nowrap active:scale-95 flex items-center gap-1"
             >
-              تثبيت على الهاتف
+              <Download className="w-3 h-3" />
+              <span>تنزيل مباشر</span>
             </button>
             <button
               type="button"
               onClick={() => setShowPwaBanner(false)}
-              className="p-1 hover:bg-[#3C4C3F] rounded text-white/80"
+              className="p-1 hover:bg-[#3C4C3F] rounded text-white/80 cursor-pointer"
               title="إغلاق الإشعار"
             >
               <X className="w-3.5 h-3.5" />
@@ -622,9 +650,19 @@ export default function App() {
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
         onInstallPwa={handleInstallPwa}
         canInstallPwa={canInstallPwa}
+        isStandalone={isStandalone}
         siteBranding={siteBranding}
         onOpenDonationModal={() => setShowDonationModal(true)}
         onScrollToAuthor={handleScrollToAuthorBio}
+      />
+
+      {/* PWA Install Guidance & One-Click Modal */}
+      <PWAInstallModal
+        isOpen={showPwaInstallModal}
+        onClose={() => setShowPwaInstallModal(false)}
+        onNativeInstall={handleNativePromptInstall}
+        canNativeInstall={canInstallPwa && !!deferredPrompt}
+        siteBranding={siteBranding}
       />
 
       {/* Admin Login Dialog Modal */}
@@ -804,11 +842,21 @@ export default function App() {
                       </button>
                       <button
                         type="button"
+                        id="hero-direct-app-download-btn"
+                        onClick={handleInstallPwa}
+                        className="px-5 py-3 rounded-xl bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                        title="تنزيل مباشر لتطبيق أيمن كناني على جهازك"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>تنزيل مباشر للتطبيق</span>
+                      </button>
+                      <button
+                        type="button"
                         id="hero-novel-details-btn"
                         onClick={() => handleSelectNovel(featuredNovel.id)}
                         className="px-5 py-3 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs"
                       >
-                        عرض فهرس الفصول والتفاصيل
+                        عرض الفهرس
                       </button>
                     </div>
                   </div>
@@ -1015,89 +1063,18 @@ export default function App() {
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
       />
 
-      {/* Mobile Sticky Bottom App Bar (Only when not reading a chapter) */}
-      {currentView !== 'reader' && (
-        <nav
-          id="mobile-bottom-app-bar"
-          className="md:hidden fixed bottom-0 inset-x-0 z-40 bg-[#FDFCF8]/95 backdrop-blur-md border-t border-[#E5E2D9] shadow-lg px-2 py-1 pb-safe"
-        >
-          <div className="grid grid-cols-5 items-center max-w-md mx-auto text-[10px] font-cairo">
-            {/* 1. Home */}
-            <button
-              type="button"
-              id="mobile-nav-home"
-              onClick={handleNavigateHome}
-              className={`flex flex-col items-center justify-center py-1 rounded-xl transition-all cursor-pointer ${
-                currentView === 'catalog' && !selectedGenre && !searchQuery
-                  ? 'text-[#4A5D4E] font-bold'
-                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-              }`}
-            >
-              <BookOpen className="w-4 h-4 mb-0.5" />
-              <span>الرئيسية</span>
-            </button>
-
-            {/* 2. Catalog Books */}
-            <button
-              type="button"
-              id="mobile-nav-catalog"
-              onClick={() => {
-                if (currentView !== 'catalog') {
-                  handleNavigateHome();
-                }
-                setTimeout(() => {
-                  const el = document.getElementById('catalog-books-section');
-                  if (el) {
-                    el.scrollIntoView({ behavior: 'smooth' });
-                  }
-                }, 100);
-              }}
-              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
-            >
-              <Layers className="w-4 h-4 mb-0.5" />
-              <span>المكتبة</span>
-            </button>
-
-            {/* 3. Bookmarks with live badge */}
-            <button
-              type="button"
-              id="mobile-nav-bookmarks"
-              onClick={() => setShowBookmarksDrawer(true)}
-              className="relative flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
-            >
-              <BookmarkIcon className="w-4 h-4 mb-0.5 text-[#4A5D4E]" />
-              <span>المحفوظات</span>
-              {bookmarks.length > 0 && (
-                <span className="absolute top-0.5 right-2 min-w-[15px] h-[15px] px-1 bg-[#C88A3B] text-white text-[9px] font-bold rounded-full flex items-center justify-center shadow-xs">
-                  {bookmarks.length}
-                </span>
-              )}
-            </button>
-
-            {/* 4. Author Bio */}
-            <button
-              type="button"
-              id="mobile-nav-author"
-              onClick={handleScrollToAuthorBio}
-              className="flex flex-col items-center justify-center py-1 rounded-xl text-[#6E6A64] hover:text-[#2C2C2C] transition-all cursor-pointer"
-            >
-              <User className="w-4 h-4 mb-0.5" />
-              <span>الكاتب</span>
-            </button>
-
-            {/* 5. Support / Donation */}
-            <button
-              type="button"
-              id="mobile-nav-support"
-              onClick={() => setShowDonationModal(true)}
-              className="flex flex-col items-center justify-center py-1 rounded-xl text-rose-600 font-semibold transition-all cursor-pointer"
-            >
-              <Heart className="w-4 h-4 mb-0.5 fill-rose-600/20" />
-              <span>دعم</span>
-            </button>
-          </div>
-        </nav>
-      )}
+      {/* Professional Mobile Bottom Navigation Bar (Dock) */}
+      <MobileBottomNav
+        currentView={currentView}
+        onNavigateHome={handleNavigateHome}
+        onOpenBookmarks={() => setShowBookmarksDrawer(true)}
+        bookmarkCount={bookmarks.length}
+        onScrollToAuthor={handleScrollToAuthorBio}
+        onOpenInstallModal={() => setShowPwaInstallModal(true)}
+        onOpenDonationModal={() => setShowDonationModal(true)}
+        isStandalone={isStandalone}
+        siteBranding={siteBranding}
+      />
     </div>
   );
 }
