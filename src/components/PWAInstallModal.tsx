@@ -22,7 +22,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
 
   if (!isOpen) return null;
 
-  const appName = 'تطبيق أيمن كناني';
+  const appName = 'أيمن كناني';
   const subtitle = siteBranding?.siteSubtitle || 'المنصة الرسمية لنشر المؤلفات والكتب والروايات';
   const iconSrc = siteBranding?.pwaIconUrl?.trim() || 
                   siteBranding?.faviconUrl?.trim() || 
@@ -48,24 +48,26 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>${appName}</title>
-  <link rel="icon" href="${origin}/pwa-512.png">
+  <link rel="icon" href="${iconSrc}">
+  <link rel="apple-touch-icon" href="${iconSrc}">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="${appName}">
   <style>
     body { font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 40px 20px; background: #FDFCF8; color: #2C2C2C; }
     .card { max-width: 420px; margin: 20px auto; background: white; padding: 32px 24px; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); border: 1px solid #E5E2D9; }
     .btn { display: inline-block; padding: 14px 28px; background: #4A5D4E; color: white; border-radius: 14px; text-decoration: none; font-weight: bold; margin-top: 20px; }
   </style>
   <script>
-    window.location.replace("${origin}?source=direct_download");
+    window.location.replace("${origin}?source=direct_app");
   </script>
 </head>
 <body>
   <div class="card">
-    <img src="${origin}/pwa-512.png" alt="${appName}" style="width: 80px; height: 80px; border-radius: 18px; margin-bottom: 12px; object-fit: cover;">
+    <img src="${iconSrc}" alt="${appName}" style="width: 80px; height: 80px; border-radius: 18px; margin-bottom: 12px; object-fit: cover;">
     <h2 style="margin: 0 0 8px 0;">${appName}</h2>
-    <p style="color: #6E6A64; font-size: 14px;">جاري فتح المنصة الرسمية للكاتب...</p>
-    <a href="${origin}" class="btn">اضغط هنا لفتح التطبيق الآن</a>
+    <p style="color: #6E6A64; font-size: 14px;">المنصة الرسمية المعتمدة للكاتب</p>
+    <a href="${origin}" class="btn">فتح تطبيق أيمن كناني</a>
   </div>
 </body>
 </html>`;
@@ -74,7 +76,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'تطبيق_أيمن_كناني.html';
+      a.download = 'أيمن_كناني.html';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

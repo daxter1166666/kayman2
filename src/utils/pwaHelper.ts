@@ -22,14 +22,12 @@ export function applyBrandingToPWA(branding?: SiteBranding | null) {
   const rawName = currentBranding.siteName?.trim() || 'أيمن كناني';
   const rawSubtitle = currentBranding.siteSubtitle?.trim() || 'المنصة الرسمية لنشر المؤلفات والكتب';
   
-  // App short name for home screen icon label (max 12 chars per PWA spec)
-  const shortName = rawName.includes('|') 
-    ? rawName.split('|')[0].trim() 
-    : (rawName.length > 12 ? 'أيمن كناني' : rawName);
+  // App name for home screen icon label and install prompt (strictly 'أيمن كناني' as requested)
+  const shortName = 'أيمن كناني';
+  const appDisplayName = 'أيمن كناني';
+  const pageTitle = `${rawName} - ${rawSubtitle}`;
 
-  const fullName = `${rawName} - ${rawSubtitle}`;
-
-  // Priority for app icon: PWA icon > Favicon > Logo > Default generated custom icon
+  // Priority for app icon: PWA icon (uploaded in control panel) > Favicon > Logo > Default generated icon
   const iconSrc = currentBranding.pwaIconUrl?.trim() || 
                   currentBranding.faviconUrl?.trim() || 
                   currentBranding.logoUrl?.trim() || 
@@ -42,7 +40,7 @@ export function applyBrandingToPWA(branding?: SiteBranding | null) {
 
   // 1. Update Document Title
   if (rawName) {
-    document.title = fullName;
+    document.title = pageTitle;
   }
 
   // 2. Update Application Names in Meta tags
@@ -78,7 +76,7 @@ export function applyBrandingToPWA(branding?: SiteBranding | null) {
     const manifestData = {
       id: '/',
       short_name: shortName,
-      name: fullName,
+      name: appDisplayName,
       description: rawSubtitle,
       start_url: '/',
       scope: '/',
@@ -93,7 +91,7 @@ export function applyBrandingToPWA(branding?: SiteBranding | null) {
           src: iconSrc,
           type: iconSrc.startsWith('data:image/svg') ? 'image/svg+xml' : 'image/png',
           sizes: '192x192 512x512',
-          purpose: 'any',
+          purpose: 'any maskable',
         },
         {
           src: '/pwa-192.png',

@@ -48,6 +48,7 @@ import {
   User,
   Download
 } from 'lucide-react';
+import { toArabicGenres } from './utils/genreHelper';
 
 export default function App() {
   // Read SSR Initial Payload if delivered by Server-Side Rendering
@@ -95,8 +96,8 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
-      const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
-      const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
+      const chapterMatch = p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = p.match(/\/(?:novel|book)\/([^/]+)$/i);
       const allChapters = storageService.getChapters();
       const allNovels = storageService.getNovels();
 
@@ -134,7 +135,7 @@ export default function App() {
         }
       }
 
-      const novelParam = urlParams.get('novel');
+      const novelParam = urlParams.get('novel') || urlParams.get('book');
       if (novelParam) {
         return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null };
       }
@@ -500,7 +501,7 @@ export default function App() {
     setCurrentView('novel_detail');
     const novel = novels.find(n => n.id === novelId) || storageService.getNovelById(novelId);
     if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', `/novel/${novel?.slug || novelId}`);
+      window.history.pushState({}, '', `/book/${novel?.slug || novelId}`);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -516,7 +517,7 @@ export default function App() {
         window.history.pushState(
           {},
           '',
-          `/novel/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
+          `/book/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
         );
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -554,7 +555,7 @@ export default function App() {
   const filterPills = useMemo(() => {
     const currentCats = storageService.getCategories();
     return [
-      { key: 'All', label: 'جميع التصنيفات' },
+      { key: 'All', label: 'جميع الكتب والمؤلفات' },
       ...currentCats.map(c => ({ key: c.name, label: c.arabicName }))
     ];
   }, [categories]);
@@ -577,8 +578,12 @@ export default function App() {
         }
         // Category filter
         if (selectedGenre !== 'All') {
-          const cat = categories.find(c => c.name === selectedGenre);
-          const match = novel.genres.includes(selectedGenre as any) || (cat && novel.genres.includes(cat.arabicName as any));
+          const cat = categories.find(c => c.name === selectedGenre || c.arabicName === selectedGenre);
+          const match = novel.genres.some(g => {
+            const gLow = g.toLowerCase();
+            const sLow = selectedGenre.toLowerCase();
+            return gLow === sLow || (cat && (gLow === cat.arabicName.toLowerCase() || gLow === cat.name.toLowerCase()));
+          });
           if (!match) return false;
         }
         return true;
@@ -805,7 +810,7 @@ export default function App() {
                       <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#4A5D4E] text-[#FDFCF8]">
                         إصدار مميز للكاتب
                       </span>
-                      {featuredNovel.genres.map(g => (
+                      {toArabicGenres(featuredNovel.genres).map(g => (
                         <span
                           key={g}
                           className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]"

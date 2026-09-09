@@ -297,7 +297,17 @@ class SupabaseService {
         synopsis: n.synopsis || '',
         coverImage: n.cover_image || '',
         bannerImage: n.banner_image || '',
-        genres: Array.isArray(n.genres) ? n.genres : [],
+        genres: (() => {
+          const rawG = Array.isArray(n.genres) ? n.genres : [];
+          const clean = rawG.filter((g: string) => {
+            const low = (g || '').trim().toLowerCase();
+            return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought';
+          });
+          if (clean.length === 0 || (n.title && n.title.includes('أخلاق الباحث'))) {
+            return ['أخلاق وقيم', 'فكر إسلامي ومعاصر', 'منهجية البحث العلمي', 'دراسات وبحوث'];
+          }
+          return clean;
+        })(),
         tags: Array.isArray(n.tags) ? n.tags : [],
         status: n.status || 'ONGOING',
         totalViews: Math.max(Number(n.total_views) || 0, localNovelViewsMap.get(n.id) || 0),
@@ -616,7 +626,17 @@ class SupabaseService {
           synopsis: n.synopsis || n.description || '',
           coverImage: n.cover_image || '',
           bannerImage: n.banner_image || '',
-          genres: Array.isArray(n.genres) && n.genres.length > 0 ? n.genres : ['Fantasy'],
+          genres: (() => {
+            const rawG = Array.isArray(n.genres) ? n.genres : [];
+            const clean = rawG.filter((g: string) => {
+              const low = (g || '').trim().toLowerCase();
+              return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought';
+            });
+            if (clean.length === 0 || (n.title && n.title.includes('أخلاق الباحث'))) {
+              return ['أخلاق وقيم', 'فكر إسلامي ومعاصر', 'منهجية البحث العلمي', 'دراسات وبحوث'];
+            }
+            return clean;
+          })(),
           tags: Array.isArray(n.tags) && n.tags.length > 0 ? n.tags : ['فكر', 'مؤلفات'],
           status: n.status || 'ONGOING',
           totalViews: Number(n.total_views) || 0,

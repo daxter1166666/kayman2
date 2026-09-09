@@ -189,7 +189,7 @@ export const CategoryManagerTab: React.FC<CategoryManagerTabProps> = ({
                 </label>
                 <input
                   type="text"
-                  placeholder="مثال: Philosophy, Literature, Self-Development..."
+                  placeholder="مثال: Ethics, Islamic-Thought, Research-Method, Studies..."
                   value={englishName}
                   onChange={e => setEnglishName(e.target.value)}
                   className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:border-[#4A5D4E] focus:ring-1 focus:ring-[#4A5D4E] focus:outline-none font-mono text-left"

@@ -28,7 +28,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   adSettings,
   onNavigateTab,
 }) => {
-  const totalViews = chapters.reduce((acc, c) => acc + c.views, 0);
+  const totalViews = Math.max(
+    novels.reduce((acc, n) => acc + (n.totalViews || 0), 0),
+    chapters.reduce((acc, c) => acc + (c.views || 0), 0)
+  );
   const totalLikes = chapters.reduce((acc, c) => acc + c.likes, 0);
   const totalWords = chapters.reduce((acc, c) => acc + c.wordCount, 0);
 

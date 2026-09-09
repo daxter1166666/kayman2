@@ -15,7 +15,7 @@ const KEYS = {
   USER_CHAPTER_RATINGS: 'ayman_user_chapter_ratings_v1',
   ADMIN_AUTH: 'ayman_admin_session_v4',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
-  CATEGORIES: 'ayman_categories_v2',
+  CATEGORIES: 'ayman_categories_v3',
   LEGAL_DOCS: 'ayman_legal_docs_v2',
   CONTACT_MESSAGES: 'ayman_contact_messages_v2',
   AUTHOR_PROFILE: 'ayman_author_profile_v1',
@@ -81,7 +81,24 @@ export const storageService = {
   getNovels(): Novel[] {
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
     const deletedIds = new Set(this.getDeletedNovelIds());
-    return raw.filter(n => !deletedIds.has(n.id));
+    return raw
+      .filter(n => !deletedIds.has(n.id))
+      .map(n => {
+        const cleanedGenres = (n.genres || []).filter(g => {
+          const low = (g || '').trim().toLowerCase();
+          return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought';
+        });
+        if (cleanedGenres.length === 0 || (n.title && n.title.includes('أخلاق الباحث'))) {
+          return {
+            ...n,
+            genres: ['أخلاق وقيم', 'فكر إسلامي ومعاصر', 'منهجية البحث العلمي', 'دراسات وبحوث'],
+          };
+        }
+        return {
+          ...n,
+          genres: cleanedGenres,
+        };
+      });
   },
 
   saveNovels(novels: Novel[]): void {
@@ -755,7 +772,18 @@ export const storageService = {
 
   // --- Categories Management ---
   getCategories(): Category[] {
-    return getStored<Category[]>(KEYS.CATEGORIES, INITIAL_CATEGORIES);
+    const raw = getStored<Category[]>(KEYS.CATEGORIES, INITIAL_CATEGORIES);
+    const filtered = (raw || []).filter(c => {
+      const low = (c.name || '').toLowerCase();
+      const arabicLow = (c.arabicName || '').toLowerCase();
+      return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought' &&
+             !arabicLow.includes('فانتازيا') && c.id !== 'cat-1' && c.id !== 'cat-5';
+    });
+    if (filtered.length === 0 || !filtered.some(c => c.name === 'أخلاق وقيم')) {
+      this.saveCategories(INITIAL_CATEGORIES);
+      return INITIAL_CATEGORIES;
+    }
+    return filtered;
   },
 
   saveCategories(categories: Category[]): void {

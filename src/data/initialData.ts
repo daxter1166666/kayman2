@@ -90,14 +90,15 @@ export const INITIAL_READER_SETTINGS: ReaderSettings = {
 };
 
 export const INITIAL_CATEGORIES: Array<{ id: string; name: string; arabicName: string; description: string }> = [
-  { id: 'cat-1', name: 'Fantasy', arabicName: 'فانتازيا وخيال أسطوري', description: 'عوالم السحر والملحمات الأسطورية والآلات البخارية' },
-  { id: 'cat-2', name: 'Sci-Fi', arabicName: 'خيال علمي وفضاء', description: 'أوبرا الفضاء، الذكاء الاصطناعي، والتقنيات المستقبلية' },
-  { id: 'cat-3', name: 'Mystery & Thriller', arabicName: 'غموض وتشويق', description: 'تحقيقات الجرائم، الألغاز المعقدة، والتشويق النفسي' },
-  { id: 'cat-4', name: 'Historical Fiction', arabicName: 'تاريخ وتراث', description: 'أحداث تاريخية ملحمية، حضارات قديمة، وسير وثائقية' },
-  { id: 'cat-5', name: 'Philosophy & Thought', arabicName: 'فلسفة وفكر', description: 'دراسات فكرية، حوارات فلسفية، وتحليلات أدبية عميقة' },
-  { id: 'cat-6', name: 'Self-Development', arabicName: 'تطوير الذات والوعي', description: 'بناء العادات، النجاح، الفكر الريادي، والاتزان النفسي' },
-  { id: 'cat-7', name: 'Novels & Literature', arabicName: 'روايات وأدب عالمي', description: 'أدب مترجم، كلاسيكيات السرد، والقصص الواقعية المؤثرة' },
-  { id: 'cat-8', name: 'Poetry & Prose', arabicName: 'شعر ونصوص أدبية', description: 'قصائد ديوانية، نصوص وجدانية، وشعر حديث وكلاسيكي' },
+  { id: 'cat-ethics', name: 'أخلاق وقيم', arabicName: 'أخلاق وقيم', description: 'منظومة الأخلاق الإسلامية والإنسانية، الأمانة الفكرية، وضوابط السلوك القويم' },
+  { id: 'cat-islamic-thought', name: 'فكر إسلامي ومعاصر', arabicName: 'فكر إسلامي ومعاصر', description: 'قضايا الفكر وتجديد الخطاب، حوار الحضارات، وأصالة المنهج الاستدلالي' },
+  { id: 'cat-research-method', name: 'منهجية البحث العلمي', arabicName: 'منهجية البحث العلمي', description: 'أصول التحقيق والتوثيق، أدوات النقد والمناظرة، ومعايير البحث الرصين' },
+  { id: 'cat-studies', name: 'دراسات وبحوث', arabicName: 'دراسات وبحوث', description: 'أوراق بحثية معمقة، دراسات فكرية واجتماعية، وقراءات تحليلية' },
+  { id: 'cat-thought', name: 'فكر وفلسفة', arabicName: 'فكر وفلسفة', description: 'حوارات فكرية، تأملات في نظرية المعرفة، ومباحث الفكر الإنساني' },
+  { id: 'cat-self-dev', name: 'تطوير الذات والوعي', arabicName: 'تطوير الذات والوعي', description: 'بناء العادات الفكرية، الفكر الريادي، والاتزان النفسي والمعرفي' },
+  { id: 'cat-novels', name: 'روايات وأدب', arabicName: 'روايات وأدب', description: 'أعمال روائية وسردية، نصوص أدبية وقصص واقعية' },
+  { id: 'cat-history', name: 'تاريخ وتراث', arabicName: 'تاريخ وتراث', description: 'أحداث تاريخية، سير وتراجم، وقراءات في الحضارة والتراث' },
+  { id: 'cat-poetry', name: 'شعر ونصوص وجدانية', arabicName: 'شعر ونصوص وجدانية', description: 'قصائد ديوانية، نصوص وجدانية، وشعر حديث وتراثي' },
 ];
 
 export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {

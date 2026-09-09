@@ -46,12 +46,12 @@ export const ServerChapterView: React.FC<ChapterSSRProps> = ({
     .filter(Boolean);
 
   const prevUrl = prevChapter
-    ? `/novel/${novel.slug || novel.id}/chapter/${prevChapter.slug || prevChapter.chapterNumber}`
+    ? `/book/${novel.slug || novel.id}/chapter/${prevChapter.slug || prevChapter.chapterNumber}`
     : null;
   const nextUrl = nextChapter
-    ? `/novel/${novel.slug || novel.id}/chapter/${nextChapter.slug || nextChapter.chapterNumber}`
+    ? `/book/${novel.slug || novel.id}/chapter/${nextChapter.slug || nextChapter.chapterNumber}`
     : null;
-  const novelUrl = `/novel/${novel.slug || novel.id}`;
+  const novelUrl = `/book/${novel.slug || novel.id}`;
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] font-cairo antialiased flex flex-col" dir="rtl">
@@ -250,7 +250,7 @@ export const ServerNovelView: React.FC<NovelSSRProps> = ({ novel, chapters }) =>
             <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
               {chapters.length > 0 && (
                 <a
-                  href={`/novel/${novel.slug || novel.id}/chapter/${chapters[0].slug || chapters[0].chapterNumber}`}
+                  href={`/book/${novel.slug || novel.id}/chapter/${chapters[0].slug || chapters[0].chapterNumber}`}
                   className="px-6 py-3 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-sm shadow-md transition-all"
                 >
                   ابدأ قراءة الفصل الأول ({chapters[0].title})
@@ -273,14 +273,14 @@ export const ServerNovelView: React.FC<NovelSSRProps> = ({ novel, chapters }) =>
         {/* Chapters Table */}
         <section className="mt-8">
           <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] mb-4">
-            فصول الرواية ({chapters.length} فصول)
+            فصول ومحتويات الكتاب ({chapters.length} فصول)
           </h2>
 
           <div className="space-y-2">
             {chapters.map(ch => (
               <a
                 key={ch.id}
-                href={`/novel/${novel.slug || novel.id}/chapter/${ch.slug || ch.chapterNumber}`}
+                href={`/book/${novel.slug || novel.id}/chapter/${ch.slug || ch.chapterNumber}`}
                 className="flex items-center justify-between p-4 rounded-xl border border-[#E5E2D9] bg-white hover:bg-[#F7F5EE] transition-all group"
               >
                 <div className="flex items-center gap-3">
@@ -389,7 +389,7 @@ export function generateChapterSeoTags({
             '@type': 'ListItem',
             position: 2,
             name: novel.title,
-            item: `${domain}/novel/${novel.slug || novel.id}`,
+            item: `${domain}/book/${novel.slug || novel.id}`,
           },
           {
             '@type': 'ListItem',
@@ -405,7 +405,7 @@ export function generateChapterSeoTags({
         isPartOf: {
           '@type': 'Book',
           name: novel.title,
-          url: `${domain}/novel/${novel.slug || novel.id}`,
+          url: `${domain}/book/${novel.slug || novel.id}`,
           author: {
             '@type': 'Person',
             name: novel.author,

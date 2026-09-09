@@ -26,6 +26,7 @@ import {
   FileText,
   Book
 } from 'lucide-react';
+import { toArabicGenres } from '../utils/genreHelper';
 
 interface NovelDetailViewProps {
   novel: Novel;
@@ -106,8 +107,9 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
   }[novel.status];
 
   const handleShare = () => {
+    const bookUrl = typeof window !== 'undefined' ? `${window.location.origin}/book/${novel.slug || novel.id}` : '';
     if (navigator.clipboard) {
-      navigator.clipboard.writeText(window.location.href);
+      navigator.clipboard.writeText(bookUrl || window.location.href);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
@@ -185,7 +187,7 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                 <span className={`px-3 py-1 rounded-lg text-xs font-bold border backdrop-blur-md shadow-xs ${statusConfig.classes}`}>
                   {statusConfig.label}
                 </span>
-                {novel.genres.map(g => (
+                {toArabicGenres(novel.genres).map(g => (
                   <span
                     key={g}
                     className="px-2.5 py-1 rounded-lg text-xs font-medium bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9]"

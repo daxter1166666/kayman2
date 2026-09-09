@@ -36,7 +36,7 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
 
   // Formulate canonical share link
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const shareUrl = `${origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`;
+  const shareUrl = `${origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`;
 
   const shareText = `أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني 📖✨`;
   

@@ -114,7 +114,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
     if (novelId && chapterId) {
       return `${siteDomain}/?novel=${novelId}&chapter=${chapterId}`;
     }
-    return `${siteDomain}/novel/${novelSlug || 'novel'}/chapter-${chapterNumber || 1}`;
+    return `${siteDomain}/book/${novelSlug || 'book'}/chapter-${chapterNumber || 1}`;
   }, [canonicalUrl, siteDomain, novelId, chapterId, novelSlug, chapterNumber]);
 
   // Computed share image
