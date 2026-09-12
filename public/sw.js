@@ -1,5 +1,6 @@
-const CACHE_NAME = 'ayman-kinani-pwa-v1';
-const STATIC_ASSETS = [
+// PWA Service Worker for Ayman Kinani Platform
+const CACHE_NAME = 'aymankinani-pwa-v1';
+const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
@@ -8,84 +9,87 @@ const STATIC_ASSETS = [
   '/pwa-maskable-512.png',
   '/apple-touch-icon.png',
   '/favicon.ico',
-  '/icon.svg'
+  '/icon.svg',
 ];
 
-// Install event: Pre-cache shell assets
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(STATIC_ASSETS);
-    }).then(() => self.skipWaiting())
+      return cache.addAll(PRECACHE_ASSETS).catch((err) => {
+        console.warn('Pre-cache warning:', err);
+      });
+    })
   );
 });
 
-// Activate event: Clean up old caches & claim clients
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => {
-      return Promise.all(
-        keys.map((key) => {
-          if (key !== CACHE_NAME) {
-            return caches.delete(key);
-          }
-        })
-      );
-    }).then(() => self.clients.claim())
+    Promise.all([
+      self.clients.claim(),
+      caches.keys().then((keys) => {
+        return Promise.all(
+          keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        );
+      }),
+    ])
   );
 });
 
-// Fetch event: Network-first for navigation/HTML, cache-first/stale-while-revalidate for static assets
 self.addEventListener('fetch', (event) => {
   const request = event.request;
-  
-  // Skip non-GET and cross-origin non-CDN requests
-  if (request.method !== 'GET') return;
-  
-  const url = new URL(request.url);
 
-  // HTML / Navigation requests: Network-First with Cache fallback
-  if (request.mode === 'navigate' || request.headers.get('accept')?.includes('text/html')) {
+  // Skip non-GET requests or chrome-extension schemes
+  if (request.method !== 'GET' || !request.url.startsWith('http')) {
+    return;
+  }
+
+  // Network-first for HTML / Navigation requests so content is always fresh
+  if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return networkResponse;
         })
-        .catch(async () => {
-          const cached = await caches.match(request);
-          if (cached) return cached;
-          const fallback = await caches.match('/index.html');
-          return fallback || new Response('Offline', { status: 503, statusText: 'Offline' });
-        })
+        .catch(() => caches.match('/index.html') || caches.match('/'))
     );
     return;
   }
 
-  // Google Fonts & Static CDN assets: Stale-While-Revalidate
-  if (url.origin.includes('googleapis.com') || url.origin.includes('gstatic.com') || url.pathname.match(/\.(png|jpg|jpeg|svg|webp|ico|woff2?|css|js)$/)) {
+  // Cache-first with network fallback for images and static assets
+  if (
+    request.destination === 'image' ||
+    request.destination === 'font' ||
+    request.url.includes('/pwa-') ||
+    request.url.includes('/apple-touch-icon')
+  ) {
     event.respondWith(
       caches.match(request).then((cachedResponse) => {
-        const fetchPromise = fetch(request).then((networkResponse) => {
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+        return fetch(request).then((networkResponse) => {
           if (networkResponse && networkResponse.status === 200) {
-            const clone = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
+            const copy = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           }
           return networkResponse;
-        }).catch(() => null);
-
-        return cachedResponse || fetchPromise;
+        });
       })
     );
     return;
   }
 
-  // Default network with cache fallback
+  // Default: Network with Cache fallback
   event.respondWith(
-    fetch(request).catch(() => caches.match(request))
+    fetch(request)
+      .then((networkResponse) => {
+        return networkResponse;
+      })
+      .catch(() => caches.match(request))
   );
 });
-

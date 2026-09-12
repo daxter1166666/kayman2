@@ -58,7 +58,7 @@ export const AuthorProfileSection: React.FC<AuthorProfileSectionProps> = ({
 
               <div className="space-y-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h2 className="text-xl sm:text-2xl font-bold text-[#2C2C2C] font-amiri tracking-wide">
+                  <h2 className="text-xl sm:text-2xl font-bold text-[#2C2C2C] font-amiri">
                     {authorProfile.name}
                   </h2>
                   {authorProfile.englishName && (

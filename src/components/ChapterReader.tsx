@@ -1,11 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Novel, Chapter, Comment, ReaderSettings, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
+import { extractCleanParagraphs } from '../utils/textCleaner';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
-import { ChapterRatingWidget } from './ChapterRatingWidget';
-import { ChapterShareModal } from './ChapterShareModal';
-import { ChapterDownloadPdfModal } from './ChapterDownloadPdfModal';
 import confetti from 'canvas-confetti';
 import {
   ArrowRight,
@@ -32,7 +30,6 @@ import {
   Copy,
   Download,
   Check,
-  Star,
 } from 'lucide-react';
 
 interface ChapterReaderProps {
@@ -73,48 +70,17 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   // Reading Progress state
   const [readingProgress, setReadingProgress] = useState<number>(0);
   const [copiedNotification, setCopiedNotification] = useState<boolean>(false);
-  const [isShareModalOpen, setIsShareModalOpen] = useState<boolean>(false);
-  const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
-  const [chapterRating, setChapterRating] = useState<number>(chapter.rating || 5.0);
-  const [chapterRatingCount, setChapterRatingCount] = useState<number>(chapter.ratingCount || 0);
-  const [viewsCount, setViewsCount] = useState<number>(chapter.views || 0);
   const contentRef = useRef<HTMLDivElement>(null);
-
-  // Sync views count if chapter prop changes
-  useEffect(() => {
-    setViewsCount(prev => Math.max(prev, chapter.views || 0));
-  }, [chapter.views]);
-
-  // Listen to live view increment events
-  useEffect(() => {
-    const handleView = (e: Event) => {
-      const detail = (e as CustomEvent).detail;
-      if (detail && detail.chapterId === chapter.id) {
-        setViewsCount(prev => Math.max(prev, detail.chapterViews ?? (prev + 1)));
-      }
-    };
-    window.addEventListener('novel-view-incremented', handleView);
-    return () => window.removeEventListener('novel-view-incremented', handleView);
-  }, [chapter.id]);
 
   // Initialize chapter state on mount or change
   useEffect(() => {
-    // Record view counter reliably once per session
-    const sessionKey = `viewed_chapter_${chapter.id}`;
-    if (!sessionStorage.getItem(sessionKey)) {
-      sessionStorage.setItem(sessionKey, '1');
-      storageService.incrementChapterView(chapter.id, novel.id);
-    }
+    // Record view counter
+    storageService.incrementChapterView(chapter.id, novel.id);
     
     // Check if liked & bookmarked
     setIsLiked(storageService.isChapterLikedByUser(chapter.id));
     setLikesCount(chapter.likes);
     setIsBookmarked(storageService.isBookmarked(novel.id, chapter.id));
-
-    // Update chapter rating state
-    const freshChapter = storageService.getChapterById(chapter.id);
-    setChapterRating(typeof freshChapter?.rating === 'number' ? freshChapter.rating : (chapter.rating || 5.0));
-    setChapterRatingCount(typeof freshChapter?.ratingCount === 'number' ? freshChapter.ratingCount : (chapter.ratingCount || 0));
 
     // Load comments
     setComments(storageService.getComments(chapter.id));
@@ -236,7 +202,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     return [...roots].sort((a, b) => (b.isPinned ? 1 : 0) - (a.isPinned ? 1 : 0) || new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
   }, [comments, commentSort]);
 
-  // Reader Theme Style Classes Mapping
+  // Reader Theme Style Classes Mapping (Strictly light, parchment and green themes - no black/dark mode)
   const themeStyles = {
     paper: {
       bg: 'bg-[#FDFCF8]',
@@ -257,31 +223,31 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       headerBg: 'bg-[#f4ecd8]/95 border-[#dfd3b8]',
     },
     slate: {
-      bg: 'bg-[#1e232a]',
-      text: 'text-[#d8dee9]',
-      border: 'border-[#2e3440]',
-      subtext: 'text-[#9aa5b6]',
-      card: 'bg-[#282e39]',
+      bg: 'bg-[#EFECE6]',
+      text: 'text-[#2A2A2A]',
+      border: 'border-[#D8D4CC]',
+      subtext: 'text-[#64615B]',
+      card: 'bg-[#E5E1D8]',
       accent: 'text-[#4A5D4E]',
-      headerBg: 'bg-[#1e232a]/95 border-[#2e3440]',
+      headerBg: 'bg-[#EFECE6]/95 border-[#D8D4CC]',
     },
     obsidian: {
-      bg: 'bg-[#0f0e0e]',
-      text: 'text-[#e5e5e5]',
-      border: 'border-[#262626]',
-      subtext: 'text-[#a3a3a3]',
-      card: 'bg-[#171717]',
+      bg: 'bg-[#FAF7F0]',
+      text: 'text-[#262626]',
+      border: 'border-[#E2DFD6]',
+      subtext: 'text-[#605D57]',
+      card: 'bg-[#F0ECE1]',
       accent: 'text-[#4A5D4E]',
-      headerBg: 'bg-[#0f0e0e]/95 border-[#262626]',
+      headerBg: 'bg-[#FAF7F0]/95 border-[#E2DFD6]',
     },
     emerald: {
-      bg: 'bg-[#061e18]',
-      text: 'text-[#d6ede4]',
-      border: 'border-[#0f3d32]',
-      subtext: 'text-[#7fb8a4]',
-      card: 'bg-[#0c2b23]',
-      accent: 'text-emerald-400',
-      headerBg: 'bg-[#061e18]/95 border-[#0f3d32]',
+      bg: 'bg-[#F0F5F2]',
+      text: 'text-[#1E3024]',
+      border: 'border-[#C8DCD0]',
+      subtext: 'text-[#4D6354]',
+      card: 'bg-[#E3EDE7]',
+      accent: 'text-[#4A5D4E]',
+      headerBg: 'bg-[#F0F5F2]/95 border-[#C8DCD0]',
     },
   }[readerSettings.theme];
 
@@ -314,31 +280,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     full: 'max-w-5xl',
   }[readerSettings.contentWidth];
 
-  // Split chapter content for mid-chapter ad insertion if long
-  const isHtmlContent = /<[a-z][\s\S]*>/i.test(chapter.content);
-  const paragraphs = !isHtmlContent ? chapter.content.split('\n\n').filter(p => p.trim()) : [];
-  const midPoint = Math.floor(paragraphs.length / 2);
-
-  const htmlParts = useMemo(() => {
-    if (!isHtmlContent) return null;
-    const chunks = chapter.content.split(/(<\/p>)/gi);
-    const pList: string[] = [];
-    for (let i = 0; i < chunks.length; i += 2) {
-      const chunk = chunks[i];
-      const closer = chunks[i + 1] || '';
-      if (chunk.trim()) {
-        pList.push(chunk + closer);
-      }
-    }
-    if (pList.length <= 2) {
-      return { firstHalf: chapter.content, secondHalf: '' };
-    }
-    const mid = Math.floor(pList.length / 2);
-    return {
-      firstHalf: pList.slice(0, mid).join(''),
-      secondHalf: pList.slice(mid).join(''),
-    };
-  }, [chapter.content, isHtmlContent]);
+  // Clean chapter content and extract proper literary paragraphs (removes any HTML/CSS codes)
+  const paragraphs = useMemo(() => extractCleanParagraphs(chapter.content), [chapter.content]);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeStyles.bg} ${themeStyles.text} font-cairo`}>
@@ -361,19 +304,19 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               type="button"
               id="reader-back-to-novel-btn"
               onClick={onBackToNovel}
-              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer`}
+              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-[#4A5D4E]/10 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer`}
               title="العودة لصفحة الرواية"
             >
               <ArrowRight className="w-4 h-4 text-[#4A5D4E]" />
               <span className="hidden sm:inline">نظرة عامة</span>
             </button>
 
-            <div className="min-w-0">
-              <h2 className="text-xs font-medium opacity-75 truncate max-w-[200px] sm:max-w-xs font-amiri">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xs font-medium opacity-75 truncate max-w-[130px] sm:max-w-xs md:max-w-md font-amiri">
                 {novel.title}
               </h2>
               <div className="flex items-center gap-2">
-                <span className="text-xs sm:text-sm font-bold truncate font-amiri text-[#4A5D4E]">
+                <span className="text-xs sm:text-sm font-bold truncate max-w-[140px] sm:max-w-none font-amiri text-[#4A5D4E]">
                   الفصل {chapter.chapterNumber}: {chapter.title}
                 </span>
               </div>
@@ -388,7 +331,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 type="button"
                 id="reader-chapter-menu-btn"
                 onClick={() => setShowChapterMenu(!showChapterMenu)}
-                className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer`}
+                className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-[#4A5D4E]/10 transition-all text-xs font-bold flex items-center gap-1 cursor-pointer`}
                 title="اختيار الفصل"
               >
                 <List className="w-4 h-4 text-[#4A5D4E]" />
@@ -399,7 +342,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 <div
                   className={`absolute left-0 mt-2 w-72 max-h-96 overflow-y-auto rounded-2xl shadow-2xl border ${themeStyles.border} ${themeStyles.card} z-50 p-2 text-right`}
                 >
-                  <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider border-b border-black/10 dark:border-white/10 mb-1">
+                  <div className="px-3 py-2 text-xs font-bold uppercase tracking-wider border-b border-[#E5E2D9] mb-1">
                     فهرس الفصول ({allChapters.length} فصول)
                   </div>
                   <div className="space-y-1">
@@ -417,7 +360,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                           className={`w-full text-right px-3 py-2 rounded-lg text-xs flex items-center justify-between transition-all cursor-pointer ${
                             isCurrent
                               ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold'
-                              : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-90'
+                              : 'hover:bg-[#4A5D4E]/10 opacity-90'
                           }`}
                         >
                           <span className="truncate font-amiri font-bold">
@@ -441,11 +384,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 rel="noopener noreferrer"
                 download
                 id="reader-download-book-btn"
-                className="hidden sm:inline-flex px-2.5 py-1.5 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold transition-all items-center gap-1 cursor-pointer shadow-xs"
+                className="px-2.5 py-1.5 rounded-xl bg-[#C88A3B] hover:bg-[#B3782E] text-white text-xs font-bold transition-all flex items-center gap-1 cursor-pointer shadow-xs"
                 title={`تحميل الكتاب (${novel.pdfFileSize || 'نسخة إلكترونية'})`}
               >
                 <Download className="w-3.5 h-3.5" />
-                <span>تحميل الكتاب</span>
+                <span className="hidden sm:inline">تحميل الكتاب</span>
               </a>
             )}
 
@@ -457,7 +400,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               className={`p-2 rounded-xl border ${themeStyles.border} ${
                 isBookmarked
                   ? 'bg-[#4A5D4E]/20 text-[#4A5D4E] border-[#4A5D4E]/40'
-                  : 'hover:bg-black/5 dark:hover:bg-white/5'
+                  : 'hover:bg-[#4A5D4E]/10'
               } transition-all cursor-pointer`}
               title={isBookmarked ? 'محفوظ في مكتبتك' : 'حفظ الفصل'}
             >
@@ -468,28 +411,20 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </button>
 
-            {/* Share button (header - opens rich share modal) */}
+            {/* Share button */}
             <button
               type="button"
               id="reader-share-btn"
-              onClick={() => setIsShareModalOpen(true)}
-              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer text-[#4A5D4E]`}
-              title="مشاركة الفصل عبر واتساب، تليجرام ومنصات التواصل"
+              onClick={handleShare}
+              className={`p-2 rounded-xl border ${themeStyles.border} hover:bg-[#4A5D4E]/10 transition-all relative cursor-pointer`}
+              title="مشاركة رابط الفصل"
             >
               <Share2 className="w-4 h-4" />
-              <span className="hidden md:inline">مشاركة</span>
-            </button>
-
-            {/* Download Chapter PDF button */}
-            <button
-              type="button"
-              id="reader-header-download-pdf-btn"
-              onClick={() => setIsPdfModalOpen(true)}
-              className="px-3 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white transition-all flex items-center gap-1.5 text-xs font-bold cursor-pointer shadow-xs active:scale-95"
-              title="تنزيل هذا الفصل بصيغة PDF بالخط والتنسيق الأدبي"
-            >
-              <Download className="w-4 h-4 text-amber-200" />
-              <span className="hidden md:inline">تنزيل الفصل PDF</span>
+              {copiedNotification && (
+                <span className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-[#4A5D4E] text-[#FDFCF8] text-[10px] font-bold px-2 py-0.5 rounded shadow whitespace-nowrap">
+                  تم نسخ الرابط!
+                </span>
+              )}
             </button>
 
             {/* Customization Settings Drawer Toggle */}
@@ -500,12 +435,12 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               className={`px-3 py-2 rounded-xl border ${
                 showSettingsDrawer
                   ? 'bg-[#4A5D4E] text-[#FDFCF8] border-[#4A5D4E] font-bold'
-                  : `${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5`
+                  : `${themeStyles.border} hover:bg-[#4A5D4E]/10`
               } transition-all text-xs flex items-center gap-1.5 cursor-pointer`}
               title="تخصيص الخط وثيم القراءة"
             >
               <Settings2 className="w-4 h-4" />
-              <span className="hidden sm:inline">أ خيارات الخط والمظهر</span>
+              <span className="hidden sm:inline">خيارات الخط والمظهر</span>
             </button>
           </div>
         </div>
@@ -516,7 +451,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             id="reader-customization-panel"
             className={`mt-3 max-w-4xl mx-auto p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xl animate-in fade-in slide-in-from-top-2 duration-200`}
           >
-            <div className="flex items-center justify-between border-b border-black/10 dark:border-white/10 pb-3 mb-4">
+            <div className="flex items-center justify-between border-b border-[#E5E2D9] pb-3 mb-4">
               <div className="flex items-center gap-2">
                 <Sliders className="w-4 h-4 text-[#4A5D4E]" />
                 <h3 className="font-bold text-sm">تخصيص تجربة القراءة والخطوط</h3>
@@ -525,7 +460,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 type="button"
                 id="close-reader-settings-btn"
                 onClick={() => setShowSettingsDrawer(false)}
-                className="text-xs text-[#6E6A64] hover:text-[#2C2C2C] px-3 py-1 rounded-lg bg-black/5 hover:bg-black/10 cursor-pointer font-bold"
+                className="text-xs text-[#6E6A64] hover:text-[#2C2C2C] px-3 py-1 rounded-lg bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 cursor-pointer font-bold transition-colors"
               >
                 إغلاق
               </button>
@@ -556,7 +491,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                       className={`px-2.5 py-1.5 text-xs rounded-lg border text-right transition-all cursor-pointer ${font.font} ${
                         readerSettings.fontFamily === font.id
                           ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E] shadow-sm'
-                          : `border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5`
+                          : `border-[#E5E2D9] hover:bg-[#4A5D4E]/10`
                       }`}
                     >
                       {font.label}
@@ -580,7 +515,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                         fontSize: Math.max(14, readerSettings.fontSize - 1),
                       })
                     }
-                    className={`flex-1 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer`}
+                    className={`flex-1 py-1.5 rounded-lg border border-[#E5E2D9] text-xs font-bold hover:bg-[#4A5D4E]/10 cursor-pointer transition-colors`}
                   >
                     أ-
                   </button>
@@ -608,7 +543,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                         fontSize: Math.min(32, readerSettings.fontSize + 1),
                       })
                     }
-                    className={`flex-1 py-1.5 rounded-lg border border-black/10 dark:border-white/10 text-xs font-bold hover:bg-black/5 dark:hover:bg-white/5 cursor-pointer`}
+                    className={`flex-1 py-1.5 rounded-lg border border-[#E5E2D9] text-xs font-bold hover:bg-[#4A5D4E]/10 cursor-pointer transition-colors`}
                   >
                     أ+
                   </button>
@@ -634,7 +569,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                       className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
                         readerSettings.lineHeight === lh.id
                           ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
-                          : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                          : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
                       }`}
                     >
                       {lh.label}
@@ -648,11 +583,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 <label className="text-xs font-bold block mb-2 opacity-80">أجواء وثيم الصفحة</label>
                 <div className="grid grid-cols-1 gap-1.5">
                   {[
-                    { id: 'paper', label: 'الورق الطبيعي العاجي', swatch: 'bg-[#faf7f2] text-[#2b2725] border-[#dfd3b8]' },
+                    { id: 'paper', label: 'ورق طبيعي عاجي (موصى به)', swatch: 'bg-[#FDFCF8] text-[#2C2C2C] border-[#E5E2D9]' },
+                    { id: 'emerald', label: 'أخضر زيتوني هادئ (مريح للعين)', swatch: 'bg-[#F0F5F2] text-[#1E3024] border-[#C8DCD0]' },
                     { id: 'sepia', label: 'سيبيا كلاسيكي دافئ', swatch: 'bg-[#f4ecd8] text-[#433422] border-[#dfd3b8]' },
-                    { id: 'slate', label: 'رمادي ليلي مهدئ', swatch: 'bg-[#1e232a] text-[#d8dee9] border-[#3b4252]' },
-                    { id: 'obsidian', label: 'أسود ليلي داكن OLED', swatch: 'bg-[#0f0e0e] text-[#e5e5e5] border-[#333333]' },
-                    { id: 'emerald', label: 'أخضر الغابة الزمردي', swatch: 'bg-[#061e18] text-[#d6ede4] border-[#0f3d32]' },
+                    { id: 'slate', label: 'رمادي عاجي ناعم', swatch: 'bg-[#EFECE6] text-[#2A2A2A] border-[#D8D4CC]' },
+                    { id: 'obsidian', label: 'ورق حجري كلاسيكي خافت', swatch: 'bg-[#FAF7F0] text-[#262626] border-[#E2DFD6]' },
                   ].map(thm => (
                     <button
                       key={thm.id}
@@ -704,7 +639,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                       className={`px-2 py-1 text-xs rounded-lg border transition-all cursor-pointer ${
                         readerSettings.contentWidth === w.id
                           ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
-                          : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                          : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
                       }`}
                     >
                       {w.label}
@@ -726,7 +661,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                     className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
                       readerSettings.textAlign === 'right' || readerSettings.textAlign === 'left'
                         ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
-                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                        : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
                     }`}
                   >
                     محاذاة لليمين
@@ -743,10 +678,49 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                     className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
                       readerSettings.textAlign === 'justify'
                         ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
-                        : 'border-black/10 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5'
+                        : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
                     }`}
                   >
                     ضبط متساوي (Justify)
+                  </button>
+                </div>
+
+                {/* 5. Paragraph Spacing */}
+                <label className="text-xs font-bold block mt-3 mb-1 opacity-80">المسافة بين الفقرات</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    id="para-spacing-normal-btn"
+                    onClick={() =>
+                      onUpdateReaderSettings({
+                        ...readerSettings,
+                        paragraphSpacing: 'normal',
+                      })
+                    }
+                    className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                      readerSettings.paragraphSpacing !== 'spacious'
+                        ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
+                        : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
+                    }`}
+                  >
+                    مريح (قياسي)
+                  </button>
+                  <button
+                    type="button"
+                    id="para-spacing-spacious-btn"
+                    onClick={() =>
+                      onUpdateReaderSettings({
+                        ...readerSettings,
+                        paragraphSpacing: 'spacious',
+                      })
+                    }
+                    className={`py-1 text-xs rounded-lg border transition-all cursor-pointer ${
+                      readerSettings.paragraphSpacing === 'spacious'
+                        ? 'bg-[#4A5D4E] text-[#FDFCF8] font-bold border-[#4A5D4E]'
+                        : 'border-[#E5E2D9] hover:bg-[#4A5D4E]/10'
+                    }`}
+                  >
+                    واسع (أدبي)
                   </button>
                 </div>
               </div>
@@ -756,25 +730,25 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       </header>
 
       {/* Main Chapter Content Container */}
-      <main className={`mx-auto px-4 sm:px-6 py-8 sm:py-12 pb-28 sm:pb-16 ${widthClass}`}>
+      <main className={`mx-auto px-4 sm:px-6 py-8 sm:py-12 ${widthClass}`}>
         {/* Top Header Ad Placement */}
         <AdSlot location="header" adSettings={adSettings} className="mb-8" />
 
         {/* Chapter Title & Metadata Header */}
-        <div className="text-center border-b border-black/10 dark:border-white/10 pb-8 mb-8">
+        <div className="text-center border-b border-[#E5E2D9] pb-8 mb-8">
           <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-[#4A5D4E]/15 text-[#2D4532] text-xs font-bold mb-3 border border-[#4A5D4E]/30">
             <BookOpen className="w-3.5 h-3.5" />
             <span>{novel.title}</span>
           </div>
 
-          <h1 className="text-2xl sm:text-4xl font-amiri font-bold tracking-tight mb-3">
+          <h1 className="text-2xl sm:text-4xl font-amiri font-bold mb-3" style={{ letterSpacing: 'normal' }}>
             الفصل {chapter.chapterNumber}: {chapter.title}
           </h1>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs opacity-75">
             <span className="flex items-center gap-1">
               <Eye className="w-3.5 h-3.5" />
-              <span>{viewsCount.toLocaleString()} قراءة</span>
+              <span>{(chapter.views + 1).toLocaleString()} قراءة</span>
             </span>
             <span>·</span>
             <span className="flex items-center gap-1">
@@ -782,28 +756,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               <span>{readingTimeMinutes} دقائق قراءة تقريبية ({chapter.wordCount} كلمة)</span>
             </span>
             <span>·</span>
-            <span className="flex items-center gap-1 text-[#C88A3B]">
-              <Star className="w-3.5 h-3.5 fill-[#C88A3B]" />
-              <span className="font-bold font-mono">{chapterRating.toFixed(1)}</span>
-              <span>({chapterRatingCount} {chapterRatingCount === 1 ? 'تقييم' : 'تقييمات'})</span>
-            </span>
-            <span>·</span>
             <span>بقلم المؤلف: {novel.author}</span>
           </div>
 
-          {/* Reader Quick Actions: Share Chapter, Copy Chapter Text & Download PDF */}
+          {/* Reader Quick Actions: Copy Chapter Text & Download PDF */}
           <div className="flex flex-wrap items-center justify-center gap-3 mt-4 pt-4 border-t border-black/5 dark:border-white/5">
-            <button
-              type="button"
-              id="header-quick-share-chapter-btn"
-              onClick={() => setIsShareModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl border border-[#4A5D4E]/30 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-              title="مشاركة هذا الفصل عبر واتساب وتليجرام وشبكات التواصل"
-            >
-              <Share2 className="w-3.5 h-3.5" />
-              <span>مشاركة الفصل</span>
-            </button>
-
             <button
               type="button"
               id="copy-chapter-text-btn"
@@ -827,17 +784,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   <span>نسخ نص الفصل</span>
                 </>
               )}
-            </button>
-
-            <button
-              type="button"
-              id="chapter-quick-download-pdf-btn"
-              onClick={() => setIsPdfModalOpen(true)}
-              className="px-3.5 py-1.5 rounded-xl border border-[#4A5D4E] bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-xs active:scale-95"
-              title="تنزيل وتنسيق هذا الفصل كملف PDF بالخط المختار"
-            >
-              <Download className="w-3.5 h-3.5 text-amber-200" />
-              <span>تنزيل هذا الفصل PDF</span>
             </button>
 
             {novel.pdfDownloadUrl && (
@@ -868,56 +814,30 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
         )}
 
-        {/* Reading Text Body - Copy and Selection Fully Enabled */}
+        {/* Reading Text Body - Continuous and Sequentially Filling the Page */}
         <article
           ref={contentRef}
           className={`${fontClass} ${lineHeightClass} ${
-            readerSettings.textAlign === 'justify' ? 'text-justify' : 'text-right'
-          } space-y-6 sm:space-y-8 select-text cursor-text selection:bg-[#4A5D4E]/20`}
-          style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
+            readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
+          } select-text cursor-text selection:bg-[#4A5D4E]/20`}
+          style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text', letterSpacing: 'normal' }}
         >
-          {/* Render content based on whether it is rich HTML or plain text */}
-          {isHtmlContent && htmlParts ? (
-            <>
-              <div
-                className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
-                dangerouslySetInnerHTML={{ __html: htmlParts.firstHalf }}
-              />
-              {htmlParts.secondHalf && (
-                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
-              )}
-              {htmlParts.secondHalf && (
-                <div
-                  className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
-                  dangerouslySetInnerHTML={{ __html: htmlParts.secondHalf }}
-                />
-              )}
-            </>
-          ) : (
-            <>
-              {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
-                <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
-                  {para}
-                </p>
-              ))}
-
-              {/* Mid-Chapter Ad Placement */}
-              {paragraphs.length > 2 && (
-                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
-              )}
-
-              {/* Render second half */}
-              {paragraphs.length > 2 &&
-                paragraphs.slice(midPoint).map((para, idx) => (
-                  <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
-                    {para}
-                  </p>
-                ))}
-            </>
-          )}
+          {paragraphs.map((para, idx) => (
+            <p
+              key={`p-${idx}`}
+              className={`leading-relaxed sm:leading-loose ${
+                readerSettings.textAlign === 'justify' ? 'text-justify [text-justify:inter-word]' : 'text-right'
+              } ${
+                readerSettings.paragraphSpacing === 'spacious' ? 'mb-8 sm:mb-10' : 'mb-6 sm:mb-7'
+              } last:mb-0`}
+              style={{ direction: 'rtl', unicodeBidi: 'isolate', wordBreak: 'break-word', letterSpacing: 'normal' }}
+            >
+              {para}
+            </p>
+          ))}
 
           {/* Chapter License Notice */}
-          <div className={`mt-10 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
+          <div className={`mt-8 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center shrink-0">
@@ -943,36 +863,25 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
-
-            <p className="mt-3 pt-3 border-t border-current/10 text-[11px] opacity-80 leading-relaxed">
-              هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
-            </p>
           </div>
         </article>
 
-        {/* Decorative Section Separator */}
-        <div className="flex items-center justify-center gap-3 my-12 opacity-40">
-          <span className="h-px w-16 bg-current" />
-          <span className="text-[#C88A3B]">✦ ✦ ✦</span>
-          <span className="h-px w-16 bg-current" />
-        </div>
-
         {/* Chapter End Ad Placement */}
-        <AdSlot location="chapter_end" adSettings={adSettings} className="mb-8" />
+        <AdSlot location="chapter_end" adSettings={adSettings} className="my-6" />
 
-        {/* Interactive Reader Actions Bar (Like, Share, Prev/Next Chapters) */}
+        {/* Interactive Reader Actions Bar (Like, Prev/Next Chapters) */}
         <div
           id="reader-actions-footer"
-          className={`p-5 sm:p-6 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-lg mb-8`}
+          className={`p-5 sm:p-6 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-lg mb-10`}
         >
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            {/* Like & Share Chapter Buttons */}
-            <div className="flex items-center gap-3 w-full sm:w-auto justify-center flex-wrap">
+            {/* Like Chapter Button */}
+            <div className="flex items-center gap-3 w-full sm:w-auto justify-center">
               <button
                 type="button"
                 id="like-chapter-button"
                 onClick={handleToggleLike}
-                className={`px-5 py-2.5 sm:py-3 rounded-xl border flex items-center gap-2 font-bold text-sm transition-all transform active:scale-95 cursor-pointer shadow-md ${
+                className={`px-6 py-3 rounded-xl border flex items-center gap-2.5 font-bold text-sm transition-all transform active:scale-95 cursor-pointer shadow-md ${
                   isLiked
                     ? 'bg-rose-600 text-white border-rose-500 shadow-rose-900/40'
                     : 'bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] border-[#4A5D4E]'
@@ -984,28 +893,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   {likesCount}
                 </span>
               </button>
-
-              <button
-                type="button"
-                id="footer-share-chapter-button"
-                onClick={() => setIsShareModalOpen(true)}
-                className="px-5 py-2.5 sm:py-3 rounded-xl border border-[#C88A3B]/40 bg-[#C88A3B]/10 hover:bg-[#C88A3B]/20 text-[#C88A3B] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
-                title="مشاركة الفصل مع الأصدقاء"
-              >
-                <Share2 className="w-5 h-5" />
-                <span>مشاركة الفصل</span>
-              </button>
-
-              <button
-                type="button"
-                id="footer-download-chapter-pdf-btn"
-                onClick={() => setIsPdfModalOpen(true)}
-                className="px-5 py-2.5 sm:py-3 rounded-xl border border-[#4A5D4E]/40 bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 text-[#4A5D4E] font-bold text-sm flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer shadow-xs"
-                title="تنزيل هذا الفصل كملف PDF"
-              >
-                <Download className="w-5 h-5 text-[#4A5D4E]" />
-                <span>تنزيل الفصل PDF</span>
-              </button>
             </div>
 
             {/* Chapter Step Navigation (RTL: Prev goes Right, Next goes Left) */}
@@ -1015,7 +902,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                   type="button"
                   id="reader-prev-chapter-btn"
                   onClick={() => onSelectChapter(prevChapter.id)}
-                  className={`px-4 py-2.5 rounded-xl border ${themeStyles.border} hover:bg-black/5 dark:hover:bg-white/5 transition-all text-xs font-bold flex items-center gap-1.5 cursor-pointer`}
+                  className={`px-4 py-2.5 rounded-xl border ${themeStyles.border} hover:bg-[#4A5D4E]/10 transition-all text-xs font-bold flex items-center gap-1.5 cursor-pointer`}
                 >
                   <ChevronRight className="w-4 h-4" />
                   <span>الفصل السابق</span>
@@ -1048,86 +935,19 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               )}
             </div>
           </div>
-
-          {/* Quick Social Share Strip */}
-          <div className="mt-4 pt-4 border-t border-black/10 dark:border-white/10 flex flex-wrap items-center justify-between gap-2.5 text-xs">
-            <div className="flex items-center gap-1.5 font-bold text-[#6E6A64] dark:text-[#A0AEC0]">
-              <Share2 className="w-3.5 h-3.5 text-[#C88A3B]" />
-              <span>مشاركة فورية:</span>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني:\n${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold text-[11px] transition-colors"
-              >
-                واتساب
-              </a>
-              <a
-                href={`https://t.me/share/url?url=${encodeURIComponent(`${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&text=${encodeURIComponent(`الفصل ${chapter.chapterNumber}: ${chapter.title} | ${novel.title}`)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-[#0088cc]/15 hover:bg-[#0088cc]/25 text-[#0088cc] font-bold text-[11px] transition-colors"
-              >
-                تليجرام
-              </a>
-              <a
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}»`)}&url=${encodeURIComponent(`${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب')}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-lg bg-black/10 dark:bg-white/10 hover:bg-black/20 text-[11px] font-bold transition-colors"
-              >
-                منصة 𝕏
-              </a>
-              <button
-                type="button"
-                onClick={() => setIsShareModalOpen(true)}
-                className="px-2.5 py-1 rounded-lg border border-[#E5E2D9] dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-[11px] font-bold transition-colors cursor-pointer"
-              >
-                المزيد...
-              </button>
-            </div>
-          </div>
         </div>
 
-        {/* Chapter Star Rating Widget (Dedicated per Chapter) */}
-        <div className="mb-8" id="chapter-rating-section">
-          <ChapterRatingWidget
-            chapterId={chapter.id}
-            chapterNumber={chapter.chapterNumber}
-            chapterTitle={chapter.title}
-            novelId={novel.id}
-            currentRating={chapterRating}
-            ratingCount={chapterRatingCount}
-            themeMode={readerSettings.theme}
-            onRatingUpdated={(newRating, newCount) => {
-              setChapterRating(newRating);
-              setChapterRatingCount(newCount);
-              confetti({
-                particleCount: 50,
-                spread: 70,
-                origin: { y: 0.8 },
-              });
-            }}
-          />
-        </div>
-
-        {/* Compact Book-Level Rating Option */}
-        <div className="mb-10 opacity-90">
-          <div className="text-xs font-bold mb-2 text-[#6E6A64] dark:text-[#8892B0] px-1">
-            أو قيّم مجمل الكتاب «{novel.title}»:
-          </div>
+        {/* Reader Rating Box at Chapter End */}
+        <div className="mt-8">
           <StarRatingWidget
             novelId={novel.id}
             currentRating={novel.rating}
             ratingCount={novel.ratingCount}
-            compact
           />
         </div>
 
         {/* Interactive Comments & Discussions Section */}
-        <section id="chapter-comments-section" className="mt-10 pt-8 border-t border-black/10 dark:border-white/10">
+        <section id="chapter-comments-section" className="mt-10 pt-8 border-t border-[#E5E2D9]">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
             <div className="flex items-center gap-2">
               <MessageSquare className="w-5 h-5 text-[#4A5D4E]" />
@@ -1180,7 +1000,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 placeholder="اسم القارئ (مثلاً: سارة، أحمد...)"
                 value={newCommentName}
                 onChange={e => setNewCommentName(e.target.value)}
-                className={`sm:col-span-1 px-3.5 py-2 text-xs rounded-xl border ${themeStyles.border} bg-black/5 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]`}
+                className={`sm:col-span-1 px-3.5 py-2 text-xs rounded-xl border ${themeStyles.border} bg-[#FDFCF8] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]`}
               />
               <span className="text-[11px] opacity-60 self-center hidden sm:inline">
                 شارك في النقاش وتبادل التحليلات مع القراء
@@ -1193,7 +1013,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               placeholder="ما رأيك في أحداث وتطورات هذا الفصل؟ شاركنا توقعاتك للفصل القادم..."
               value={newCommentText}
               onChange={e => setNewCommentText(e.target.value)}
-              className={`w-full p-3.5 text-xs sm:text-sm rounded-xl border ${themeStyles.border} bg-black/5 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] mb-3 resize-none`}
+              className={`w-full p-3.5 text-xs sm:text-sm rounded-xl border ${themeStyles.border} bg-[#FDFCF8] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] mb-3 resize-none`}
             />
 
             <div className="flex justify-between items-center">
@@ -1270,7 +1090,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                         className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs transition-all cursor-pointer ${
                           comment.userLiked
                             ? 'bg-rose-500/20 text-rose-500 border border-rose-500/30'
-                            : 'hover:bg-black/5 dark:hover:bg-white/5 opacity-75 hover:opacity-100'
+                            : 'hover:bg-[#4A5D4E]/10 opacity-75 hover:opacity-100'
                         }`}
                       >
                         <Heart className={`w-3.5 h-3.5 ${comment.userLiked ? 'fill-current' : ''}`} />
@@ -1297,7 +1117,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
                     {/* Inline Reply Form */}
                     {replyingToId === comment.id && (
-                      <div className="pr-10 mt-3 pt-3 border-t border-black/5 dark:border-white/5">
+                      <div className="pr-10 mt-3 pt-3 border-t border-[#E5E2D9]">
                         <div className="flex gap-2">
                           <input
                             type="text"
@@ -1305,7 +1125,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                             placeholder={`الرد على ${comment.authorName}...`}
                             value={replyText}
                             onChange={e => setReplyText(e.target.value)}
-                            className={`flex-1 px-3 py-1.5 text-xs rounded-xl border ${themeStyles.border} bg-black/5 dark:bg-white/5 focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]`}
+                            className={`flex-1 px-3 py-1.5 text-xs rounded-xl border ${themeStyles.border} bg-[#FDFCF8] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]`}
                           />
                           <button
                             type="button"
@@ -1322,11 +1142,11 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
 
                     {/* Nested Replies */}
                     {replies.length > 0 && (
-                      <div className="pr-10 mt-3 pt-3 border-t border-black/5 dark:border-white/5 space-y-2.5">
+                      <div className="pr-10 mt-3 pt-3 border-t border-[#E5E2D9] space-y-2.5">
                         {replies.map(reply => (
                           <div
                             key={reply.id}
-                            className={`p-3 rounded-xl bg-black/5 dark:bg-white/5 border ${themeStyles.border}`}
+                            className={`p-3 rounded-xl bg-[#F7F5EE] border ${themeStyles.border}`}
                           >
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
@@ -1370,115 +1190,6 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
         </section>
       </main>
-
-      {/* Mobile Floating Bottom Reading Controller (Thumb friendly for mobile readers) */}
-      <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 p-2.5 pb-safe bg-[#1C1B19]/95 backdrop-blur-md border-t border-white/10 text-white shadow-2xl">
-        <div className="flex items-center justify-between gap-1.5 max-w-lg mx-auto font-cairo">
-          {prevChapter ? (
-            <button
-              type="button"
-              id="mobile-float-prev-chapter-btn"
-              onClick={() => {
-                onSelectChapter(prevChapter.id);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="flex-1 py-2 px-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
-              title="الفصل السابق"
-            >
-              <ChevronRight className="w-4 h-4 shrink-0" />
-              <span className="truncate">السابق</span>
-            </button>
-          ) : (
-            <div className="flex-1" />
-          )}
-
-          {/* Center: Chapter Index Quick Dropdown */}
-          <button
-            type="button"
-            onClick={() => setShowChapterMenu(!showChapterMenu)}
-            className="py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shrink-0"
-            title="فهرس الفصول"
-          >
-            <List className="w-4 h-4 text-emerald-400" />
-            <span>فصل {chapter.chapterNumber}</span>
-          </button>
-
-          {/* Quick Settings Icon */}
-          <button
-            type="button"
-            onClick={() => setShowSettingsDrawer(!showSettingsDrawer)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
-            title="تخصيص الخط"
-          >
-            <Settings2 className="w-4 h-4 text-amber-300" />
-          </button>
-
-          {/* Quick Share on Mobile Floating Bar */}
-          <button
-            type="button"
-            id="mobile-float-share-btn"
-            onClick={() => setIsShareModalOpen(true)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
-            title="مشاركة الفصل"
-          >
-            <Share2 className="w-4 h-4 text-sky-300" />
-          </button>
-
-          {/* Quick PDF Download on Mobile Floating Bar */}
-          <button
-            type="button"
-            id="mobile-float-download-pdf-btn"
-            onClick={() => setIsPdfModalOpen(true)}
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 active:scale-95 text-xs font-bold flex items-center justify-center transition-all cursor-pointer shrink-0"
-            title="تنزيل الفصل PDF"
-          >
-            <Download className="w-4 h-4 text-amber-300" />
-          </button>
-
-          {nextChapter ? (
-            <button
-              type="button"
-              id="mobile-float-next-chapter-btn"
-              onClick={() => {
-                onSelectChapter(nextChapter.id);
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className="flex-1 py-2 px-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] active:scale-95 text-white text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer shadow-md truncate"
-              title="الفصل التالي"
-            >
-              <span className="truncate">التالي</span>
-              <ChevronLeft className="w-4 h-4 shrink-0" />
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={onBackToNovel}
-              className="flex-1 py-2 px-2 rounded-xl bg-amber-700/80 text-white text-xs font-bold flex items-center justify-center gap-1 transition-all cursor-pointer truncate"
-            >
-              <span>نهاية العمل</span>
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Chapter Share Modal Dialog */}
-      <ChapterShareModal
-        isOpen={isShareModalOpen}
-        onClose={() => setIsShareModalOpen(false)}
-        chapter={chapter}
-        novel={novel}
-        themeMode={readerSettings.theme}
-      />
-
-      {/* Chapter & Full Book Download PDF Modal Dialog */}
-      <ChapterDownloadPdfModal
-        isOpen={isPdfModalOpen}
-        onClose={() => setIsPdfModalOpen(false)}
-        chapter={chapter}
-        novel={novel}
-        allChapters={allChapters}
-        currentReaderFont={readerSettings.fontFamily}
-      />
     </div>
   );
 };

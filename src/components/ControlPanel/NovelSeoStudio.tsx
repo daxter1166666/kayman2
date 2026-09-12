@@ -1,633 +1,698 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
+import { Novel, NovelSeoMeta, TableOfContentItem, Chapter } from '../../types';
+import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
+import { seoService } from '../../services/seoService';
+import { DEWEY_DECIMAL_CATEGORIES, formatDeweyDisplay } from '../../utils/deweyDecimal';
 import {
+  BookOpen,
   Search,
   Globe,
-  Share2,
   Sparkles,
   CheckCircle2,
-  AlertCircle,
-  Smartphone,
-  Monitor,
   Copy,
   Check,
-  Tag,
-  ShieldAlert,
-  HelpCircle,
-  BookOpen,
-  Image as ImageIcon
+  Eye,
+  Smartphone,
+  Monitor,
+  Plus,
+  Trash2,
+  Save,
+  AlertCircle,
+  ExternalLink,
+  Link,
+  Layers,
+  FileText
 } from 'lucide-react';
-import { storageService } from '../../services/storageService';
 
-export interface NovelSeoStudioProps {
-  metaTitle: string;
-  setMetaTitle: (val: string) => void;
-  metaDescription: string;
-  setMetaDescription: (val: string) => void;
-  focusKeywords: string;
-  setFocusKeywords: (val: string) => void;
-  canonicalUrl: string;
-  setCanonicalUrl: (val: string) => void;
-  ogImage: string;
-  setOgImage: (val: string) => void;
-  noIndex: boolean;
-  setNoIndex: (val: boolean) => void;
-  authorName: string;
-  setAuthorName: (val: string) => void;
-
-  // Novel context
-  novelTitle: string;
-  novelAuthor: string;
-  novelSynopsis: string;
-  novelGenres: string[];
-  novelCoverImage: string;
-  novelId?: string;
-  pdfDownloadUrl?: string;
+interface NovelSeoStudioProps {
+  novels: Novel[];
+  chapters?: Chapter[];
+  onRefreshData: () => void;
+  initialNovelId?: string;
 }
 
 export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
-  metaTitle,
-  setMetaTitle,
-  metaDescription,
-  setMetaDescription,
-  focusKeywords,
-  setFocusKeywords,
-  canonicalUrl,
-  setCanonicalUrl,
-  ogImage,
-  setOgImage,
-  noIndex,
-  setNoIndex,
-  authorName,
-  setAuthorName,
-  novelTitle,
-  novelAuthor,
-  novelSynopsis,
-  novelGenres,
-  novelCoverImage,
-  novelId,
-  pdfDownloadUrl,
+  novels,
+  chapters = [],
+  onRefreshData,
+  initialNovelId,
 }) => {
-  const [activePreview, setActivePreview] = useState<'google' | 'social'>('google');
-  const [deviceView, setDeviceView] = useState<'mobile' | 'desktop'>('mobile');
-  const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
-  const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [selectedNovelId, setSelectedNovelId] = useState<string>(
+    initialNovelId || novels[0]?.id || ''
+  );
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [notification, setNotification] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [copiedTocId, setCopiedTocId] = useState<string | null>(null);
 
-  const seoSettings = storageService.getSeoSettings();
-  const branding = storageService.getSiteBranding();
-  const siteDomain = (seoSettings.canonicalBaseUrl || 'https://www.aymankinani.org').replace(/\/$/, '');
+  // Form states for the selected novel's SEO
+  const currentNovel = novels.find(n => n.id === selectedNovelId);
 
-  // Computed displayed title (custom or fallback)
-  const displayTitle = useMemo(() => {
-    if (metaTitle.trim()) return metaTitle.trim();
-    if (!novelTitle.trim()) return 'عنوان الرواية أو العمل الأدبي';
-    if (seoSettings.siteTitleTemplate && seoSettings.siteTitleTemplate.includes('%title%')) {
-      return seoSettings.siteTitleTemplate.replace('%title%', `رواية ${novelTitle}`);
+  const [metaTitle, setMetaTitle] = useState<string>('');
+  const [metaDescription, setMetaDescription] = useState<string>('');
+  const [focusKeywords, setFocusKeywords] = useState<string>('');
+  const [canonicalUrl, setCanonicalUrl] = useState<string>('');
+  const [ogImage, setOgImage] = useState<string>('');
+  const [authorName, setAuthorName] = useState<string>('');
+  const [noIndex, setNoIndex] = useState<boolean>(false);
+  const [structuredDataType, setStructuredDataType] = useState<'Book' | 'CreativeWork' | 'Article'>('Book');
+  const [tableOfContents, setTableOfContents] = useState<TableOfContentItem[]>([]);
+  const [newTocTitle, setNewTocTitle] = useState<string>('');
+  const [newTocUrl, setNewTocUrl] = useState<string>('');
+  const [deweyDecimal, setDeweyDecimal] = useState<string>('');
+  const [deweyCategoryName, setDeweyCategoryName] = useState<string>('');
+
+  // Load SEO fields whenever selected novel changes
+  useEffect(() => {
+    if (currentNovel) {
+      const seo = currentNovel.seo || {};
+      setMetaTitle(seo.metaTitle || '');
+      setMetaDescription(seo.metaDescription || '');
+      setFocusKeywords(seo.focusKeywords || (currentNovel.tags || []).join('، '));
+      setCanonicalUrl(seo.canonicalUrl || '');
+      setOgImage(seo.ogImage || currentNovel.coverImage || '');
+      setAuthorName(seo.authorName || currentNovel.author || 'أيمن كناني');
+      setNoIndex(Boolean(seo.noIndex));
+      setStructuredDataType(seo.structuredDataType || 'Book');
+      setTableOfContents(currentNovel.tableOfContents || seo.tableOfContents || []);
+      setDeweyDecimal(currentNovel.deweyDecimal || seo.deweyDecimal || '');
+      setDeweyCategoryName(currentNovel.deweyCategoryName || seo.deweyCategoryName || '');
     }
-    return `رواية ${novelTitle} - تأليف ${novelAuthor || 'أيمن كناني'} | ${branding.siteName || 'أيمن كناني'}`;
-  }, [metaTitle, novelTitle, novelAuthor, seoSettings.siteTitleTemplate, branding.siteName]);
+  }, [selectedNovelId, currentNovel]);
 
-  // Computed displayed description
-  const displayDescription = useMemo(() => {
-    if (metaDescription.trim()) return metaDescription.trim();
-    if (novelSynopsis.trim()) {
-      return novelSynopsis.trim().slice(0, 155) + (novelSynopsis.length > 155 ? '...' : '');
-    }
-    return `قراءة وتحميل رواية ${novelTitle || 'المؤلف'} كاملة للمؤلف ${novelAuthor || 'أيمن كناني'} أونلاين بصيغة PDF مجاناً.`;
-  }, [metaDescription, novelSynopsis, novelTitle, novelAuthor]);
-
-  // Computed display URL
-  const displayUrl = useMemo(() => {
-    if (canonicalUrl.trim()) return canonicalUrl.trim();
-    if (novelId) return `${siteDomain}/?novel=${novelId}`;
-    return `${siteDomain}/?novel=example`;
-  }, [canonicalUrl, novelId, siteDomain]);
-
-  // Computed display image
-  const displayImage = ogImage.trim() || novelCoverImage || seoSettings.ogDefaultImage || '';
-
-  // Calculate SEO Health Score (0 to 100)
-  const seoAudit = useMemo(() => {
-    let score = 0;
-    const checks: { title: string; passed: boolean; tip: string }[] = [];
-
-    // Title Check
-    const titleLen = displayTitle.length;
-    const titleGood = titleLen >= 30 && titleLen <= 65;
-    if (titleGood) score += 25;
-    else if (titleLen > 0) score += 10;
-    checks.push({
-      title: `طول عنوان الميتا (${titleLen} حرف)`,
-      passed: titleGood,
-      tip: titleLen < 30 ? 'العنوان قصير جداً، يفضل أن يكون بين 30 و 65 حرفاً' : titleLen > 65 ? 'العنوان طويل وقد يُقتطع في Google' : 'طول العنوان مثالي لنتائج البحث',
-    });
-
-    // Description Check
-    const descLen = displayDescription.length;
-    const descGood = descLen >= 110 && descLen <= 165;
-    if (descGood) score += 25;
-    else if (descLen > 0) score += 12;
-    checks.push({
-      title: `طول وصف الميتا (${descLen} حرف)`,
-      passed: descGood,
-      tip: descLen < 110 ? 'الوصف قصير، أضف تفاصيل أكثر لجذب القارئ في Google' : descLen > 165 ? 'الوصف طويل وقد يُقتطع بنقاط (...)' : 'طول الوصف ممتاز وجذاب',
-    });
-
-    // Keywords Check
-    const kwList = (focusKeywords || '')
-      .split(/[,،]/)
-      .map(k => k.trim())
-      .filter(Boolean);
-    const kwGood = kwList.length >= 2;
-    if (kwGood) score += 20;
-    else if (kwList.length > 0) score += 10;
-    checks.push({
-      title: `الكلمات المفتاحية المستهدفة (${kwList.length} كلمات)`,
-      passed: kwGood,
-      tip: kwGood ? 'تم تحديد كلمات دلالية مناسبة' : 'أضف كلمتين مفتاحيتين على الأقل (مثل: رواية خيال، تحميل رواية PDF)',
-    });
-
-    // Cover Image Check
-    const hasImage = Boolean(displayImage);
-    if (hasImage) score += 15;
-    checks.push({
-      title: 'صورة الغلاف والمشاركة الاجتماعية (OG Image)',
-      passed: hasImage,
-      tip: hasImage ? 'متوفرة وتضمن ظهور غلاف الرواية في Google Discover والمشاركات' : 'أضف غلاف الرواية لظهور بطاقة المشاركة الغنية',
-    });
-
-    // PDF / Rich Content
-    const hasPdf = Boolean(pdfDownloadUrl);
-    if (hasPdf) score += 15;
-    checks.push({
-      title: 'رابط التحميل المباشر PDF (Google Schema workExample)',
-      passed: hasPdf,
-      tip: hasPdf ? 'يساعد محركات البحث على تصنيف الرواية ككتاب إلكتروني EBook قابل للتحميل' : 'إضافة رابط PDF يعزز الفهرسة في نتائج تحميل الكتب',
-    });
-
-    return { score: Math.min(score, 100), checks };
-  }, [displayTitle, displayDescription, focusKeywords, displayImage, pdfDownloadUrl]);
-
-  // Smart Auto-Generator
-  const handleAutoGenerateSeo = () => {
-    if (!novelTitle.trim()) {
-      alert('يرجى كتابة عنوان الرواية أولاً لتوليد بيانات السيو');
-      return;
-    }
-
-    // 1. Generate Title (ideal ~50-60 chars)
-    const authorStr = novelAuthor.trim() || 'أيمن كناني';
-    let generatedTitle = `رواية ${novelTitle.trim()} - للكاتب ${authorStr} | قراءة وتحميل`;
-    if (generatedTitle.length > 60) {
-      generatedTitle = `رواية ${novelTitle.trim()} - ${authorStr}`;
-    }
-    setMetaTitle(generatedTitle);
-
-    // 2. Generate Description (ideal ~140-155 chars)
-    let cleanSyn = (novelSynopsis || '').replace(/\s+/g, ' ').trim();
-    let generatedDesc = '';
-    if (cleanSyn) {
-      const intro = `قراءة وتحميل رواية "${novelTitle.trim()}" للكاتب ${authorStr}. `;
-      const remaining = 155 - intro.length;
-      generatedDesc = intro + (cleanSyn.length > remaining ? cleanSyn.slice(0, remaining - 3) + '...' : cleanSyn);
-    } else {
-      generatedDesc = `اقرأ رواية ${novelTitle.trim()} للكاتب والروائي ${authorStr} كاملة أونلاين مجاناً. تصفح الفصول وحمل نسخة PDF بجودة عالية.`;
-    }
-    setMetaDescription(generatedDesc);
-
-    // 3. Generate Keywords
-    const autoKw = [
-      `رواية ${novelTitle.trim()}`,
-      `تحميل رواية ${novelTitle.trim()} PDF`,
-      `قراءة رواية ${novelTitle.trim()}`,
-      novelAuthor.trim() || 'أيمن كناني',
-      ...(novelGenres || []),
-      'روايات عربية',
-      'كتب أدبية'
-    ].filter(Boolean);
-    setFocusKeywords(Array.from(new Set(autoKw)).join('، '));
-
-    // 4. Set Author
-    if (!authorName.trim() && novelAuthor.trim()) {
-      setAuthorName(novelAuthor.trim());
-    }
-
-    // 5. Set OG Image
-    if (!ogImage.trim() && novelCoverImage.trim()) {
-      setOgImage(novelCoverImage.trim());
-    }
-
-    setToastMsg('تم توليد بيانات السيو المثالية بنجاح بناءً على تفاصيل الرواية!');
-    setTimeout(() => setToastMsg(null), 3500);
+  const showToast = (msg: string) => {
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 3500);
   };
 
-  const handleCopySnippetUrl = () => {
-    navigator.clipboard.writeText(displayUrl);
-    setCopiedUrl(true);
-    setTimeout(() => setCopiedUrl(false), 2000);
+  const handleCopyTocUrl = (item: TableOfContentItem) => {
+    const urlToCopy = item.url || (item.chapterId ? `${window.location.origin}/?novel=${currentNovel?.id}&chapter=${item.chapterId}` : window.location.href);
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(urlToCopy);
+      setCopiedTocId(item.id);
+      setTimeout(() => setCopiedTocId(null), 2000);
+    }
   };
+
+  const handleAutoGenerate = () => {
+    if (!currentNovel) return;
+    const novelChapters = chapters.filter(c => c.novelId === currentNovel.id);
+    const autoSeo = seoService.generateNovelAutoSeo(currentNovel, novelChapters);
+
+    setMetaTitle(autoSeo.metaTitle || '');
+    setMetaDescription(autoSeo.metaDescription || '');
+    setFocusKeywords(autoSeo.focusKeywords || '');
+    setCanonicalUrl(autoSeo.canonicalUrl || '');
+    setOgImage(autoSeo.ogImage || currentNovel.bannerImage || currentNovel.coverImage || '');
+    setAuthorName(autoSeo.authorName || currentNovel.author || 'أيمن كناني');
+    setNoIndex(false);
+    if (autoSeo.tableOfContents && autoSeo.tableOfContents.length > 0) {
+      setTableOfContents(autoSeo.tableOfContents);
+    }
+    if (autoSeo.deweyDecimal) {
+      setDeweyDecimal(autoSeo.deweyDecimal);
+      setDeweyCategoryName(autoSeo.deweyCategoryName || '');
+    }
+
+    showToast('تم توليد وتحديث سيو الرواية وفهرس الفصول والروابط تلقائياً! يمكنك تعديل أي حقل.');
+  };
+
+  const handleAddTocItem = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTocTitle.trim()) return;
+    const newItem: TableOfContentItem = {
+      id: `toc-${Date.now()}`,
+      title: newTocTitle.trim(),
+      anchor: `section-${tableOfContents.length + 1}`,
+      level: 1,
+      url: newTocUrl.trim() || undefined,
+    };
+    setTableOfContents([...tableOfContents, newItem]);
+    setNewTocTitle('');
+    setNewTocUrl('');
+  };
+
+  const handleRemoveTocItem = (id: string) => {
+    setTableOfContents(tableOfContents.filter(t => t.id !== id));
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!currentNovel) return;
+
+    setIsSaving(true);
+    const seoData: NovelSeoMeta = {
+      metaTitle: metaTitle.trim() || undefined,
+      metaDescription: metaDescription.trim() || undefined,
+      focusKeywords: focusKeywords.trim() || undefined,
+      canonicalUrl: canonicalUrl.trim() || undefined,
+      ogImage: ogImage.trim() || undefined,
+      authorName: authorName.trim() || undefined,
+      noIndex,
+      structuredDataType,
+      tableOfContents,
+      deweyDecimal: deweyDecimal.trim() || undefined,
+      deweyCategoryName: deweyCategoryName.trim() || undefined,
+    };
+
+    try {
+      const updated = storageService.updateNovel(currentNovel.id, {
+        seo: seoData,
+        tableOfContents,
+        deweyDecimal: deweyDecimal.trim() || undefined,
+        deweyCategoryName: deweyCategoryName.trim() || undefined,
+      });
+
+      if (updated) {
+        await supabaseService.saveNovelToSupabase(updated);
+      }
+
+      showToast(`تم حفظ وتطبيق سيو رواية "${currentNovel.title}" ومزامنته سحابياً بنجاح!`);
+      onRefreshData();
+    } catch (err) {
+      console.error('Error saving novel SEO:', err);
+      showToast('حدث خطأ أثناء حفظ السيو، يرجى المحاولة ثانية.');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Live preview calculations
+  const defaultSiteUrl = (storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+  const previewUrl = canonicalUrl || `${defaultSiteUrl}/?novel=${currentNovel?.id || ''}`;
+  const displayTitle = metaTitle || (currentNovel ? `رواية ${currentNovel.title} | بقلم ${currentNovel.author}` : 'عنوان الرواية في محركات البحث');
+  const displayDescription = metaDescription || (currentNovel?.synopsis ? currentNovel.synopsis.slice(0, 155) : 'وصف الكتاب في نتائج بحث جوجل...');
 
   return (
-    <div className="p-5 sm:p-6 rounded-3xl bg-[#FDFCF8] border-2 border-[#4A5D4E]/30 space-y-6 shadow-xs font-cairo">
-      {/* Toast */}
-      {toastMsg && (
-        <div className="p-3 rounded-xl bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-bold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-          <span>{toastMsg}</span>
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Toast Notification */}
+      {notification && (
+        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-3">
+          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+          <span>{notification}</span>
         </div>
       )}
 
-      {/* Header with Title & Auto-Gen Action */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#E5E2D9] pb-4">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center">
-            <Search className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] flex items-center gap-2">
-              <span>استوديو السيو وفهرسة الرواية (Novel SEO Studio)</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#4A5D4E] text-white font-mono font-bold">
-                مخصص
-              </span>
+      {/* Header and Novel Switcher */}
+      <div className="p-6 rounded-3xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h2 className="font-amiri font-bold text-xl text-[#2C2C2C] flex items-center gap-2">
+            <BookOpen className="w-5 h-5 text-[#4A5D4E]" />
+            <span>سيو المؤلفات والكتب (Novel & Book SEO Studio)</span>
+          </h2>
+          <p className="text-xs text-[#6E6A64]">
+            تخصيص الكلمات المفتاحية، وعنوان البحث، ووصف الميتا، وفهرس المحتويات Schema.org لكل كتاب على حدة.
+          </p>
+        </div>
+
+        {/* Novel Selector */}
+        <div className="flex items-center gap-2 w-full sm:w-auto">
+          <label className="text-xs font-bold text-[#6E6A64] shrink-0">اختر الكتاب:</label>
+          <select
+            value={selectedNovelId}
+            onChange={e => setSelectedNovelId(e.target.value)}
+            className="w-full sm:w-64 px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] font-bold focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] cursor-pointer"
+          >
+            {novels.map(n => (
+              <option key={n.id} value={n.id}>
+                {n.title}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Google Live Search Preview Card */}
+      <div className="p-6 rounded-3xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs space-y-4">
+        <div className="flex items-center justify-between gap-3 border-b border-[#E5E2D9] pb-3">
+          <div className="flex items-center gap-2">
+            <Search className="w-4 h-4 text-[#4A5D4E]" />
+            <h3 className="text-xs sm:text-sm font-bold text-[#2C2C2C]">
+              معاينة حية في نتائج بحث جوجل (Google Search Snippet Preview)
             </h3>
-            <p className="text-xs text-[#6E6A64]">
-              خصص وسوم الميتا، كلمات البحث، ومعاينة مظهر الرواية على Google وشبكات التواصل.
-            </p>
+          </div>
+
+          {/* Mobile / Desktop switcher */}
+          <div className="flex items-center bg-[#FAF9F5] p-1 rounded-xl border border-[#E5E2D9] text-xs font-bold">
+            <button
+              type="button"
+              onClick={() => setPreviewDevice('mobile')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                previewDevice === 'mobile'
+                  ? 'bg-[#4A5D4E] text-white shadow-xs'
+                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <Smartphone className="w-3.5 h-3.5" />
+              <span>جوال</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setPreviewDevice('desktop')}
+              className={`px-3 py-1 rounded-lg transition-all cursor-pointer flex items-center gap-1.5 ${
+                previewDevice === 'desktop'
+                  ? 'bg-[#4A5D4E] text-white shadow-xs'
+                  : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <Monitor className="w-3.5 h-3.5" />
+              <span>حاسوب</span>
+            </button>
           </div>
         </div>
 
-        <button
-          type="button"
-          onClick={handleAutoGenerateSeo}
-          className="px-3.5 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] text-xs font-bold rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer shrink-0"
+        {/* The Google Card representation */}
+        <div
+          className={`mx-auto p-4 sm:p-5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] text-right font-sans transition-all ${
+            previewDevice === 'mobile' ? 'max-w-md' : 'max-w-2xl'
+          }`}
+          dir="rtl"
         >
-          <Sparkles className="w-3.5 h-3.5 text-[#C88A3B]" />
-          <span>توليد سيو ذكي تلقائياً</span>
-        </button>
-      </div>
-
-      {/* SEO Health Bar & Score */}
-      <div className="p-4 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#2C2C2C]">مؤشر جودة وقوة السيو للرواية:</span>
-            <span className={`text-xs font-mono font-black px-2.5 py-0.5 rounded-full ${
-              seoAudit.score >= 80 ? 'bg-emerald-100 text-emerald-800' :
-              seoAudit.score >= 50 ? 'bg-amber-100 text-amber-800' :
-              'bg-rose-100 text-rose-800'
-            }`}>
-              {seoAudit.score}% {seoAudit.score >= 80 ? 'ممتاز' : seoAudit.score >= 50 ? 'متوسط' : 'يحتاج تحسين'}
-            </span>
-          </div>
-          <span className="text-[11px] text-[#6E6A64]">
-            {seoAudit.checks.filter(c => c.passed).length} من {seoAudit.checks.length} معايير مكتملة
-          </span>
-        </div>
-
-        {/* Progress bar */}
-        <div className="w-full h-2 bg-[#F1EFE9] rounded-full overflow-hidden">
-          <div
-            className={`h-full transition-all duration-500 rounded-full ${
-              seoAudit.score >= 80 ? 'bg-emerald-500' :
-              seoAudit.score >= 50 ? 'bg-amber-500' :
-              'bg-rose-500'
-            }`}
-            style={{ width: `${seoAudit.score}%` }}
-          />
-        </div>
-
-        {/* Checklist */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-[#F1EFE9]">
-          {seoAudit.checks.map((check, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-[11px]">
-              {check.passed ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
-              )}
-              <div>
-                <span className={`font-bold ${check.passed ? 'text-[#2C2C2C]' : 'text-amber-800'}`}>
-                  {check.title}
-                </span>
-                <span className="text-[#6E6A64] block text-[10px] leading-tight">
-                  {check.tip}
-                </span>
-              </div>
+          {/* Site brand and URL */}
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-6 h-6 rounded-full bg-[#4A5D4E]/10 flex items-center justify-center text-[#4A5D4E] font-bold text-xs">
+              أ
             </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Live SERP Preview Box */}
-      <div className="p-4 sm:p-5 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E2D9] pb-3">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-[#2C2C2C]">
-            <Globe className="w-4 h-4 text-[#4A5D4E]" />
-            <span>معاينة حية لشكل الرواية في نتائج بحث Google وشبكات التواصل</span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            {/* View Mode Toggle */}
-            <div className="flex items-center bg-[#F7F5EE] p-0.5 rounded-lg border border-[#E5E2D9] text-xs">
-              <button
-                type="button"
-                onClick={() => setActivePreview('google')}
-                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activePreview === 'google' ? 'bg-[#FFFFFF] text-[#2C2C2C] shadow-2xs' : 'text-[#6E6A64]'
-                }`}
-              >
-                <Search className="w-3 h-3" />
-                <span>Google SERP</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setActivePreview('social')}
-                className={`px-2.5 py-1 rounded-md font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                  activePreview === 'social' ? 'bg-[#FFFFFF] text-[#2C2C2C] shadow-2xs' : 'text-[#6E6A64]'
-                }`}
-              >
-                <Share2 className="w-3 h-3" />
-                <span>مشاركة التواصل</span>
-              </button>
-            </div>
-
-            {/* Device Toggle (Google SERP only) */}
-            {activePreview === 'google' && (
-              <div className="flex items-center bg-[#F7F5EE] p-0.5 rounded-lg border border-[#E5E2D9] text-xs">
-                <button
-                  type="button"
-                  onClick={() => setDeviceView('mobile')}
-                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                    deviceView === 'mobile' ? 'bg-[#FFFFFF] text-[#4A5D4E] shadow-2xs' : 'text-[#6E6A64]'
-                  }`}
-                  title="معاينة الهاتف المحمول"
-                >
-                  <Smartphone className="w-3.5 h-3.5" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setDeviceView('desktop')}
-                  className={`p-1.5 rounded-md transition-all cursor-pointer ${
-                    deviceView === 'desktop' ? 'bg-[#FFFFFF] text-[#4A5D4E] shadow-2xs' : 'text-[#6E6A64]'
-                  }`}
-                  title="معاينة الحاسوب"
-                >
-                  <Monitor className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Google SERP Display */}
-        {activePreview === 'google' ? (
-          <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E5E2D9] font-sans text-right" dir="rtl">
-            <div className={`space-y-1.5 ${deviceView === 'mobile' ? 'max-w-md mx-auto p-3 bg-gray-50/50 rounded-xl border border-gray-200/60' : 'max-w-xl'}`}>
-              {/* Site source header */}
-              <div className="flex items-center gap-2 text-xs text-[#202124]">
-                <div className="w-6 h-6 rounded-full bg-[#4A5D4E] text-[#FDFCF8] flex items-center justify-center font-bold text-[10px] shrink-0">
-                  {branding.siteName?.[0] || 'أ'}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[12px] font-medium text-[#202124] truncate">
-                    {branding.siteName || 'أيمن كناني'}
-                  </div>
-                  <div className="text-[11px] text-[#5f6368] truncate font-mono" dir="ltr">
-                    {displayUrl}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleCopySnippetUrl}
-                  className="p-1 text-[#5f6368] hover:text-[#202124] rounded cursor-pointer"
-                  title="نسخ الرابط"
-                >
-                  {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-
-              {/* Title link in Google blue */}
-              <h4 className="text-[18px] sm:text-[19px] leading-snug font-normal text-[#1a0dab] hover:underline cursor-pointer">
-                {displayTitle}
-              </h4>
-
-              {/* Schema Rich Snippet (Ratings & Publication info) */}
-              <div className="flex items-center gap-2 text-[12px] text-[#5f6368] font-sans">
-                <span className="text-[#e37400] font-bold">★★★★★</span>
-                <span>تقييم: 5.0</span>
-                <span>•</span>
-                <span>تأليف: {authorName.trim() || novelAuthor || 'أيمن كناني'}</span>
-                {pdfDownloadUrl && (
-                  <>
-                    <span>•</span>
-                    <span className="text-emerald-700 font-medium">متاح تحميل PDF</span>
-                  </>
-                )}
-              </div>
-
-              {/* Meta Description */}
-              <p className="text-[13px] leading-relaxed text-[#4d5156]">
-                {displayDescription}
-              </p>
-            </div>
-          </div>
-        ) : (
-          /* Social Media Card Preview (WhatsApp / X / Facebook) */
-          <div className="max-w-md mx-auto bg-[#FDFCF8] rounded-2xl border border-[#E5E2D9] overflow-hidden shadow-sm">
-            <div className="aspect-[1.91/1] w-full bg-gray-100 relative overflow-hidden flex items-center justify-center">
-              {displayImage ? (
-                <img
-                  src={displayImage}
-                  alt={novelTitle}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="text-center p-4 text-gray-400">
-                  <ImageIcon className="w-8 h-8 mx-auto mb-1" />
-                  <span className="text-xs">لا توجد صورة مشاركة محددة</span>
-                </div>
-              )}
-              <div className="absolute top-2 right-2 px-2 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold font-mono">
-                OG CARD
-              </div>
-            </div>
-            <div className="p-3.5 bg-white border-t border-gray-100 space-y-1">
-              <span className="text-[10px] text-gray-400 uppercase tracking-wider font-mono block truncate">
-                {siteDomain.replace(/^https?:\/\//, '')}
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-[#202124]">
+                {authorName || currentNovel?.author || 'أيمن كناني'} - المنصة الرسمية
               </span>
-              <h5 className="font-bold text-sm text-[#2C2C2C] line-clamp-1">
-                {displayTitle}
-              </h5>
-              <p className="text-xs text-gray-600 line-clamp-2 leading-relaxed">
-                {displayDescription}
-              </p>
+              <span className="text-[11px] text-[#4d5156] font-mono truncate max-w-xs" dir="ltr">
+                {previewUrl}
+              </span>
             </div>
           </div>
-        )}
-      </div>
 
-      {/* SEO Form Inputs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
-        {/* 1. Meta Title */}
-        <div className="md:col-span-2">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1">
-              <span>عنوان الميتا المخصص للرواية (SEO Meta Title)</span>
-              <span className="text-[10px] font-normal text-[#6E6A64]">(يظهر باللون الأزرق في Google)</span>
-            </label>
-            <span className={`text-[11px] font-mono font-bold ${
-              metaTitle.length === 0 ? 'text-[#6E6A64]' :
-              metaTitle.length >= 30 && metaTitle.length <= 65 ? 'text-emerald-700' :
-              'text-amber-700'
-            }`}>
-              {metaTitle.length}/65 حرف {metaTitle.length >= 30 && metaTitle.length <= 65 ? '✓ مثالي' : ''}
-            </span>
-          </div>
-          <input
-            type="text"
-            id="novel-seo-meta-title"
-            placeholder={`مثال: رواية ${novelTitle || 'البداية'} - ${novelAuthor || 'أيمن كناني'} | قراءة وتحميل PDF`}
-            value={metaTitle}
-            onChange={e => setMetaTitle(e.target.value)}
-            className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-medium"
-          />
-          <p className="text-[11px] text-[#6E6A64] mt-1">
-            إذا تركته فارغاً، سيتم توليده تلقائياً كـ: "رواية {novelTitle || 'اسم الرواية'} - تأليف {novelAuthor || 'أيمن كناني'}".
+          {/* Title */}
+          <h4 className="text-base sm:text-lg font-normal text-[#1a0dab] hover:underline cursor-pointer leading-snug line-clamp-2">
+            {displayTitle}
+          </h4>
+
+          {/* Rating stars if available */}
+          {currentNovel && (
+            <div className="flex items-center gap-1.5 text-xs text-[#70757a] my-0.5">
+              <span className="text-amber-500 font-bold">★ 5.0</span>
+              <span>(تقييم القراء)</span>
+              <span>·</span>
+              <span>تاريخ النشر: {new Date(currentNovel.createdAt).toLocaleDateString('ar-EG')}</span>
+            </div>
+          )}
+
+          {/* Meta Description */}
+          <p className="text-xs sm:text-sm text-[#4d5156] leading-relaxed line-clamp-3 mt-1">
+            {displayDescription}
           </p>
-        </div>
 
-        {/* 2. Meta Description */}
-        <div className="md:col-span-2">
-          <div className="flex items-center justify-between mb-1">
-            <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1">
-              <span>وصف الميتا التعريفي في محركات البحث (Meta Description)</span>
-              <span className="text-[10px] font-normal text-[#6E6A64]">(الموجز الترويجي أسفل العنوان في Google)</span>
-            </label>
-            <span className={`text-[11px] font-mono font-bold ${
-              metaDescription.length === 0 ? 'text-[#6E6A64]' :
-              metaDescription.length >= 110 && metaDescription.length <= 165 ? 'text-emerald-700' :
-              'text-amber-700'
-            }`}>
-              {metaDescription.length}/160 حرف {metaDescription.length >= 110 && metaDescription.length <= 165 ? '✓ مثالي' : ''}
-            </span>
-          </div>
-          <textarea
-            id="novel-seo-meta-description"
-            rows={3}
-            placeholder={`مثال: اقرأ رواية ${novelTitle || 'اسم الرواية'} للكاتب ${novelAuthor || 'أيمن كناني'} كاملة أونلاين مجاناً. تصفح الفصول أو حمّل نسخة PDF...`}
-            value={metaDescription}
-            onChange={e => setMetaDescription(e.target.value)}
-            className="w-full p-3 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] leading-relaxed font-medium"
-          />
-          <p className="text-[11px] text-[#6E6A64] mt-1">
-            إذا تركته فارغاً، سيستخدم محرك البحث أول 160 حرفاً من نبذة الرواية تلقائياً.
-          </p>
-        </div>
-
-        {/* 3. Focus Keywords */}
-        <div className="md:col-span-2">
-          <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-            الكلمات المفتاحية المستهدفة للرواية (Focus Keywords - مفصولة بفواصل)
-          </label>
-          <div className="relative">
-            <input
-              type="text"
-              id="novel-seo-focus-keywords"
-              placeholder="مثال: رواية خيال علمي، تحميل رواية PDF، أيمن كناني، قراءة أونلاين"
-              value={focusKeywords}
-              onChange={e => setFocusKeywords(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
-            />
-          </div>
-          {/* Keyword tags pills */}
-          {focusKeywords.trim() && (
-            <div className="flex flex-wrap gap-1.5 mt-2">
-              {focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean).map((kw, i) => (
-                <span key={i} className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-lg bg-[#4A5D4E]/10 text-[#4A5D4E] text-[10px] font-bold border border-[#4A5D4E]/20">
-                  <Tag className="w-2.5 h-2.5" />
-                  <span>{kw}</span>
-                </span>
-              ))}
+          {/* NoIndex Alert */}
+          {noIndex && (
+            <div className="mt-3 p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-bold flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>تنبيه: أنت مفعل وسم (noindex) - لن تظهر هذه الرواية في محركات البحث!</span>
             </div>
           )}
         </div>
+      </div>
 
-        {/* 4. Social Sharing Image (OG Image) */}
-        <div>
-          <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-            رابط صورة المشاركة المخصصة (OG / Social Image)
-          </label>
-          <input
-            type="url"
-            id="novel-seo-og-image"
-            placeholder="اتركه فارغاً لاستخدام غلاف الرواية تلقائياً"
-            value={ogImage}
-            onChange={e => setOgImage(e.target.value)}
-            className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
-            dir="ltr"
-          />
-          <p className="text-[11px] text-[#6E6A64] mt-1">
-            تظهر عند إرسال رابط الرواية في واتساب، تيليغرام، فيسبوك، أو تويتر.
-          </p>
+      {/* SEO Configuration Form */}
+      <form onSubmit={handleSave} className="p-6 rounded-3xl bg-[#FFFFFF] border border-[#E5E2D9] shadow-xs space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E5E2D9] pb-4">
+          <div>
+            <h3 className="text-sm font-bold text-[#2C2C2C]">
+              إعدادات السيو وتفاصيل الميتا (Meta Tags) لرواية: {currentNovel?.title}
+            </h3>
+            <p className="text-xs text-[#6E6A64]">
+              تحكّم بالعناوين والأوصاف المخصصة التي تقرأها عناكب أرشفة محركات البحث ووسائل التواصل الاجتماعي.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleAutoGenerate}
+            className="px-3.5 py-1.5 bg-[#FAF9F5] hover:bg-[#EBE8DF] border border-[#E5E2D9] text-[#4A5D4E] text-xs font-bold rounded-xl cursor-pointer transition-colors flex items-center gap-1.5 shadow-xs"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>توليد واقتراح ذكي للسيو</span>
+          </button>
         </div>
 
-        {/* 5. Custom Author Schema Name */}
+        {/* Meta Title */}
         <div>
-          <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-            اسم المؤلف المعتمد في وسوم الميتا و Schema.org
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="text-xs font-bold text-[#2C2C2C]">
+              عنوان السيو المخصص في محركات البحث (Meta Title)
+            </label>
+            <span
+              className={`text-[11px] font-mono ${
+                metaTitle.length > 60 ? 'text-amber-700 font-bold' : 'text-[#6E6A64]'
+              }`}
+            >
+              {metaTitle.length} / 60 حرف (المثالي: 40-60)
+            </span>
+          </div>
+          <input
+            type="text"
+            value={metaTitle}
+            onChange={e => setMetaTitle(e.target.value)}
+            placeholder={`رواية ${currentNovel?.title || ''} | بقلم ${currentNovel?.author || 'أيمن كناني'}`}
+            className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold"
+          />
+        </div>
+
+        {/* Meta Description */}
+        <div>
+          <div className="flex items-center justify-between gap-2 mb-1.5">
+            <label className="text-xs font-bold text-[#2C2C2C]">
+              وصف الميتا لمحتوى الكتاب (Meta Description)
+            </label>
+            <span
+              className={`text-[11px] font-mono ${
+                metaDescription.length > 160 ? 'text-amber-700 font-bold' : 'text-[#6E6A64]'
+              }`}
+            >
+              {metaDescription.length} / 160 حرف (المثالي: 120-160)
+            </span>
+          </div>
+          <textarea
+            rows={3}
+            value={metaDescription}
+            onChange={e => setMetaDescription(e.target.value)}
+            placeholder="اكتب ملخصاً جذاباً يشوق القارئ ويحتوي على الكلمات المفتاحية الأساسية للرواية..."
+            className="w-full p-3 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] leading-relaxed"
+          />
+        </div>
+
+        {/* Focus Keywords */}
+        <div>
+          <label className="text-xs font-bold text-[#2C2C2C] block mb-1.5">
+            الكلمات المفتاحية المستهدفة (Focus Keywords - مفصولة بفواصل)
           </label>
           <input
             type="text"
-            id="novel-seo-author-name"
-            placeholder={novelAuthor || 'أيمن كناني'}
-            value={authorName}
-            onChange={e => setAuthorName(e.target.value)}
-            className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
+            value={focusKeywords}
+            onChange={e => setFocusKeywords(e.target.value)}
+            placeholder="روايات غموض، أدب رعب، تحميل رواية PDF، أيمن كناني، قراءة أونلاين..."
+            className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
           />
-          <p className="text-[11px] text-[#6E6A64] mt-1">
-            المؤلف المعتمد في بيانات الكتاب المنظم (JSON-LD Author).
-          </p>
         </div>
 
-        {/* 6. Canonical URL */}
-        <div className="md:col-span-2">
-          <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-            الرابط الأساسي المعتمد (Canonical URL - اختياري)
-          </label>
-          <input
-            type="url"
-            id="novel-seo-canonical-url"
-            placeholder={`${siteDomain}/?novel=${novelId || 'id'}`}
-            value={canonicalUrl}
-            onChange={e => setCanonicalUrl(e.target.value)}
-            className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
-            dir="ltr"
-          />
-          <p className="text-[11px] text-[#6E6A64] mt-1">
-            يمنع المحتوى المكرر في Google إذا كان للرواية روابط متعددة أو دومين مخصص.
-          </p>
-        </div>
-
-        {/* 7. No-Index Option */}
-        <div className="md:col-span-2 p-3.5 rounded-xl bg-amber-50/70 border border-amber-200">
-          <label className="flex items-start gap-2.5 cursor-pointer">
+        {/* Canonical URL & OG Image */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-1.5">
+              الرابط الأساسي المعتمد (Canonical URL)
+            </label>
             <input
-              type="checkbox"
-              id="novel-seo-noindex-checkbox"
-              checked={noIndex}
-              onChange={e => setNoIndex(e.target.checked)}
-              className="w-4 h-4 mt-0.5 accent-rose-600 rounded"
+              type="url"
+              value={canonicalUrl}
+              onChange={e => setCanonicalUrl(e.target.value)}
+              placeholder={`${defaultSiteUrl}/?novel=${currentNovel?.id || ''}`}
+              className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
             />
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-1.5">
+              صورة المشاركة لوسائل التواصل (OG Share Image URL)
+            </label>
+            <input
+              type="url"
+              value={ogImage}
+              onChange={e => setOgImage(e.target.value)}
+              placeholder="https://.../cover.jpg"
+              className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Dewey Decimal Classification (فهرس ديوي العشري للكتب) */}
+        <div className="border-t border-[#E5E2D9] pt-5 space-y-4">
+          <div className="flex items-center justify-between gap-2">
             <div>
-              <span className="text-xs font-bold text-amber-950 block">
-                استبعاد هذه الرواية من الفهرسة في محركات البحث (noindex, nofollow)
+              <h4 className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1.5">
+                <Layers className="w-4 h-4 text-[#4A5D4E]" />
+                <span>فهرس ديوي العشري للكتب (Dewey Decimal Classification - DDC)</span>
+              </h4>
+              <p className="text-[11px] text-[#6E6A64]">
+                التصنيف الببليوغرافي المعتمد عالمياً في المكتبات وفهارس الأرشفة والمخططات الهيكلية.
+              </p>
+            </div>
+            {deweyDecimal && (
+              <span className="px-2.5 py-1 rounded-lg text-xs font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25">
+                {formatDeweyDisplay(deweyDecimal, deweyCategoryName)}
               </span>
-              <span className="text-[11px] text-amber-800 leading-relaxed block mt-0.5">
-                فعل هذا الخيار فقط إذا كانت الرواية قيد المراجعة أو مسودة خاصة ولا تريد أن تظهر في نتائج Google أو في خريطة الموقع Sitemap.
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Quick Dropdown Preset */}
+            <div>
+              <label className="text-[11px] font-bold text-[#2C2C2C] block mb-1">
+                اختر تصنيفاً جاهزاً من ديوي:
+              </label>
+              <select
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (!val) return;
+                  const item = DEWEY_DECIMAL_CATEGORIES.find(c => c.code === val);
+                  if (item) {
+                    setDeweyDecimal(item.code);
+                    setDeweyCategoryName(item.name);
+                  }
+                }}
+                value={DEWEY_DECIMAL_CATEGORIES.some(c => c.code === deweyDecimal) ? deweyDecimal : ''}
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] cursor-pointer"
+              >
+                <option value="">-- اختر من قائمة تصنيفات ديوي --</option>
+                {DEWEY_DECIMAL_CATEGORIES.map(cat => (
+                  <option key={cat.code} value={cat.code}>
+                    {cat.code} - {cat.name} ({cat.categoryGroup})
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Custom Dewey Code */}
+            <div>
+              <label className="text-[11px] font-bold text-[#2C2C2C] block mb-1">
+                رمز ديوي الرقمي (Dewey Code):
+              </label>
+              <input
+                type="text"
+                value={deweyDecimal}
+                onChange={e => setDeweyDecimal(e.target.value)}
+                placeholder="مثال: 813 أو 810 أو 100"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] font-mono font-bold"
+              />
+            </div>
+
+            {/* Custom Category Name */}
+            <div>
+              <label className="text-[11px] font-bold text-[#2C2C2C] block mb-1">
+                اسم الفئة أو الفرع الببليوغرافي:
+              </label>
+              <input
+                type="text"
+                value={deweyCategoryName}
+                onChange={e => setDeweyCategoryName(e.target.value)}
+                placeholder="مثال: الروايات والقصص الأدبية العربية"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C]"
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Structured Data Type & Indexing Directives */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+          <div>
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-1.5">
+              نوع المخطط الهيكلي (Schema.org Structured Data)
+            </label>
+            <select
+              value={structuredDataType}
+              onChange={e => setStructuredDataType(e.target.value as any)}
+              className="w-full px-3 py-2.5 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] font-bold focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] cursor-pointer"
+            >
+              <option value="Book">كتاب كامل (Schema: Book / EBook)</option>
+              <option value="CreativeWork">عمل إبداعي أدبي (Schema: CreativeWork)</option>
+              <option value="Article">مقالة وسلسلة (Schema: Article)</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="text-xs font-bold text-[#2C2C2C] block mb-1.5">
+              سياسة فهرسة محركات البحث (Robots Indexing Directive)
+            </label>
+            <div className="flex items-center gap-3 pt-2">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-bold">
+                <input
+                  type="checkbox"
+                  checked={noIndex}
+                  onChange={e => setNoIndex(e.target.checked)}
+                  className="rounded text-[#4A5D4E] focus:ring-[#4A5D4E] w-4 h-4 cursor-pointer"
+                />
+                <span className={noIndex ? 'text-rose-700' : 'text-[#2C2C2C]'}>
+                  منع الفهرسة (noindex, nofollow)
+                </span>
+              </label>
+              <span className="text-[11px] text-[#6E6A64]">
+                {noIndex ? 'لن يظهر في جوجل' : 'مفهرس ومتاح لجميع محركات البحث'}
               </span>
             </div>
-          </label>
+          </div>
         </div>
-      </div>
+
+        {/* Structured Table of Contents (فهرس المحتويات: عنوان الفصل مع رابط الفصل) */}
+        <div className="border-t border-[#E5E2D9] pt-5 space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h4 className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1.5">
+                <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
+                <span>فهرس المحتويات: عنوان الفصل مع رابط الفصل المباشر</span>
+              </h4>
+              <p className="text-[11px] text-[#6E6A64]">
+                ربط كل فصل برابطه المباشر ليظهر في روابط جوجل السريعة (Sitelinks) وتسهيل قراءة وتنزيل الفصول.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => {
+                if (!currentNovel) return;
+                const novelChapters = chapters.filter(c => c.novelId === currentNovel.id);
+                const baseUrl = (storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+                const generatedToc: TableOfContentItem[] = novelChapters
+                  .sort((a, b) => a.chapterNumber - b.chapterNumber)
+                  .map(ch => ({
+                    id: `toc-${ch.id}`,
+                    title: `الفصل ${ch.chapterNumber}: ${ch.title}`,
+                    anchor: `chapter-${ch.chapterNumber}`,
+                    level: 1,
+                    url: `${baseUrl}/?novel=${currentNovel.id}&chapter=${ch.id}`,
+                    chapterId: ch.id,
+                  }));
+                setTableOfContents(generatedToc);
+                showToast(`تم مزامنة ${generatedToc.length} فصل مع روابطها المباشرة في الفهرس!`);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-[#FAF9F5] hover:bg-[#EBE8DF] border border-[#E5E2D9] text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              <span>مزامنة فصول الرواية مع الروابط تلقائياً</span>
+            </button>
+          </div>
+
+          {/* Add custom TOC item with title and URL */}
+          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2">
+            <input
+              type="text"
+              value={newTocTitle}
+              onChange={e => setNewTocTitle(e.target.value)}
+              placeholder="عنوان الفصل أو الباب (مثال: الفصل الأول: البداية)"
+              className="sm:col-span-2 px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C]"
+            />
+            <input
+              type="url"
+              value={newTocUrl}
+              onChange={e => setNewTocUrl(e.target.value)}
+              placeholder="رابط الفصل (اختياري، مثلاً: https://.../?novel=...&chapter=...)"
+              className="sm:col-span-2 px-3 py-2 text-xs rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-[#2C2C2C] font-mono text-[11px]"
+            />
+            <button
+              type="button"
+              onClick={handleAddTocItem}
+              className="px-3 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1 cursor-pointer transition-colors shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>إضافة للفهرس</span>
+            </button>
+          </div>
+
+          {tableOfContents.length > 0 ? (
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {tableOfContents.map((item, idx) => (
+                <div
+                  key={item.id || idx}
+                  className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 p-2.5 rounded-xl bg-[#FAF9F5] border border-[#E5E2D9] text-xs"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                    <span className="w-6 h-6 rounded-md bg-[#4A5D4E]/10 text-[#4A5D4E] font-mono font-bold text-xs flex items-center justify-center shrink-0">
+                      {idx + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <span className="font-bold text-[#2C2C2C] block truncate">
+                        {item.title}
+                      </span>
+                      {item.url && (
+                        <span className="text-[11px] text-[#6E6A64] font-mono block truncate" dir="ltr">
+                          {item.url}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyTocUrl(item)}
+                      className="px-2 py-1 rounded-lg border border-[#E5E2D9] bg-white hover:bg-[#F7F5EE] text-[#4A5D4E] text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+                      title="نسخ رابط الفصل"
+                    >
+                      {copiedTocId === item.id ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span className="text-emerald-700">تم النسخ</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>نسخ الرابط</span>
+                        </>
+                      )}
+                    </button>
+
+                    {item.url && (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1 text-[#6E6A64] hover:text-[#4A5D4E] cursor-pointer"
+                        title="فتح رابط الفصل في تبويب جديد"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveTocItem(item.id)}
+                      className="text-rose-600 hover:text-rose-800 p-1 cursor-pointer"
+                      title="حذف هذا القسم"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-[#8C827A] italic">
+              لم يتم إضافة عناصر فهرس بعد. اضغط "مزامنة فصول الرواية مع الروابط تلقائياً" لجلب الفصول وروابطها فوراً.
+            </p>
+          )}
+        </div>
+
+        {/* Save Button */}
+        <div className="flex items-center justify-end pt-4 border-t border-[#E5E2D9]">
+          <button
+            type="submit"
+            disabled={isSaving}
+            className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] disabled:opacity-50 text-white rounded-xl text-xs font-bold shadow-xs flex items-center gap-2 cursor-pointer transition-all"
+          >
+            <Save className="w-4 h-4" />
+            <span>{isSaving ? 'جارٍ الحفظ والمزامنة...' : 'حفظ سيو الكتاب الآن'}</span>
+          </button>
+        </div>
+      </form>
     </div>
   );
 };

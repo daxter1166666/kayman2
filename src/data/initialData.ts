@@ -1,8 +1,4 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
-import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
-
-export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
-export const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?w=1600&auto=format&fit=crop&q=80';
 
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   name: 'أيمن كناني',
@@ -26,17 +22,16 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
     goodreads: 'https://goodreads.com/aymankinani',
     whatsapp: 'https://wa.me/966500000000',
     email: 'aymankinani.author@gmail.com',
-    website: 'https://www.aymankinani.org'
+    website: 'https://aymankinani.com'
   }
 };
 
 export const INITIAL_SITE_BRANDING: SiteBranding = {
   siteName: 'أيمن كناني | Ayman Kinani',
   siteSubtitle: 'المنصة الرسمية لنشر المؤلفات والكتب والروايات',
-  logoUrl: '/pwa-512.png',
-  faviconUrl: '/favicon.ico',
-  pwaIconUrl: '/pwa-512.png',
-  footerText: 'الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026',
+  logoUrl: '',
+  faviconUrl: '',
+  footerText: 'جميع الحقوق الأدبية والفكرية محفوظة للكاتب أيمن كناني © 2026',
 };
 
 export const INITIAL_SEO_SETTINGS: SeoSettings = {
@@ -44,7 +39,7 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   defaultTitle: 'أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب والروايات',
   defaultDescription: 'المنصة الرسمية المعتمدة لنشر وقراءة وتحميل مؤلفات وكتب وروايات ومقالات الكاتب أيمن كناني مجاناً بصيغة PDF وقراءة تفاعلية مباشرة.',
   keywords: 'أيمن كناني, Ayman Kinani, روايات أيمن كناني, كتب أيمن كناني, تحميل كتب PDF, قراءة روايات اونلاين, روايات عربية, أدب وفلسفة',
-  canonicalBaseUrl: 'https://www.aymankinani.org',
+  canonicalBaseUrl: 'https://aymankinani.com',
   authorName: 'أيمن كناني',
   twitterHandle: '@aymankinani',
   googleVerificationCode: '',
@@ -52,7 +47,6 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   ogDefaultImage: 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop',
   enableStructuredData: true,
   indexingPolicy: 'all',
-  googleAnalyticsId: '',
 };
 
 export const INITIAL_DONATION_SETTINGS: DonationSettings = {
@@ -90,15 +84,14 @@ export const INITIAL_READER_SETTINGS: ReaderSettings = {
 };
 
 export const INITIAL_CATEGORIES: Array<{ id: string; name: string; arabicName: string; description: string }> = [
-  { id: 'cat-ethics', name: 'أخلاق وقيم', arabicName: 'أخلاق وقيم', description: 'منظومة الأخلاق الإسلامية والإنسانية، الأمانة الفكرية، وضوابط السلوك القويم' },
-  { id: 'cat-islamic-thought', name: 'فكر إسلامي ومعاصر', arabicName: 'فكر إسلامي ومعاصر', description: 'قضايا الفكر وتجديد الخطاب، حوار الحضارات، وأصالة المنهج الاستدلالي' },
-  { id: 'cat-research-method', name: 'منهجية البحث العلمي', arabicName: 'منهجية البحث العلمي', description: 'أصول التحقيق والتوثيق، أدوات النقد والمناظرة، ومعايير البحث الرصين' },
-  { id: 'cat-studies', name: 'دراسات وبحوث', arabicName: 'دراسات وبحوث', description: 'أوراق بحثية معمقة، دراسات فكرية واجتماعية، وقراءات تحليلية' },
-  { id: 'cat-thought', name: 'فكر وفلسفة', arabicName: 'فكر وفلسفة', description: 'حوارات فكرية، تأملات في نظرية المعرفة، ومباحث الفكر الإنساني' },
-  { id: 'cat-self-dev', name: 'تطوير الذات والوعي', arabicName: 'تطوير الذات والوعي', description: 'بناء العادات الفكرية، الفكر الريادي، والاتزان النفسي والمعرفي' },
-  { id: 'cat-novels', name: 'روايات وأدب', arabicName: 'روايات وأدب', description: 'أعمال روائية وسردية، نصوص أدبية وقصص واقعية' },
-  { id: 'cat-history', name: 'تاريخ وتراث', arabicName: 'تاريخ وتراث', description: 'أحداث تاريخية، سير وتراجم، وقراءات في الحضارة والتراث' },
-  { id: 'cat-poetry', name: 'شعر ونصوص وجدانية', arabicName: 'شعر ونصوص وجدانية', description: 'قصائد ديوانية، نصوص وجدانية، وشعر حديث وتراثي' },
+  { id: 'cat-1', name: 'Fantasy', arabicName: 'فانتازيا وخيال أسطوري', description: 'عوالم السحر والملحمات الأسطورية والآلات البخارية' },
+  { id: 'cat-2', name: 'Sci-Fi', arabicName: 'خيال علمي وفضاء', description: 'أوبرا الفضاء، الذكاء الاصطناعي، والتقنيات المستقبلية' },
+  { id: 'cat-3', name: 'Mystery & Thriller', arabicName: 'غموض وتشويق', description: 'تحقيقات الجرائم، الألغاز المعقدة، والتشويق النفسي' },
+  { id: 'cat-4', name: 'Historical Fiction', arabicName: 'تاريخ وتراث', description: 'أحداث تاريخية ملحمية، حضارات قديمة، وسير وثائقية' },
+  { id: 'cat-5', name: 'Philosophy & Thought', arabicName: 'فلسفة وفكر', description: 'دراسات فكرية، حوارات فلسفية، وتحليلات أدبية عميقة' },
+  { id: 'cat-6', name: 'Self-Development', arabicName: 'تطوير الذات والوعي', description: 'بناء العادات، النجاح، الفكر الريادي، والاتزان النفسي' },
+  { id: 'cat-7', name: 'Novels & Literature', arabicName: 'روايات وأدب عالمي', description: 'أدب مترجم، كلاسيكيات السرد، والقصص الواقعية المؤثرة' },
+  { id: 'cat-8', name: 'Poetry & Prose', arabicName: 'شعر ونصوص أدبية', description: 'قصائد ديوانية، نصوص وجدانية، وشعر حديث وكلاسيكي' },
 ];
 
 export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
@@ -111,16 +104,13 @@ export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
   dmcaPolicy: `تحترم المنصة حقوق الملكية الفكرية وتلتزم بقانون الألفية الجديدة لحقوق طبع ونشر المواد الرقمية (DMCA).
 إذا كانت لديك أي استفسارات أو ملاحظات حول الملكية الأدبية، يرجى التواصل مع الكاتب عبر البريد الرسمي aymankinani.author@gmail.com وسيتم الرد فوراً وبشكل حاسم.`,
   licensesPolicy: `عن هذا العمل:
-أسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
+أضع هذا العمل ابتغاء وجه الله، وأسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
 
 الأفكار والرؤية في هذا العمل نابعة مني بالكامل. أستعين بأدوات الذكاء الاصطناعي لتوسيع الأفكار وصياغتها الأولية، مع مراجعتي وإشرافي الكامل على كل نص قبل نشره.
 
 الترخيص:
 هذا العمل مرخّص بموجب رخصة المشاع الإبداعي (نسب المصنف - غير تجاري 4.0 دولي)
 CC BY-NC 4.0
-
-بيان الترخيص وحق المؤلف:
-هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
 
 يعني هذا أنك تستطيع:
 ✅ نسخ العمل وإعادة توزيعه بأي وسيلة
@@ -139,9 +129,9 @@ CC BY-NC 4.0
   lastUpdated: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }),
 };
 
-export const INITIAL_NOVELS: Novel[] = BAKED_NOVELS;
+export const INITIAL_NOVELS: Novel[] = [];
 
-export const INITIAL_CHAPTERS: Chapter[] = BAKED_CHAPTERS;
+export const INITIAL_CHAPTERS: Chapter[] = [];
 
 export const INITIAL_COMMENTS: Comment[] = [];
 

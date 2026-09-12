@@ -1,5 +1,8 @@
-import { Novel, Chapter, ChapterSeoMeta, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
+import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem, IntellectualItem, UnifiedSearchResult, ArticleReaderNote } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
+import { INITIAL_INTELLECTUAL_ITEMS, INITIAL_FEATURED_NOVELS_SAMPLE } from '../data/initialIntellectualData';
+import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
+import { toArabicGenre } from '../utils/genreHelper';
 
 const KEYS = {
   NOVELS: 'ayman_novels_v2',
@@ -12,10 +15,9 @@ const KEYS = {
   USER_LIKED_CHAPTERS: 'ayman_user_liked_chapters_v2',
   USER_LIKED_COMMENTS: 'ayman_user_liked_comments_v2',
   USER_RATINGS: 'ayman_user_ratings_v2',
-  USER_CHAPTER_RATINGS: 'ayman_user_chapter_ratings_v1',
-  ADMIN_AUTH: 'ayman_admin_session_v4',
+  ADMIN_AUTH: 'ayman_admin_auth_v3',
   ADMIN_CREDS: 'ayman_admin_creds_v2',
-  CATEGORIES: 'ayman_categories_v3',
+  CATEGORIES: 'ayman_categories_v2',
   LEGAL_DOCS: 'ayman_legal_docs_v2',
   CONTACT_MESSAGES: 'ayman_contact_messages_v2',
   AUTHOR_PROFILE: 'ayman_author_profile_v1',
@@ -25,11 +27,14 @@ const KEYS = {
   SUPABASE_CONFIG: 'ayman_supabase_config_v1',
   DELETED_NOVEL_IDS: 'ayman_deleted_novel_ids_v1',
   DELETED_CHAPTER_IDS: 'ayman_deleted_chapter_ids_v1',
+  ARTICLES: 'ayman_intellectual_articles_v1',
+  READER_NOTES: 'ayman_article_reader_notes_v1',
 };
 
 // Clean legacy mock keys if present in browser storage
 try {
   const legacyKeys = [
+    'ayman_admin_auth_v2',
     'novelia_novels_v1',
     'novelia_chapters_v1',
     'novelia_comments_v1',
@@ -39,8 +44,6 @@ try {
     'novelia_user_liked_comments_v1',
     'novelia_user_ratings_v1',
     'novelia_contact_messages_v1',
-    'ayman_admin_auth_v2',
-    'ayman_admin_auth',
   ];
   legacyKeys.forEach(k => localStorage.removeItem(k));
 } catch {
@@ -66,43 +69,46 @@ function setStored<T>(key: string, value: T): void {
   }
 }
 
-function deduplicateById<T extends { id: string }>(items: T[]): T[] {
-  const map = new Map<string, T>();
-  for (const item of items) {
-    if (item && item.id) {
-      map.set(item.id, item);
-    }
-  }
-  return Array.from(map.values());
-}
-
 export const storageService = {
   // --- Novels ---
   getNovels(): Novel[] {
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
-    const deletedIds = new Set(this.getDeletedNovelIds());
-    return raw
-      .filter(n => !deletedIds.has(n.id))
-      .map(n => {
-        const cleanedGenres = (n.genres || []).filter(g => {
-          const low = (g || '').trim().toLowerCase();
-          return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought';
-        });
-        if (cleanedGenres.length === 0 || (n.title && n.title.includes('أخلاق الباحث'))) {
-          return {
-            ...n,
-            genres: ['أخلاق وقيم', 'فكر إسلامي ومعاصر', 'منهجية البحث العلمي', 'دراسات وبحوث'],
-          };
-        }
-        return {
-          ...n,
-          genres: cleanedGenres,
-        };
+    const deleted = new Set(this.getDeletedNovelIds());
+    const valid = deleted.size === 0 ? raw : raw.filter(n => !deleted.has(n.id));
+    if (valid.length === 0 && deleted.size === 0 && INITIAL_FEATURED_NOVELS_SAMPLE.length > 0) {
+      const sampleNovels: Novel[] = INITIAL_FEATURED_NOVELS_SAMPLE.map(n => {
+        const { chapters, ...rest } = n;
+        return rest as unknown as Novel;
       });
+      const sampleChapters: Chapter[] = [];
+      INITIAL_FEATURED_NOVELS_SAMPLE.forEach(n => {
+        n.chapters.forEach(ch => {
+          sampleChapters.push({
+            id: ch.id,
+            novelId: n.id,
+            chapterNumber: ch.chapterNumber,
+            title: ch.title,
+            slug: `chap-${ch.chapterNumber}`,
+            content: ch.content,
+            publishedAt: n.createdAt,
+            views: 450 + ch.chapterNumber * 120,
+            likes: 45 + ch.chapterNumber * 10,
+            wordCount: ch.content.split(/\s+/).length,
+            status: 'PUBLISHED',
+          });
+        });
+      });
+      this.saveNovels(sampleNovels);
+      this.saveChapters(sampleChapters);
+      return sampleNovels;
+    }
+    return valid;
   },
 
   saveNovels(novels: Novel[]): void {
-    setStored(KEYS.NOVELS, deduplicateById(novels));
+    const deleted = new Set(this.getDeletedNovelIds());
+    const valid = deleted.size > 0 ? novels.filter(n => !deleted.has(n.id)) : novels;
+    setStored(KEYS.NOVELS, valid);
   },
 
   getNovelById(id: string): Novel | undefined {
@@ -138,15 +144,20 @@ export const storageService = {
   },
 
   deleteNovel(id: string): void {
+    // Mark as deleted FIRST so any concurrent fetch or get immediately filters it out
+    this.markNovelDeleted(id);
     const novels = this.getNovels().filter(n => n.id !== id);
     this.saveNovels(novels);
-    // Mark as deleted so pulling from remote doesn't re-add it
-    this.markNovelDeleted(id);
     // Also delete chapters & comments belonging to this novel
     const chapters = this.getChapters().filter(c => c.novelId !== id);
     this.saveChapters(chapters);
     const comments = this.getComments().filter(c => c.novelId !== id);
     this.saveComments(comments);
+    // Also clean bookmarks & reading history belonging to this novel
+    const bookmarks = this.getBookmarks().filter(b => b.novelId !== id);
+    this.saveBookmarks(bookmarks);
+    const history = this.getReadingHistory().filter(h => h.novelId !== id);
+    this.saveReadingHistory(history);
   },
 
   getDeletedNovelIds(): string[] {
@@ -167,10 +178,25 @@ export const storageService = {
 
   // --- Chapters ---
   getChapters(novelId?: string): Chapter[] {
-    const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-    const deletedChapterIds = new Set(this.getDeletedChapterIds());
-    const deletedNovelIds = new Set(this.getDeletedNovelIds());
-    const valid = chapters.filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId));
+    const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    let mutated = false;
+    const chapters = rawChapters.map(c => {
+      if (c.content && hasHtmlOrStyleResidue(c.content)) {
+        mutated = true;
+        const cleaned = cleanChapterContent(c.content);
+        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
+        return { ...c, content: cleaned, wordCount: words };
+      }
+      return c;
+    });
+
+    if (mutated) {
+      setStored(KEYS.CHAPTERS, chapters);
+    }
+
+    const deletedChapters = new Set(this.getDeletedChapterIds());
+    const deletedNovels = new Set(this.getDeletedNovelIds());
+    const valid = chapters.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
     if (novelId) {
       return valid
         .filter(c => c.novelId === novelId)
@@ -180,7 +206,18 @@ export const storageService = {
   },
 
   saveChapters(chapters: Chapter[]): void {
-    setStored(KEYS.CHAPTERS, deduplicateById(chapters));
+    const deletedChapters = new Set(this.getDeletedChapterIds());
+    const deletedNovels = new Set(this.getDeletedNovelIds());
+    const sanitized = chapters.map(c => {
+      if (c.content && hasHtmlOrStyleResidue(c.content)) {
+        const cleaned = cleanChapterContent(c.content);
+        const words = cleaned.trim().split(/\s+/).filter(Boolean).length;
+        return { ...c, content: cleaned, wordCount: words };
+      }
+      return c;
+    });
+    const valid = sanitized.filter(c => !deletedChapters.has(c.id) && !deletedNovels.has(c.novelId));
+    setStored(KEYS.CHAPTERS, valid);
   },
 
   getChapterById(id: string): Chapter | undefined {
@@ -202,21 +239,19 @@ export const storageService = {
       ? Math.max(...novelChapters.map(c => c.chapterNumber)) + 1 
       : 1;
 
-    const plainText = data.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-    const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    const cleanedContent = cleanChapterContent(data.content);
+    const words = cleanedContent.trim().split(/\s+/).filter(Boolean).length;
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
       chapterNumber: nextChapterNumber,
       title: data.title,
       slug: `chapter-${nextChapterNumber}-${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
-      content: data.content,
+      content: cleanedContent,
       authorNote: data.authorNote,
       publishedAt: new Date().toISOString(),
       views: 0,
       likes: 0,
-      rating: 5.0,
-      ratingCount: 0,
       wordCount: words,
       status: data.status || 'PUBLISHED',
       seo: data.seo,
@@ -236,11 +271,13 @@ export const storageService = {
     const index = chapters.findIndex(c => c.id === id);
     if (index === -1) return undefined;
     
-    if (updates.content) {
-      const plainText = updates.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-      updates.wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    const sanitizedUpdates = { ...updates };
+    if (sanitizedUpdates.content) {
+      sanitizedUpdates.content = cleanChapterContent(sanitizedUpdates.content);
+      sanitizedUpdates.wordCount = sanitizedUpdates.content.trim().split(/\s+/).filter(Boolean).length;
     }
-    chapters[index] = { ...chapters[index], ...updates };
+
+    chapters[index] = { ...chapters[index], ...sanitizedUpdates };
     this.saveChapters(chapters);
     return chapters[index];
   },
@@ -249,6 +286,12 @@ export const storageService = {
     const chapters = this.getChapters().filter(c => c.id !== id);
     this.saveChapters(chapters);
     this.markChapterDeleted(id);
+    const comments = this.getComments().filter(c => c.chapterId !== id);
+    this.saveComments(comments);
+    const bookmarks = this.getBookmarks().filter(b => b.chapterId !== id);
+    this.saveBookmarks(bookmarks);
+    const history = this.getReadingHistory().filter(h => h.chapterId !== id);
+    this.saveReadingHistory(history);
   },
 
   getDeletedChapterIds(): string[] {
@@ -267,79 +310,19 @@ export const storageService = {
     setStored(KEYS.DELETED_CHAPTER_IDS, Array.from(deleted));
   },
 
-  incrementNovelView(novelId: string): void {
-    let updatedNovelViews = 0;
-    const novels = this.getNovels();
-    const novel = novels.find(n => n.id === novelId);
-    if (novel) {
-      novel.totalViews = (novel.totalViews || 0) + 1;
-      updatedNovelViews = novel.totalViews;
-      this.saveNovels(novels);
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        fetch('/api/views/increment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ novelId }),
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('novel-view-incremented', {
-          detail: {
-            novelId,
-            novelViews: updatedNovelViews,
-          },
-        })
-      );
-    }
-  },
-
   incrementChapterView(chapterId: string, novelId: string): void {
-    let updatedNovelViews = 0;
-    let updatedChapterViews = 0;
-
     const chapters = this.getChapters();
     const chapter = chapters.find(c => c.id === chapterId);
     if (chapter) {
-      chapter.views = (chapter.views || 0) + 1;
-      updatedChapterViews = chapter.views;
+      chapter.views += 1;
       this.saveChapters(chapters);
     }
 
     const novels = this.getNovels();
     const novel = novels.find(n => n.id === novelId);
     if (novel) {
-      novel.totalViews = (novel.totalViews || 0) + 1;
-      updatedNovelViews = novel.totalViews;
+      novel.totalViews += 1;
       this.saveNovels(novels);
-    }
-
-    if (typeof window !== 'undefined') {
-      try {
-        fetch('/api/views/increment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ novelId, chapterId }),
-        }).catch(() => {});
-      } catch {
-        // ignore
-      }
-
-      window.dispatchEvent(
-        new CustomEvent('novel-view-incremented', {
-          detail: {
-            novelId,
-            chapterId,
-            novelViews: updatedNovelViews,
-            chapterViews: updatedChapterViews,
-          },
-        })
-      );
     }
   },
 
@@ -494,6 +477,18 @@ export const storageService = {
     return getStored<Bookmark[]>(KEYS.BOOKMARKS, []);
   },
 
+  saveBookmarks(bookmarks: Bookmark[]): void {
+    setStored(KEYS.BOOKMARKS, bookmarks);
+  },
+
+  getReadingHistory(): ReadingHistoryItem[] {
+    return getStored<ReadingHistoryItem[]>(KEYS.READ_HISTORY, []);
+  },
+
+  saveReadingHistory(history: ReadingHistoryItem[]): void {
+    setStored(KEYS.READ_HISTORY, history);
+  },
+
   toggleBookmark(novelId: string, chapterId: string, chapterNumber: number, chapterTitle: string): boolean {
     const bookmarks = this.getBookmarks();
     const index = bookmarks.findIndex(b => b.novelId === novelId);
@@ -590,67 +585,29 @@ export const storageService = {
     return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
   },
 
-  // --- Chapter Star Ratings ---
-  getUserChapterRatings(): Record<string, number> {
-    return getStored<Record<string, number>>(KEYS.USER_CHAPTER_RATINGS, {});
-  },
-
-  getUserRatingForChapter(chapterId: string): number | null {
-    const ratings = this.getUserChapterRatings();
-    return ratings[chapterId] || null;
-  },
-
-  rateChapter(chapterId: string, score: number): { rating: number; ratingCount: number; userRating: number } {
-    const clampedScore = Math.max(1, Math.min(5, score));
-    const userRatings = this.getUserChapterRatings();
-    const previousUserRating = userRatings[chapterId] || null;
-
-    const chapters = this.getChapters();
-    const chapterIndex = chapters.findIndex(c => c.id === chapterId);
-
-    if (chapterIndex === -1) {
-      return { rating: clampedScore, ratingCount: 1, userRating: clampedScore };
-    }
-
-    const chapter = chapters[chapterIndex];
-    const currentRating = typeof chapter.rating === 'number' && chapter.rating > 0 ? chapter.rating : 5.0;
-    const currentCount = typeof chapter.ratingCount === 'number' ? chapter.ratingCount : 0;
-
-    let newRating = currentRating;
-    let newRatingCount = currentCount;
-
-    if (previousUserRating !== null) {
-      // User changed their previous rating for this chapter
-      const totalPoints = (currentRating * (currentCount || 1)) - previousUserRating + clampedScore;
-      newRating = Number((totalPoints / Math.max(1, currentCount)).toFixed(1));
-    } else {
-      // New rating from user for this chapter
-      const totalPoints = currentCount === 0 ? clampedScore : (currentRating * currentCount) + clampedScore;
-      newRatingCount = currentCount + 1;
-      newRating = Number((totalPoints / newRatingCount).toFixed(1));
-    }
-
-    // Save user vote in local storage
-    userRatings[chapterId] = clampedScore;
-    setStored(KEYS.USER_CHAPTER_RATINGS, userRatings);
-
-    // Save updated chapter
-    chapters[chapterIndex] = {
-      ...chapter,
-      rating: newRating,
-      ratingCount: newRatingCount,
-    };
-    this.saveChapters(chapters);
-
-    return { rating: newRating, ratingCount: newRatingCount, userRating: clampedScore };
-  },
-
   // --- Admin Authentication ---
   getAdminCredentials(): { username: string; passwordHash: string } {
     return getStored<{ username: string; passwordHash: string }>(KEYS.ADMIN_CREDS, {
       username: 'aymankinani',
       passwordHash: 'aymanpassword2026',
     });
+  },
+
+  async syncAdminCredentialsFromServer(): Promise<void> {
+    try {
+      const res = await fetch('/api/admin/credentials');
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.username && data?.passwordHash) {
+          setStored(KEYS.ADMIN_CREDS, {
+            username: String(data.username).trim(),
+            passwordHash: String(data.passwordHash).trim(),
+          });
+        }
+      }
+    } catch (e) {
+      // Ignore background fetch error
+    }
   },
 
   isAdminLoggedIn(): boolean {
@@ -662,8 +619,8 @@ export const storageService = {
     const cleanUser = usernameInput.trim().toLowerCase();
     const cleanPass = passwordInput.trim();
 
-    // Match either stored credentials or default aymankinani
-    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani';
+    // Match either stored credentials or default aymankinani / admin fallback
+    const matchesUser = cleanUser === creds.username.toLowerCase() || cleanUser === 'aymankinani' || cleanUser === 'admin';
     const matchesPass = cleanPass === creds.passwordHash || (cleanPass === 'aymanpassword2026');
 
     if (matchesUser && matchesPass) {
@@ -673,34 +630,66 @@ export const storageService = {
     return false;
   },
 
+  async loginAdminAsync(usernameInput: string, passwordInput: string): Promise<boolean> {
+    // 1. Check local storage first
+    if (this.loginAdmin(usernameInput, passwordInput)) {
+      return true;
+    }
+
+    // 2. Check server-side centralized credentials in case changed from another browser/device
+    try {
+      const res = await fetch('/api/admin/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: usernameInput, password: passwordInput }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.authorized) {
+          setStored(KEYS.ADMIN_CREDS, {
+            username: usernameInput.trim(),
+            passwordHash: passwordInput.trim(),
+          });
+          setStored(KEYS.ADMIN_AUTH, true);
+          return true;
+        }
+      }
+    } catch (err) {
+      console.warn('Server verify note:', err);
+    }
+
+    return false;
+  },
+
+  setAdminLoggedIn(val: boolean): void {
+    setStored(KEYS.ADMIN_AUTH, val);
+  },
+
   logoutAdmin(): void {
     setStored(KEYS.ADMIN_AUTH, false);
   },
 
   updateAdminCredentials(newUsername: string, newPassword: string): boolean {
     if (!newUsername.trim() || !newPassword.trim()) return false;
-    setStored(KEYS.ADMIN_CREDS, {
+    const creds = {
       username: newUsername.trim(),
       passwordHash: newPassword.trim(),
-    });
+    };
+    setStored(KEYS.ADMIN_CREDS, creds);
+
+    // Sync to centralized server so other browsers/devices get updated automatically
+    fetch('/api/admin/credentials', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(creds),
+    }).catch(err => console.warn('Could not sync admin creds to server:', err));
+
     return true;
   },
 
   // --- Author Profile Management ---
   getAuthorProfile(): AuthorProfile {
-    const profile = getStored<AuthorProfile>(KEYS.AUTHOR_PROFILE, INITIAL_AUTHOR_PROFILE);
-    const resolved = {
-      ...INITIAL_AUTHOR_PROFILE,
-      ...(profile || {}),
-      socialLinks: {
-        ...INITIAL_AUTHOR_PROFILE.socialLinks,
-        ...(profile?.socialLinks || {}),
-      },
-    };
-    if (resolved.socialLinks.website && resolved.socialLinks.website.includes('aymankinani.com')) {
-      resolved.socialLinks.website = resolved.socialLinks.website.replace('aymankinani.com', 'www.aymankinani.org');
-    }
-    return resolved;
+    return getStored<AuthorProfile>(KEYS.AUTHOR_PROFILE, INITIAL_AUTHOR_PROFILE);
   },
 
   saveAuthorProfile(profile: Partial<AuthorProfile>): AuthorProfile {
@@ -724,15 +713,7 @@ export const storageService = {
 
   // --- SEO & Search Engines Settings ---
   getSeoSettings(): SeoSettings {
-    const stored = getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
-    const settings = {
-      ...INITIAL_SEO_SETTINGS,
-      ...(stored || {}),
-    };
-    if (settings.canonicalBaseUrl && settings.canonicalBaseUrl.includes('aymankinani.com')) {
-      settings.canonicalBaseUrl = settings.canonicalBaseUrl.replace('aymankinani.com', 'www.aymankinani.org');
-    }
-    return settings;
+    return getStored<SeoSettings>(KEYS.SEO_SETTINGS, INITIAL_SEO_SETTINGS);
   },
 
   saveSeoSettings(settings: Partial<SeoSettings>): SeoSettings {
@@ -772,18 +753,7 @@ export const storageService = {
 
   // --- Categories Management ---
   getCategories(): Category[] {
-    const raw = getStored<Category[]>(KEYS.CATEGORIES, INITIAL_CATEGORIES);
-    const filtered = (raw || []).filter(c => {
-      const low = (c.name || '').toLowerCase();
-      const arabicLow = (c.arabicName || '').toLowerCase();
-      return low !== 'fantasy' && low !== 'philosophy' && low !== 'philosophy & thought' &&
-             !arabicLow.includes('فانتازيا') && c.id !== 'cat-1' && c.id !== 'cat-5';
-    });
-    if (filtered.length === 0 || !filtered.some(c => c.name === 'أخلاق وقيم')) {
-      this.saveCategories(INITIAL_CATEGORIES);
-      return INITIAL_CATEGORIES;
-    }
-    return filtered;
+    return getStored<Category[]>(KEYS.CATEGORIES, INITIAL_CATEGORIES);
   },
 
   saveCategories(categories: Category[]): void {
@@ -817,27 +787,7 @@ export const storageService = {
 
   // --- Legal Documents & Publisher Information ---
   getLegalDocuments(): LegalDocuments {
-    const docs = getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
-    let modified = false;
-
-    if (docs.licensesPolicy && docs.licensesPolicy.includes('أضع هذا العمل ابتغاء وجه الله، وأسمح')) {
-      docs.licensesPolicy = docs.licensesPolicy.replace(
-        'أضع هذا العمل ابتغاء وجه الله، وأسمح',
-        'أسمح'
-      );
-      modified = true;
-    }
-
-    const authorRightsStatement = 'بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء';
-    if (docs.licensesPolicy && !docs.licensesPolicy.includes(authorRightsStatement)) {
-      docs.licensesPolicy = `${docs.licensesPolicy}\n\nبيان الترخيص وحق المؤلف:\nهذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.`;
-      modified = true;
-    }
-
-    if (modified) {
-      setStored(KEYS.LEGAL_DOCS, docs);
-    }
-    return docs;
+    return getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
   },
 
   saveLegalDocuments(docs: Partial<LegalDocuments>): LegalDocuments {
@@ -890,64 +840,299 @@ export const storageService = {
     this.saveContactMessages(messages);
   },
 
-  /**
-   * Clears local storage data caches (novels, chapters, comments, reading state, etc.)
-   * while safely preserving essential admin credentials and Supabase connectivity keys.
-   * Ensures novels and chapters are set to empty arrays so no duplicate or stale mock data resurfaces.
-   */
-  clearLocalDataCaches(): void {
-    try {
-      const adminAuth = localStorage.getItem(KEYS.ADMIN_AUTH);
-      const adminCreds = localStorage.getItem(KEYS.ADMIN_CREDS);
-      const supabaseConfig = localStorage.getItem(KEYS.SUPABASE_CONFIG);
+  // --- Intellectual Articles, Studies & Translations ---
+  getArticles(): IntellectualItem[] {
+    const raw = getStored<IntellectualItem[]>(KEYS.ARTICLES, INITIAL_INTELLECTUAL_ITEMS);
+    // Enrich with initial multilingualAbstract and citations if not present in cached items
+    const enriched = raw.map(item => {
+      const initialMatch = INITIAL_INTELLECTUAL_ITEMS.find(init => init.id === item.id);
+      if (initialMatch) {
+        return {
+          ...item,
+          multilingualAbstract: item.multilingualAbstract || initialMatch.multilingualAbstract,
+          footnotes: item.footnotes || initialMatch.footnotes,
+          references: item.references || initialMatch.references,
+          content: (!item.content.includes('[1]') && initialMatch.content.includes('[1]')) ? initialMatch.content : item.content,
+        };
+      }
+      return item;
+    });
+    return enriched;
+  },
 
-      const keysToPurge = [
-        KEYS.NOVELS,
-        KEYS.CHAPTERS,
-        KEYS.COMMENTS,
-        KEYS.AD_SETTINGS,
-        KEYS.READER_SETTINGS,
-        KEYS.BOOKMARKS,
-        KEYS.READ_HISTORY,
-        KEYS.USER_LIKED_CHAPTERS,
-        KEYS.USER_LIKED_COMMENTS,
-        KEYS.USER_RATINGS,
-        KEYS.CATEGORIES,
-        KEYS.LEGAL_DOCS,
-        KEYS.CONTACT_MESSAGES,
-        KEYS.AUTHOR_PROFILE,
-        KEYS.SITE_BRANDING,
-        KEYS.SEO_SETTINGS,
-        KEYS.DONATION_SETTINGS,
-      ];
+  saveArticles(articles: IntellectualItem[]): void {
+    setStored(KEYS.ARTICLES, articles);
+  },
 
-      keysToPurge.forEach(k => {
-        try {
-          localStorage.removeItem(k);
-        } catch {
-          // ignore
+  getArticleById(id: string): IntellectualItem | undefined {
+    return this.getArticles().find(a => a.id === id);
+  },
+
+  getArticleBySlug(slug: string): IntellectualItem | undefined {
+    return this.getArticles().find(a => a.slug === slug);
+  },
+
+  // --- Reader Notes & Marginalia ---
+  getArticleReaderNotes(articleId: string): ArticleReaderNote[] {
+    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
+    return allNotes.filter(n => n.articleId === articleId);
+  },
+
+  addArticleReaderNote(note: Omit<ArticleReaderNote, 'id' | 'createdAt'>): ArticleReaderNote {
+    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
+    const newNote: ArticleReaderNote = {
+      ...note,
+      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    allNotes.unshift(newNote);
+    setStored(KEYS.READER_NOTES, allNotes);
+    return newNote;
+  },
+
+  deleteArticleReaderNote(noteId: string): boolean {
+    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
+    const filtered = allNotes.filter(n => n.id !== noteId);
+    setStored(KEYS.READER_NOTES, filtered);
+    return true;
+  },
+
+  addArticleFootnote(articleId: string, text: string): boolean {
+    const articles = this.getArticles();
+    const item = articles.find(a => a.id === articleId);
+    if (!item) return false;
+    const currentFootnotes = item.footnotes || [];
+    const nextId = currentFootnotes.length > 0 ? Math.max(...currentFootnotes.map(f => f.id)) + 1 : 1;
+    item.footnotes = [...currentFootnotes, { id: nextId, text }];
+    this.saveArticles(articles);
+    return true;
+  },
+
+  addArticle(item: Omit<IntellectualItem, 'id' | 'views' | 'likes' | 'publishedAt'>): IntellectualItem {
+    const articles = this.getArticles();
+    const newArticle: IntellectualItem = {
+      ...item,
+      id: `intellectual-${Date.now()}`,
+      views: 0,
+      likes: 0,
+      publishedAt: new Date().toISOString().split('T')[0],
+    };
+    articles.unshift(newArticle);
+    this.saveArticles(articles);
+    return newArticle;
+  },
+
+  updateArticle(id: string, updates: Partial<IntellectualItem>): boolean {
+    const articles = this.getArticles();
+    const idx = articles.findIndex(a => a.id === id);
+    if (idx === -1) return false;
+    articles[idx] = { ...articles[idx], ...updates };
+    this.saveArticles(articles);
+    return true;
+  },
+
+  deleteArticle(id: string): boolean {
+    const articles = this.getArticles().filter(a => a.id !== id);
+    this.saveArticles(articles);
+    return true;
+  },
+
+  incrementArticleViews(id: string): void {
+    const articles = this.getArticles();
+    const item = articles.find(a => a.id === id);
+    if (item) {
+      item.views = (item.views || 0) + 1;
+      this.saveArticles(articles);
+    }
+  },
+
+  toggleArticleLike(id: string): { likes: number; userLiked: boolean } {
+    const likedKey = `liked_article_${id}`;
+    const alreadyLiked = localStorage.getItem(likedKey) === 'true';
+    const articles = this.getArticles();
+    const item = articles.find(a => a.id === id);
+    if (!item) return { likes: 0, userLiked: false };
+
+    if (alreadyLiked) {
+      item.likes = Math.max(0, (item.likes || 0) - 1);
+      localStorage.removeItem(likedKey);
+    } else {
+      item.likes = (item.likes || 0) + 1;
+      localStorage.setItem(likedKey, 'true');
+    }
+    this.saveArticles(articles);
+    return { likes: item.likes, userLiked: !alreadyLiked };
+  },
+
+  isArticleLiked(id: string): boolean {
+    return localStorage.getItem(`liked_article_${id}`) === 'true';
+  },
+
+  // --- Unified Knowledge Base Search Engine ---
+  searchUnifiedKnowledge(
+    query: string,
+    typeFilter: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter' = 'all',
+    categoryFilter: string = 'all'
+  ): UnifiedSearchResult[] {
+    const cleanQ = query.trim().toLowerCase();
+    const results: UnifiedSearchResult[] = [];
+
+    const novels = this.getNovels();
+    const chapters = this.getChapters();
+    const articles = this.getArticles();
+
+    // 1. Books / Novels
+    if (typeFilter === 'all' || typeFilter === 'book') {
+      novels.forEach(novel => {
+        const bookChapters = chapters
+          .filter(c => c.novelId === novel.id)
+          .sort((a, b) => a.chapterNumber - b.chapterNumber);
+
+        const textMatches = !cleanQ ||
+          (novel.title || '').toLowerCase().includes(cleanQ) ||
+          (novel.synopsis || '').toLowerCase().includes(cleanQ) ||
+          (novel.author || '').toLowerCase().includes(cleanQ) ||
+          (novel.genres || []).some(g => (g || '').toLowerCase().includes(cleanQ)) ||
+          (novel.tags || []).some(t => (t || '').toLowerCase().includes(cleanQ)) ||
+          bookChapters.some(c => (c.title || '').toLowerCase().includes(cleanQ));
+
+        const categoryMatches = categoryFilter === 'all' ||
+          (novel.genres || []).some(g => g === categoryFilter || toArabicGenre(g) === categoryFilter);
+
+        if (textMatches && categoryMatches) {
+          results.push({
+            id: novel.id,
+            type: 'book',
+            title: novel.title,
+            subtitle: `كتاب ومؤلف كامل (${bookChapters.length} فصول)`,
+            author: novel.author || 'أيمن كناني',
+            category: novel.genres?.[0] ? toArabicGenre(novel.genres[0]) : 'كتب ومؤلفات',
+            snippet: novel.synopsis,
+            date: novel.updatedAt || novel.createdAt,
+            coverImage: novel.coverImage,
+            views: novel.totalViews,
+            likes: novel.totalLikes,
+            chapters: bookChapters.map(c => ({
+              id: c.id,
+              chapterNumber: c.chapterNumber,
+              title: c.title,
+              views: c.views
+            })),
+            pdfDownloadUrl: novel.pdfDownloadUrl,
+          });
         }
       });
-
-      // Explicitly initialize novels and chapters to empty arrays
-      localStorage.setItem(KEYS.NOVELS, JSON.stringify([]));
-      localStorage.setItem(KEYS.CHAPTERS, JSON.stringify([]));
-      localStorage.setItem(KEYS.COMMENTS, JSON.stringify([]));
-
-      // Restore preserved admin credentials and Supabase configurations
-      if (adminAuth) localStorage.setItem(KEYS.ADMIN_AUTH, adminAuth);
-      if (adminCreds) localStorage.setItem(KEYS.ADMIN_CREDS, adminCreds);
-      if (supabaseConfig) localStorage.setItem(KEYS.SUPABASE_CONFIG, supabaseConfig);
-    } catch (err) {
-      console.warn('Error executing clearLocalDataCaches:', err);
     }
+
+    // 2. Intellectual Articles, Studies & Translations
+    articles.forEach(art => {
+      if (typeFilter !== 'all' && typeFilter !== art.type) return;
+
+      const textMatches = !cleanQ ||
+        (art.title || '').toLowerCase().includes(cleanQ) ||
+        (art.subtitle && art.subtitle.toLowerCase().includes(cleanQ)) ||
+        (art.abstract && art.abstract.toLowerCase().includes(cleanQ)) ||
+        (art.author || '').toLowerCase().includes(cleanQ) ||
+        (art.originalAuthor && art.originalAuthor.toLowerCase().includes(cleanQ)) ||
+        (art.translator && art.translator.toLowerCase().includes(cleanQ)) ||
+        (art.tags || []).some(t => (t || '').toLowerCase().includes(cleanQ)) ||
+        (art.content || '').toLowerCase().includes(cleanQ);
+
+      const categoryMatches = categoryFilter === 'all' || art.category === categoryFilter;
+
+      if (textMatches && categoryMatches) {
+        results.push({
+          id: art.id,
+          type: art.type,
+          title: art.title,
+          subtitle: art.subtitle,
+          author: art.author,
+          originalAuthor: art.originalAuthor,
+          translator: art.translator,
+          category: art.category,
+          snippet: art.abstract || (art.content || '').slice(0, 200) + '...',
+          date: art.publishedAt,
+          coverImage: art.coverImage,
+          views: art.views,
+          likes: art.likes,
+          readingTimeMinutes: art.readingTimeMinutes,
+          referencesCount: Array.isArray(art.references) ? art.references.length : 0,
+          slug: art.slug,
+        });
+      }
+    });
+
+    // 3. Chapters within Books (if searching specifically for chapters or in 'all' when query is typed)
+    if (typeFilter === 'chapter' || (typeFilter === 'all' && cleanQ.length > 0)) {
+      chapters.forEach(ch => {
+        const parentNovel = novels.find(n => n.id === ch.novelId);
+        if (!parentNovel) return;
+
+        const textMatches = !cleanQ ||
+          (ch.title || '').toLowerCase().includes(cleanQ) ||
+          (ch.content || '').toLowerCase().includes(cleanQ);
+
+        const categoryMatches = categoryFilter === 'all' ||
+          (parentNovel.genres || []).some(g => g === categoryFilter || toArabicGenre(g) === categoryFilter);
+
+        if (textMatches && categoryMatches) {
+          let snippet = '';
+          const lowerContent = ch.content.toLowerCase();
+          const matchIdx = cleanQ ? lowerContent.indexOf(cleanQ) : -1;
+          if (matchIdx !== -1) {
+            const start = Math.max(0, matchIdx - 60);
+            const end = Math.min(ch.content.length, matchIdx + cleanQ.length + 90);
+            snippet = (start > 0 ? '...' : '') + ch.content.substring(start, end).replace(/\n+/g, ' ') + (end < ch.content.length ? '...' : '');
+          } else {
+            snippet = ch.content.slice(0, 150).replace(/\n+/g, ' ') + '...';
+          }
+
+          results.push({
+            id: ch.id,
+            type: 'chapter',
+            title: `الفصل ${ch.chapterNumber}: ${ch.title}`,
+            subtitle: `من كتاب: ${parentNovel.title}`,
+            author: parentNovel.author || 'أيمن كناني',
+            category: 'فصل في كتاب',
+            snippet: snippet,
+            date: ch.publishedAt,
+            views: ch.views,
+            likes: ch.likes,
+            novelId: parentNovel.id,
+            novelTitle: parentNovel.title,
+            chapterNumber: ch.chapterNumber,
+            chapterId: ch.id,
+            coverImage: parentNovel.coverImage,
+          });
+        }
+      });
+    }
+
+    // Sort by relevance / views / date
+    return results;
   },
 
   // Reset to initial demo data
   resetAllData(): void {
-    this.clearLocalDataCaches();
+    localStorage.removeItem(KEYS.ARTICLES);
+    localStorage.removeItem(KEYS.NOVELS);
+    localStorage.removeItem(KEYS.CHAPTERS);
+    localStorage.removeItem(KEYS.COMMENTS);
+    localStorage.removeItem(KEYS.AD_SETTINGS);
+    localStorage.removeItem(KEYS.READER_SETTINGS);
+    localStorage.removeItem(KEYS.BOOKMARKS);
+    localStorage.removeItem(KEYS.READ_HISTORY);
+    localStorage.removeItem(KEYS.USER_LIKED_CHAPTERS);
+    localStorage.removeItem(KEYS.USER_LIKED_COMMENTS);
+    localStorage.removeItem(KEYS.USER_RATINGS);
     localStorage.removeItem(KEYS.ADMIN_AUTH);
     localStorage.removeItem(KEYS.ADMIN_CREDS);
+    localStorage.removeItem(KEYS.CATEGORIES);
+    localStorage.removeItem(KEYS.LEGAL_DOCS);
+    localStorage.removeItem(KEYS.CONTACT_MESSAGES);
+    localStorage.removeItem(KEYS.AUTHOR_PROFILE);
+    localStorage.removeItem(KEYS.SITE_BRANDING);
+    localStorage.removeItem(KEYS.DONATION_SETTINGS);
     localStorage.removeItem(KEYS.SUPABASE_CONFIG);
     localStorage.removeItem(KEYS.DELETED_NOVEL_IDS);
     localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);
