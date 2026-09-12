@@ -412,13 +412,24 @@ export default function App() {
     }
   };
 
-  const handleSelectChapter = (chapterId: string) => {
+  const handleSelectChapter = (firstArg: string, secondArg?: string) => {
+    const chapterId = secondArg || firstArg;
+    const passedNovelId = secondArg ? firstArg : undefined;
     const chapter = storageService.getChapterById(chapterId);
     if (chapter) {
-      setSelectedNovelId(chapter.novelId);
-      setSelectedChapterId(chapterId);
+      setSelectedNovelId(chapter.novelId || passedNovelId || '');
+      setSelectedChapterId(chapter.id);
       setCurrentView('reader');
       window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (passedNovelId) {
+      const chapters = storageService.getChapters(passedNovelId);
+      const targetChap = chapters.find(c => c.id === chapterId) || chapters[0];
+      if (targetChap) {
+        setSelectedNovelId(passedNovelId);
+        setSelectedChapterId(targetChap.id);
+        setCurrentView('reader');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     }
   };
 
@@ -437,16 +448,10 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
+  const [showAuthorBioModal, setShowAuthorBioModal] = useState<boolean>(false);
+
   const handleScrollToAuthorBio = () => {
-    if (currentView !== 'catalog') {
-      setCurrentView('catalog');
-    }
-    setTimeout(() => {
-      const el = document.getElementById('author-bio-section');
-      if (el) {
-        el.scrollIntoView({ behavior: 'smooth' });
-      }
-    }, 100);
+    setShowAuthorBioModal(true);
   };
 
   // Dynamic category list for filter pills
@@ -506,11 +511,12 @@ export default function App() {
   }, [articles, selectedArticleId]);
 
   // Knowledge search engine state and results
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter'>('all');
+  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter' | 'smart_editors'>('all');
   const [selectedKnowledgeCategory, setSelectedKnowledgeCategory] = useState<string>('all');
 
   const unifiedSearchResults = useMemo(() => {
-    return storageService.searchUnifiedKnowledge(searchQuery, selectedTypeFilter, selectedKnowledgeCategory);
+    if (selectedTypeFilter === 'smart_editors') return [];
+    return storageService.searchUnifiedKnowledge(searchQuery, selectedTypeFilter as any, selectedKnowledgeCategory);
   }, [searchQuery, selectedTypeFilter, selectedKnowledgeCategory, novels, chapters, articles]);
 
   const knowledgeStats = useMemo(() => {
@@ -548,7 +554,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C]">
       {/* PWA Mobile Installation Prompt Banner */}
-      {showPwaBanner && (
+      {showPwaBanner && currentView !== 'catalog' && (
         <div id="pwa-install-banner" className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5 max-w-2xl">
             {(siteBranding.pwaIconUrl || siteBranding.faviconUrl || siteBranding.logoUrl) ? (
@@ -602,6 +608,14 @@ export default function App() {
         siteBranding={siteBranding}
         onOpenDonationModal={() => setShowDonationModal(true)}
         onScrollToAuthor={handleScrollToAuthorBio}
+        hideSearchBar={currentView === 'catalog'}
+        onOpenSmartEditors={() => {
+          setSelectedTypeFilter('smart_editors');
+          if (currentView !== 'catalog') {
+            setCurrentView('catalog');
+          }
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
       />
 
       {/* Admin Login Dialog Modal */}
@@ -719,13 +733,9 @@ export default function App() {
           <LegalPages page={legalPage} onBack={handleNavigateHome} />
         )}
 
-        {/* 6. MAIN BROWSE / SEARCH & CATALOG VIEW */}
+        {/* 6. MAIN RESEARCH BROWSER & KNOWLEDGE SEARCH ENGINE VIEW (GOOGLE STYLE) */}
         {currentView === 'catalog' && (
-          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10 space-y-10">
-            {/* Top Leaderboard Ad */}
-            <AdSlot location="header" adSettings={adSettings} className="mb-4" />
-
-            {/* UNIFIED KNOWLEDGE & ENCYCLOPEDIA SEARCH ENGINE */}
+          <main className="w-full">
             <SearchKnowledgeEngine
               searchQuery={searchQuery}
               onSearchChange={setSearchQuery}
@@ -735,6 +745,10 @@ export default function App() {
               onCategoryChange={setSelectedKnowledgeCategory}
               allCategories={allKnowledgeCategories}
               categories={allKnowledgeCategories}
+              novels={novels}
+              chapters={chapters}
+              articles={articles}
+              onRefreshData={refreshData}
               searchResults={unifiedSearchResults}
               results={unifiedSearchResults}
               onSelectBook={handleSelectNovel}
@@ -742,192 +756,42 @@ export default function App() {
               onSelectArticle={handleSelectArticle}
               onRandomPick={handleRandomPick}
               stats={knowledgeStats}
+              onOpenSmartEditor={() => {
+                setSelectedTypeFilter('smart_editors');
+              }}
             />
-
-            {/* Author Profile & Biography Hero Section */}
-            {!searchQuery && selectedGenre === 'All' && selectedTypeFilter === 'all' && (
-              <AuthorProfileSection
-                authorProfile={authorProfile}
-                novels={novels}
-                donationSettings={donationSettings}
-                onOpenDonationModal={() => setShowDonationModal(true)}
-                onOpenContactPage={() => handleOpenLegalPage('contact')}
-              />
-            )}
-
-            {/* Featured Book Hero Spotlight (if not searching) */}
-            {!searchQuery && selectedGenre === 'All' && featuredNovel && (
-              <section className="relative rounded-3xl overflow-hidden border border-[#E5E2D9] bg-[#F7F5EE] shadow-xs mb-12">
-                <div className="absolute inset-0 z-0">
-                  <img
-                    src={featuredNovel.bannerImage || featuredNovel.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
-                    alt={featuredNovel.title}
-                    className="w-full h-full object-cover opacity-10 blur-sm scale-105"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-l from-[#F7F5EE] via-[#F7F5EE]/90 to-transparent" />
-                </div>
-
-                <div className="relative z-10 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8">
-                  <img
-                    src={featuredNovel.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
-                    alt={featuredNovel.title}
-                    onClick={() => handleSelectNovel(featuredNovel.id)}
-                    className="w-40 sm:w-52 aspect-[2/3] object-cover rounded-2xl shadow-md border-2 border-[#E5E2D9] hover:scale-102 transition-transform cursor-pointer shrink-0"
-                    referrerPolicy="no-referrer"
-                  />
-
-                  <div className="flex-1 text-center md:text-right font-cairo">
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-3">
-                      <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#4A5D4E] text-[#FDFCF8]">
-                        إصدار مميز للكاتب
-                      </span>
-                      {featuredNovel.genres.map(g => (
-                        <span
-                          key={g}
-                          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]"
-                        >
-                          {toArabicGenre(g)}
-                        </span>
-                      ))}
-                    </div>
-
-                    <h2
-                      onClick={() => handleSelectNovel(featuredNovel.id)}
-                      className="font-amiri font-bold text-2xl sm:text-4xl text-[#2C2C2C] hover:text-[#4A5D4E] transition-colors cursor-pointer mb-2"
-                    >
-                      {featuredNovel.title}
-                    </h2>
-
-                    <p className="text-xs sm:text-sm text-[#4A5D4E] mb-3 font-semibold">
-                      بقلم المؤلف: <strong className="text-[#2C2C2C]">{featuredNovel.author}</strong>
-                    </p>
-
-                    <p className="text-xs sm:text-sm text-[#6E6A64] leading-relaxed line-clamp-3 mb-6 max-w-2xl">
-                      {featuredNovel.synopsis}
-                    </p>
-
-                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                      <button
-                        type="button"
-                        id="hero-read-first-btn"
-                        onClick={() => handleReadFirstChapter(featuredNovel.id)}
-                        className="px-6 py-3 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                      >
-                        <BookOpen className="w-4 h-4" />
-                        <span>ابدأ قراءة الفصل الأول الآن</span>
-                      </button>
-                      <button
-                        type="button"
-                        id="hero-novel-details-btn"
-                        onClick={() => handleSelectNovel(featuredNovel.id)}
-                        className="px-5 py-3 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs"
-                      >
-                        عرض فهرس الفصول والتفاصيل
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            )}
-
-            {/* Catalog Filter & Sorting Bar */}
-            {novels.length > 0 && (
-              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 font-cairo">
-                {/* Dynamic Category / Genre Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-none">
-                  {filterPills.map(genre => (
-                    <button
-                      key={genre.key}
-                      type="button"
-                      id={`filter-genre-${genre.key.replace(/\s+/g, '-')}`}
-                      onClick={() => setSelectedGenre(genre.key)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
-                        selectedGenre === genre.key
-                          ? 'bg-[#4A5D4E] text-[#FDFCF8] border-[#4A5D4E] shadow-xs'
-                          : 'bg-[#FFFFFF] text-[#6E6A64] border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:text-[#2C2C2C]'
-                      }`}
-                    >
-                      {genre.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Sort By Dropdown */}
-                <div className="flex items-center gap-2 shrink-0 self-end md:self-auto text-xs font-cairo">
-                  <span className="text-[#6E6A64] font-bold">ترتيب حسب:</span>
-                  <select
-                    id="catalog-sort-select"
-                    value={sortBy}
-                    onChange={e => setSortBy(e.target.value as any)}
-                    className="px-3 py-1.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] text-xs focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
-                  >
-                    <option value="popular">الأكثر قراءة وشعبية</option>
-                    <option value="rating">الأعلى تقييماً</option>
-                    <option value="latest">أحدث التحديثات</option>
-                  </select>
-                </div>
-              </div>
-            )}
-
-            {/* Books & Literature Grid */}
-            {novels.length > 0 && (
-              <div className="space-y-6">
-                <div className="flex items-center justify-between font-cairo">
-                  <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] flex items-center gap-2">
-                    <Compass className="w-5 h-5 text-[#4A5D4E]" />
-                    <span>
-                      {selectedGenre === 'All' ? `مؤلفات وكتب الكاتب ${authorProfile.name}` : `كتب وتصنيف: ${filterPills.find(p => p.key === selectedGenre)?.label || selectedGenre}`}
-                    </span>
-                    <span className="text-xs text-[#6E6A64] font-normal">
-                      ({filteredNovels.length} {filteredNovels.length === 1 ? 'مؤلَف' : 'مؤلفات'})
-                    </span>
-                  </h3>
-                </div>
-
-                {filteredNovels.length === 0 ? (
-                  <div className="p-12 text-center rounded-3xl bg-[#F7F5EE] border border-[#E5E2D9] font-cairo max-w-2xl mx-auto space-y-4">
-                    <div className="w-14 h-14 mx-auto rounded-2xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center">
-                      <BookOpen className="w-7 h-7" />
-                    </div>
-                    <p className="text-[#6E6A64] text-sm">
-                      لم يتم العثور على كتب أو مؤلفات مطابقة لبحثك "{searchQuery}".
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSearchQuery('');
-                        setSelectedGenre('All');
-                      }}
-                      className="px-4 py-2 bg-[#4A5D4E] text-[#FDFCF8] text-xs font-bold rounded-xl cursor-pointer"
-                    >
-                      إعادة ضبط الفلاتر والبحث
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {filteredNovels.map(novel => {
-                      const count = chapters.filter(c => c.novelId === novel.id).length;
-                      return (
-                        <NovelCard
-                          key={novel.id}
-                          novel={novel}
-                          chapterCount={count}
-                          onSelectNovel={handleSelectNovel}
-                          onReadFirstChapter={handleReadFirstChapter}
-                        />
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Catalog Footer Ad Unit */}
-            <AdSlot location="footer" adSettings={adSettings} className="my-10" />
           </main>
         )}
       </div>
+
+      {/* Author Bio Modal */}
+      {showAuthorBioModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-cairo animate-fadeIn">
+          <div className="bg-[#FFFFFF] rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-[#E5E2D9] shadow-2xl p-6 sm:p-8 relative">
+            <button
+              type="button"
+              id="close-author-modal-btn"
+              onClick={() => setShowAuthorBioModal(false)}
+              className="absolute top-5 left-5 text-[#8E8A83] hover:text-[#2C2C2C] p-2 rounded-xl hover:bg-[#FAF8F5] cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <AuthorProfileSection
+              authorProfile={authorProfile}
+              novels={novels}
+              donationSettings={donationSettings}
+              onOpenDonationModal={() => {
+                setShowAuthorBioModal(false);
+                setShowDonationModal(true);
+              }}
+              onOpenContactPage={() => {
+                setShowAuthorBioModal(false);
+                handleOpenLegalPage('contact');
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Bookmarks Slide-over Drawer */}
       {showBookmarksDrawer && (
@@ -1022,13 +886,15 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Footer with legal links & AdSlot */}
-      <Footer
-        onOpenLegalPage={handleOpenLegalPage}
-        adSettings={adSettings}
-        siteBranding={siteBranding}
-        onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
-      />
+      {/* Global Footer with legal links & AdSlot (Only on sub-views; Search has its own minimalist footer) */}
+      {currentView !== 'catalog' && (
+        <Footer
+          onOpenLegalPage={handleOpenLegalPage}
+          adSettings={adSettings}
+          siteBranding={siteBranding}
+          onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
+        />
+      )}
     </div>
   );
 }

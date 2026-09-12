@@ -1,6 +1,10 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { IntellectualItem, ArticleReaderNote } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { IntellectualItem, ArticleReaderNote, MarginNote } from '../types';
 import { storageService } from '../services/storageService';
+import { AddMarginNoteModal, MarginNotesPopover } from './MarginaliaSystem';
+import { BilingualReaderView } from './BilingualReaderView';
+import { ArticleKnowledgeMap } from './ArticleKnowledgeMap';
+import { ArticleReplies } from './ArticleReplies';
 import {
   ArrowRight,
   Clock,
@@ -28,7 +32,16 @@ import {
   CornerUpRight,
   Globe,
   PenLine,
-  BookmarkCheck
+  BookmarkCheck,
+  Columns,
+  BookMarked,
+  Maximize2,
+  Minimize2,
+  Palette,
+  Layers,
+  X,
+  PanelRightOpen,
+  PanelRightClose
 } from 'lucide-react';
 
 interface ArticleReaderProps {
@@ -49,8 +62,13 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   const [copiedCitation, setCopiedCitation] = useState<boolean>(false);
   const [copiedAbstract, setCopiedAbstract] = useState<boolean>(false);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  // Reading Comfort States (تكبير، خطوط، ألوان، هوامش عائمة)
   const [fontSize, setFontSize] = useState<number>(19);
-  const [theme, setTheme] = useState<'paper' | 'sepia' | 'sage'>('paper');
+  const [theme, setTheme] = useState<'paper' | 'sepia' | 'sage' | 'night' | 'pristine'>('paper');
+  const [currentFont, setCurrentFont] = useState<'amiri' | 'cairo' | 'traditional'>('amiri');
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+  const [isFloatingMarginDrawerOpen, setIsFloatingMarginDrawerOpen] = useState<boolean>(false);
 
   // Multilingual Abstract state
   const availableLangs = useMemo(() => {
@@ -108,7 +126,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   const [highlightedFootnote, setHighlightedFootnote] = useState<number | null>(null);
 
   // Reader Notes & Marginalia State
-  const [readerNotes, setReaderNotes] = useState<ArticleReaderNote[]>(() =>
+  const [readerNotes, setReaderNotes] = useState<MarginNote[]>(() =>
     storageService.getArticleReaderNotes(article.id)
   );
   const [newNoteAuthor, setNewNoteAuthor] = useState<string>('');
@@ -116,6 +134,25 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   const [newNoteQuote, setNewNoteQuote] = useState<string>('');
   const [isAddingNote, setIsAddingNote] = useState<boolean>(false);
   const [noteSuccessMsg, setNoteSuccessMsg] = useState<string>('');
+
+  // Marginalia Modal & Popover Interactive State
+  const [isMarginModalOpen, setIsMarginModalOpen] = useState<boolean>(false);
+  const [isMarginPopoverOpen, setIsMarginPopoverOpen] = useState<boolean>(false);
+  const [activeMarginParagraph, setActiveMarginParagraph] = useState<number | undefined>(undefined);
+  const [activeMarginQuote, setActiveMarginQuote] = useState<string>('');
+  const [activePopoverNotes, setActivePopoverNotes] = useState<MarginNote[]>([]);
+  const [hoveredParagraphIdx, setHoveredParagraphIdx] = useState<number | null>(null);
+
+  // Floating text selection toolbar for marginalia
+  const [floatingSelection, setFloatingSelection] = useState<{ x: number; y: number; text: string } | null>(null);
+
+  // Bilingual Parallel Reading Mode State
+  const isBilingualAvailable = Boolean(
+    article.type === 'translated_article' ||
+    article.originalContent ||
+    (article.parallelSegments && article.parallelSegments.length > 0)
+  );
+  const [isBilingualMode, setIsBilingualMode] = useState<boolean>(isBilingualAvailable);
 
   // Footnotes from article (dynamically updated if author adds a footnote)
   const [articleFootnotes, setArticleFootnotes] = useState(article.footnotes || []);
@@ -125,175 +162,267 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   // Increment views on load
   useEffect(() => {
     storageService.incrementArticleViews(article.id);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   }, [article.id]);
 
+  // Fullscreen escape key listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isFullscreen) {
+        setIsFullscreen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isFullscreen]);
+
+  // Handle Text Selection for Floating Marginalia
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed) {
+        setFloatingSelection(null);
+        return;
+      }
+      const text = selection.toString().trim();
+      if (text.length > 3 && text.length < 500) {
+        try {
+          const range = selection.getRangeAt(0);
+          const rect = range.getBoundingClientRect();
+          setFloatingSelection({
+            x: rect.left + rect.width / 2,
+            y: rect.top + window.scrollY - 10,
+            text,
+          });
+        } catch {
+          setFloatingSelection(null);
+        }
+      } else {
+        setFloatingSelection(null);
+      }
+    };
+
+    document.addEventListener('mouseup', handleSelectionChange);
+    return () => document.removeEventListener('mouseup', handleSelectionChange);
+  }, []);
+
   const handleLike = () => {
-    const res = storageService.toggleArticleLike(article.id);
-    setLikes(res.likes);
-    setIsLiked(res.userLiked);
+    const result = storageService.toggleArticleLike(article.id);
+    setLikes(result.likes);
+    setIsLiked(result.userLiked);
   };
 
   const handleCopyCitation = () => {
-    let citation = '';
-    const year = article.publishedAt ? new Date(article.publishedAt).getFullYear() : '2026';
-    if (article.type === 'translated_article') {
-      citation = `${article.originalAuthor || article.author} (${article.originalYear || year}). ${article.title}. ترجمة: ${article.translator || 'أيمن كناني'}. المنصة الفكرية لأيمن كناني.`;
-    } else if (article.type === 'study') {
-      citation = `${article.author} (${year}). ${article.title}. دراسة بحثية محكمة. المنصة الفكرية لأيمن كناني. DOI: ${article.doi || '10.1000/aymankinani.study'}`;
-    } else {
-      citation = `${article.author} (${year}). ${article.title}. مقال فكري. المنصة الرسمية لأيمن كناني.`;
-    }
-
+    const citation = `كناني، أيمن. (${new Date(article.publishedAt || Date.now()).getFullYear()}). "${article.title}". الموسوعة الفكرية والأدبية. aymankanani.com`;
     navigator.clipboard.writeText(citation);
     setCopiedCitation(true);
-    setTimeout(() => setCopiedCitation(false), 2500);
+    setTimeout(() => setCopiedCitation(false), 3000);
   };
 
   const handleCopyAbstract = () => {
     if (!currentAbstractText) return;
     navigator.clipboard.writeText(currentAbstractText);
     setCopiedAbstract(true);
-    setTimeout(() => setCopiedAbstract(false), 2500);
+    setTimeout(() => setCopiedAbstract(false), 3000);
   };
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopiedLink(true);
-    setTimeout(() => setCopiedLink(false), 2500);
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   const handlePrint = () => {
     window.print();
   };
 
-  // Jump to section in content
+  // Scroll to section smoothly
   const scrollToSection = (id: string) => {
+    setIsHeaderTocOpen(false);
     const element = document.getElementById(id);
     if (element) {
       element.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setIsHeaderTocOpen(false);
     }
   };
 
-  // Jump to specific footnote or reference from small citation number
-  const jumpToFootnote = (num: number) => {
-    setHighlightedFootnote(num);
-    const target = document.getElementById(`footnote-${num}`) || document.getElementById(`reference-${num}`);
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Jump to specific footnote in footnotes section
+  const jumpToFootnote = (fnId: number) => {
+    setHighlightedFootnote(fnId);
+    const element = document.getElementById(`footnote-${fnId}`) || document.getElementById(`reference-${fnId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-    setTimeout(() => {
-      setHighlightedFootnote(null);
-    }, 3500);
+    setTimeout(() => setHighlightedFootnote(null), 4000);
   };
 
-  // Jump back from footnote to original position in the text
-  const jumpBackToCitation = (num: number) => {
-    const marker = document.getElementById(`citation-marker-${num}`);
-    if (marker) {
-      marker.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  // Jump back to citation link in the text
+  const jumpBackToCitation = (citationId: number) => {
+    const element = document.getElementById(`citation-ref-${citationId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      element.classList.add('ring-4', 'ring-amber-300', 'bg-amber-100');
+      setTimeout(() => {
+        element.classList.remove('ring-4', 'ring-amber-300', 'bg-amber-100');
+      }, 2500);
     }
   };
 
-  // Handle adding reader note
+  // Save Footnote from Author
+  const handleSaveFootnote = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newFootnoteText.trim()) return;
+    const ok = storageService.addArticleFootnote(article.id, newFootnoteText.trim());
+    if (ok) {
+      const nextId = articleFootnotes.length > 0 ? Math.max(...articleFootnotes.map(f => f.id)) + 1 : 1;
+      setArticleFootnotes(prev => [...prev, { id: nextId, text: newFootnoteText.trim() }]);
+      setNewFootnoteText('');
+      setIsAddingFootnote(false);
+    }
+  };
+
+  // Save Reader Note
   const handleSaveReaderNote = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newNoteText.trim()) return;
 
     const saved = storageService.addArticleReaderNote({
       articleId: article.id,
+      authorName: newNoteAuthor.trim() || 'قارئ وباحث',
       note: newNoteText.trim(),
-      authorName: newNoteAuthor.trim() || 'قارئ وباحث مهتم',
-      selectedText: newNoteQuote.trim() || undefined,
+      selectedText: newNoteQuote.trim(),
     });
 
     setReaderNotes(prev => [saved, ...prev]);
     setNewNoteText('');
     setNewNoteQuote('');
     setIsAddingNote(false);
-    setNoteSuccessMsg('تم حفظ الملاحظة بنجاح!');
-    setTimeout(() => setNoteSuccessMsg(''), 3000);
+    setNoteSuccessMsg('تم حفظ هامشك وملاحظتك بنجاح!');
+    setTimeout(() => setNoteSuccessMsg(''), 4000);
   };
 
-  // Handle deleting reader note
-  const handleDeleteReaderNote = (id: string) => {
-    storageService.deleteArticleReaderNote(id);
-    setReaderNotes(prev => prev.filter(n => n.id !== id));
+  // Save Margin from Floating Modal
+  const handleSaveMarginFromModal = (data: { authorName: string; note: string; selectedText: string; noteType?: any }) => {
+    const saved = storageService.addMarginNote({
+      targetType: 'article',
+      targetId: article.id,
+      selectedText: data.selectedText,
+      paragraphIndex: activeMarginParagraph,
+      note: data.note,
+      authorName: data.authorName,
+      noteType: data.noteType,
+    });
+    setReaderNotes(prev => [saved, ...prev]);
+    setIsMarginModalOpen(false);
+    setNoteSuccessMsg('تم حفظ الهامش الحاشي على الفقرة بنجاح!');
+    setTimeout(() => setNoteSuccessMsg(''), 4000);
   };
 
-  // Handle adding academic footnote
-  const handleSaveFootnote = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newFootnoteText.trim()) return;
-
-    storageService.addArticleFootnote(article.id, newFootnoteText.trim());
-    const updated = storageService.getArticleById(article.id);
-    if (updated?.footnotes) {
-      setArticleFootnotes(updated.footnotes);
-    }
-    setNewFootnoteText('');
-    setIsAddingFootnote(false);
+  const openAddMarginModal = (paragraphIndex?: number, quote?: string) => {
+    setActiveMarginParagraph(paragraphIndex);
+    setActiveMarginQuote(quote || '');
+    setIsMarginModalOpen(true);
   };
 
-  // Helper to parse citations `[n]` inside text and render small clickable superscript references
+  const openMarginPopover = (paragraphIndex: number, quote: string, notes: MarginNote[]) => {
+    setActiveMarginParagraph(paragraphIndex);
+    setActiveMarginQuote(quote);
+    setActivePopoverNotes(notes);
+    setIsMarginPopoverOpen(true);
+  };
+
+  const handleLikeMargin = (noteId: string) => {
+    const result = storageService.toggleLikeMarginNote(noteId);
+    setReaderNotes(prev =>
+      prev.map(n => (n.id === noteId ? { ...n, likes: result.likes, userLiked: result.liked } : n))
+    );
+    setActivePopoverNotes(prev =>
+      prev.map(n => (n.id === noteId ? { ...n, likes: result.likes, userLiked: result.liked } : n))
+    );
+  };
+
+  const handleDeleteMargin = (noteId: string) => {
+    storageService.deleteMarginNote(noteId);
+    setReaderNotes(prev => prev.filter(n => n.id !== noteId));
+    setActivePopoverNotes(prev => prev.filter(n => n.id !== noteId));
+  };
+
+  // Theme Styles (5 themes)
+  const themeStyles = {
+    paper: 'bg-[#FDFCF8] text-[#2C2C2C]',
+    sepia: 'bg-[#F4EEDD] text-[#3D332A]',
+    sage: 'bg-[#EBF3ED] text-[#1E3A2F]',
+    night: 'bg-[#18181B] text-[#E4E4E7]',
+    pristine: 'bg-[#FFFFFF] text-[#1F2937]',
+  };
+
+  // Font Styles
+  const fontClassNames = {
+    amiri: 'font-amiri leading-[2.2]',
+    cairo: 'font-cairo leading-[2.0]',
+    traditional: 'font-serif leading-[2.3]',
+  };
+
+  // Helper to parse footnote references `[^1]` or `[1]` in markdown text with full HTML support
   const renderTextWithCitations = (text: string) => {
-    const parts = text.split(/(\[\d+\])/g);
-    return parts.map((part, pIdx) => {
-      const match = part.match(/^\[(\d+)\]$/);
+    const parts = text.split(/(\[\^[0-9]+\]|\[[0-9]+\])/g);
+    return parts.map((part, idx) => {
+      const match = part.match(/\[\^?([0-9]+)\]/);
       if (match) {
-        const num = parseInt(match[1], 10);
+        const citationId = parseInt(match[1], 10);
         return (
-          <button
-            key={`cite-${pIdx}`}
-            id={`citation-marker-${num}`}
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              jumpToFootnote(num);
-            }}
-            className="inline-flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] hover:text-white hover:bg-[#4A5D4E] bg-[#4A5D4E]/10 px-1.5 py-0.5 rounded-md align-super mx-0.5 transition-all cursor-pointer border border-[#4A5D4E]/25 shadow-2xs group"
-            title={`انتقال إلى المرجع/الهامش رقم [${num}]`}
-          >
-            <span>[{num}]</span>
-          </button>
+          <sup key={idx} className="mx-1 select-none">
+            <button
+              type="button"
+              id={`citation-ref-${citationId}`}
+              onClick={() => jumpToFootnote(citationId)}
+              className="inline-flex items-center justify-center min-w-[20px] h-[20px] px-1 text-[11px] font-mono font-bold text-[#4A5D4E] bg-white border border-[#4A5D4E]/30 rounded-md hover:bg-[#4A5D4E] hover:text-white transition-all cursor-pointer shadow-2xs"
+              title={`انتقال للهامش رقم [${citationId}]`}
+            >
+              [{citationId}]
+            </button>
+          </sup>
         );
+      }
+      // If part contains HTML tags (such as font colors, highlight strips, bold, links, marks)
+      if (/<[a-z][\s\S]*>/i.test(part)) {
+        return <span key={idx} dangerouslySetInnerHTML={{ __html: part }} />;
       }
       return part;
     });
   };
 
-  // Theme Styles (Always light, warm literary tones, no black)
-  const themeStyles = {
-    paper: 'bg-[#FDFCF8] text-[#2C2C2C]',
-    sepia: 'bg-[#F4EEDD] text-[#3D332A]',
-    sage: 'bg-[#F2F5F3] text-[#243328]',
-  };
-
-  // Related articles in same category
-  const relatedArticles = allArticles
-    .filter(a => a.id !== article.id && (a.category === article.category || a.type === article.type))
-    .slice(0, 3);
-
   let headingCounter = 0;
 
   return (
-    <article className={`min-h-screen transition-colors duration-300 font-cairo pb-20 ${themeStyles[theme]}`}>
-      {/* Top Floating Action Bar */}
-      <header className="sticky top-0 z-30 backdrop-blur-md bg-inherit/90 border-b border-black/10 px-4 sm:px-6 py-3">
-        <div className="max-w-4xl mx-auto flex items-center justify-between gap-3">
+    <article
+      className={`min-h-screen transition-colors duration-300 font-cairo pb-20 ${themeStyles[theme]} ${
+        isFullscreen ? 'fixed inset-0 z-50 overflow-y-auto' : ''
+      }`}
+    >
+      {/* ------------------------------------------------------------- */}
+      {/* TOP FLOATING / STICKY ACTION BAR & READING COMFORT TOOLBAR */}
+      {/* ------------------------------------------------------------- */}
+      <header className="sticky top-0 z-30 backdrop-blur-md bg-inherit/95 border-b border-black/10 px-3 sm:px-6 py-2.5 shadow-2xs">
+        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-2.5">
+          {/* Back Button */}
           <button
             type="button"
             id="article-back-btn"
-            onClick={onBack}
-            className="flex items-center gap-2 text-xs sm:text-sm font-bold opacity-80 hover:opacity-100 px-3 py-1.5 rounded-xl border border-current/20 hover:bg-black/5 transition-all cursor-pointer shrink-0"
+            onClick={isFullscreen ? () => setIsFullscreen(false) : onBack}
+            className="flex items-center gap-1.5 text-xs sm:text-sm font-bold opacity-80 hover:opacity-100 px-3 py-1.5 rounded-xl border border-current/20 hover:bg-black/5 transition-all cursor-pointer shrink-0"
           >
             <ArrowRight className="w-4 h-4" />
-            <span>العودة للمحرك</span>
+            <span>{isFullscreen ? 'الخروج من ملء الشاشة' : 'العودة للمحرك'}</span>
           </button>
 
-          {/* Quick Header Navigation: Table of Contents button & Reading Controls */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
+          {/* Center Title in Fullscreen */}
+          {isFullscreen && (
+            <span className="hidden md:inline font-amiri font-bold text-sm truncate max-w-sm opacity-90">
+              {article.title}
+            </span>
+          )}
+
+          {/* Reading Controls Group */}
+          <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
             {/* TOC Quick Jump Button */}
             {tableOfContents.length > 0 && (
               <div className="relative">
@@ -346,7 +475,61 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </div>
             )}
 
-            {/* Font Size Adjusters */}
+            {/* Bilingual Parallel Reading Toggle */}
+            {isBilingualAvailable && (
+              <button
+                type="button"
+                id="toggle-bilingual-mode-btn"
+                onClick={() => setIsBilingualMode(prev => !prev)}
+                className={`px-3 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                  isBilingualMode
+                    ? 'bg-[#4A5D4E] text-white border-[#4A5D4E] shadow-2xs'
+                    : 'border-current/20 hover:bg-black/5 text-inherit'
+                }`}
+                title="تبديل وضع القراءة المزدوجة المتزامنة (النص الأصلي والمترجم معاً)"
+              >
+                <Languages className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">
+                  {isBilingualMode ? 'المتن الفردي' : 'القراءة المزدوجة'}
+                </span>
+              </button>
+            )}
+
+            {/* 1. Font Selector (تغيير الخطوط: أميري | كايرو | نسخ أدبي) */}
+            <div className="flex items-center border border-current/20 rounded-xl overflow-hidden text-xs p-0.5">
+              <button
+                type="button"
+                onClick={() => setCurrentFont('amiri')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  currentFont === 'amiri' ? 'bg-[#4A5D4E] text-white' : 'hover:bg-black/5'
+                }`}
+                title="الخط الأميري الأكاديمي"
+              >
+                أميري
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentFont('cairo')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  currentFont === 'cairo' ? 'bg-[#4A5D4E] text-white' : 'hover:bg-black/5'
+                }`}
+                title="خط كايرو الرقمي"
+              >
+                كايرو
+              </button>
+              <button
+                type="button"
+                onClick={() => setCurrentFont('traditional')}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold transition-all cursor-pointer ${
+                  currentFont === 'traditional' ? 'bg-[#4A5D4E] text-white' : 'hover:bg-black/5'
+                }`}
+                title="خط النسخ التراثي"
+              >
+                نسخ
+              </button>
+            </div>
+
+            {/* 2. Font Size Adjusters (A- / A+) */}
             <div className="flex items-center border border-current/20 rounded-xl overflow-hidden text-xs">
               <button
                 type="button"
@@ -357,11 +540,13 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               >
                 A-
               </button>
-              <span className="px-2 py-1 font-mono text-[11px] opacity-70 border-x border-current/20">{fontSize}</span>
+              <span className="px-1.5 py-1 font-mono text-[11px] opacity-70 border-x border-current/20">
+                {fontSize}
+              </span>
               <button
                 type="button"
                 id="font-increase-btn"
-                onClick={() => setFontSize(prev => Math.min(26, prev + 2))}
+                onClick={() => setFontSize(prev => Math.min(28, prev + 2))}
                 className="px-2 py-1 hover:bg-black/5 font-bold cursor-pointer"
                 title="تكبير الخط"
               >
@@ -369,331 +554,482 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </button>
             </div>
 
-            {/* Theme Picker */}
-            <div className="hidden sm:flex items-center gap-1 border border-current/20 rounded-xl p-0.5">
+            {/* 3. Theme Picker (تغيير لون خلفية المقالة) */}
+            <div className="flex items-center gap-1 border border-current/20 rounded-xl p-0.5">
               <button
                 type="button"
                 onClick={() => setTheme('paper')}
-                className={`w-6 h-6 rounded-lg text-[10px] font-bold ${theme === 'paper' ? 'ring-2 ring-[#4A5D4E]' : ''} bg-[#FDFCF8] text-[#2C2C2C] border border-black/20`}
-                title="فاتح ورقي"
+                className={`w-5 h-5 rounded-lg text-[9px] font-bold ${
+                  theme === 'paper' ? 'ring-2 ring-[#4A5D4E]' : ''
+                } bg-[#FDFCF8] text-[#2C2C2C] border border-black/20`}
+                title="فاتح ورقي عاجي"
               >
-                و
+                ورق
               </button>
               <button
                 type="button"
                 onClick={() => setTheme('sepia')}
-                className={`w-6 h-6 rounded-lg text-[10px] font-bold ${theme === 'sepia' ? 'ring-2 ring-[#C88A3B]' : ''} bg-[#F4EEDD] text-[#3D332A] border border-black/20`}
-                title="بيج دافئ"
+                className={`w-5 h-5 rounded-lg text-[9px] font-bold ${
+                  theme === 'sepia' ? 'ring-2 ring-[#C88A3B]' : ''
+                } bg-[#F4EEDD] text-[#3D332A] border border-black/20`}
+                title="بردي دافئ"
               >
-                د
+                برد
               </button>
               <button
                 type="button"
                 onClick={() => setTheme('sage')}
-                className={`w-6 h-6 rounded-lg text-[10px] font-bold ${theme === 'sage' ? 'ring-2 ring-[#4A5D4E]' : ''} bg-[#F2F5F3] text-[#243328] border border-black/20`}
-                title="زيتوني هادئ"
+                className={`w-5 h-5 rounded-lg text-[9px] font-bold ${
+                  theme === 'sage' ? 'ring-2 ring-[#4A5D4E]' : ''
+                } bg-[#EBF3ED] text-[#1E3A2F] border border-black/20`}
+                title="أخضر مريح للعين"
               >
-                ز
+                عين
+              </button>
+              <button
+                type="button"
+                onClick={() => setTheme('night')}
+                className={`w-5 h-5 rounded-lg text-[9px] font-bold ${
+                  theme === 'night' ? 'ring-2 ring-white' : ''
+                } bg-[#18181B] text-[#E4E4E7] border border-white/20`}
+                title="ليلي داكن مريح"
+              >
+                ليل
               </button>
             </div>
 
-            {/* Print button */}
+            {/* 4. Floating Margin Notes Drawer Toggle (قراءة الهوامش العائمة) */}
             <button
               type="button"
-              id="article-print-btn"
-              onClick={handlePrint}
-              className="p-1.5 sm:px-3 sm:py-1.5 rounded-xl border border-current/20 hover:bg-black/5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              title="طباعة المقال / حفظ كـ PDF"
+              id="toggle-floating-margins-btn"
+              onClick={() => setIsFloatingMarginDrawerOpen(prev => !prev)}
+              className={`px-2.5 py-1.5 rounded-xl border text-xs font-semibold flex items-center gap-1.5 transition-all cursor-pointer ${
+                isFloatingMarginDrawerOpen
+                  ? 'bg-[#4A5D4E] text-white border-[#4A5D4E] shadow-2xs'
+                  : 'border-current/20 hover:bg-black/5 text-inherit'
+              }`}
+              title="عرض وقراءة الهوامش العائمة والإحالات في لوحة جانبية"
             >
-              <Printer className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">طباعة</span>
+              <PanelRightOpen className="w-3.5 h-3.5" />
+              <span className="hidden md:inline">
+                الهوامش العائمة ({articleFootnotes.length + readerNotes.length})
+              </span>
             </button>
 
-            {/* Copy Citation */}
+            {/* 5. Fullscreen Toggle (تكبير حجم المقالة بكامل الصفحة) */}
             <button
               type="button"
-              id="article-cite-btn"
-              onClick={handleCopyCitation}
-              className="px-2.5 py-1.5 rounded-xl border border-current/20 hover:bg-black/5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer"
-              title="نسخ التوثيق العلمي والمصدري (Citation)"
+              id="article-fullscreen-btn"
+              onClick={() => setIsFullscreen(prev => !prev)}
+              className="p-1.5 sm:px-2.5 sm:py-1.5 rounded-xl border border-current/20 hover:bg-black/5 text-xs font-semibold flex items-center gap-1 cursor-pointer"
+              title={isFullscreen ? 'الخروج من ملء الشاشة (Esc)' : 'قراءة بملء الشاشة وتكبير المقالة'}
             >
-              {copiedCitation ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Quote className="w-3.5 h-3.5" />}
-              <span className="hidden sm:inline">{copiedCitation ? 'تم النسخ!' : 'توثيق واقتباس'}</span>
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              <span className="hidden sm:inline">{isFullscreen ? 'تصغير' : 'ملء الشاشة'}</span>
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Container */}
-      <div className="max-w-3xl mx-auto px-4 sm:px-6 pt-8 sm:pt-12">
+      {/* ------------------------------------------------------------- */}
+      {/* FLOATING MARGIN NOTES SLIDE-OVER DRAWER (قراءة الهوامش العائمة) */}
+      {/* ------------------------------------------------------------- */}
+      {isFloatingMarginDrawerOpen && (
+        <aside
+          id="floating-margins-drawer"
+          className="fixed left-4 top-16 bottom-6 w-80 sm:w-96 bg-white/95 text-stone-900 border border-[#E5E2D9] rounded-3xl shadow-2xl z-40 backdrop-blur-md p-4 flex flex-col font-cairo animate-fadeIn"
+        >
+          <div className="flex items-center justify-between pb-3 border-b border-[#E5E2D9]">
+            <div className="flex items-center gap-2">
+              <span className="w-7 h-7 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-bold">
+                📌
+              </span>
+              <div>
+                <h4 className="font-bold text-sm text-stone-900">الهوامش العائمة والإحالات</h4>
+                <p className="text-[10px] text-stone-500">
+                  {articleFootnotes.length} هامش أكاديمي • {readerNotes.length} ملاحظة قارئ
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsFloatingMarginDrawerOpen(false)}
+              className="p-1 text-stone-400 hover:text-stone-700 rounded-lg hover:bg-stone-100 cursor-pointer"
+              title="إغلاق اللوحة العائمة"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto space-y-3 py-3 pr-1 text-xs">
+            {/* Academic Footnotes */}
+            {articleFootnotes.length > 0 && (
+              <div className="space-y-2">
+                <span className="text-[11px] font-bold text-[#4A5D4E] flex items-center gap-1">
+                  <Quote className="w-3 h-3" />
+                  <span>الهوامش التوثيقية للمؤلف:</span>
+                </span>
+                {articleFootnotes.map(fn => (
+                  <div
+                    key={fn.id}
+                    onClick={() => jumpToFootnote(fn.id)}
+                    className="p-2.5 rounded-xl bg-[#FAF8F5] hover:bg-[#F2EFE8] border border-[#E5E2D9] transition-all cursor-pointer group"
+                  >
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="font-mono font-bold text-[#4A5D4E] bg-white px-1.5 py-0.5 rounded-md border border-current/20 text-[10px]">
+                        [{fn.id}]
+                      </span>
+                      <span className="text-[10px] text-stone-400 group-hover:text-[#4A5D4E] flex items-center gap-0.5">
+                        <span>انتقال للموضع</span>
+                        <CornerUpRight className="w-2.5 h-2.5" />
+                      </span>
+                    </div>
+                    <p className="leading-relaxed text-stone-700">{fn.text}</p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Reader Notes */}
+            <div className="space-y-2 pt-2 border-t border-[#E5E2D9]">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-stone-700 flex items-center gap-1">
+                  <PenLine className="w-3 h-3 text-[#4A5D4E]" />
+                  <span>ملاحظات وهوامش القراء:</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => openAddMarginModal()}
+                  className="text-[10px] font-bold text-[#4A5D4E] hover:underline cursor-pointer"
+                >
+                  + إضافة
+                </button>
+              </div>
+
+              {readerNotes.length === 0 ? (
+                <p className="text-[11px] text-stone-400 py-3 text-center">
+                  لا توجد هوامش قراء بعد. يمكنك إضافة أول هامش!
+                </p>
+              ) : (
+                readerNotes.map(n => (
+                  <div
+                    key={n.id}
+                    className="p-2.5 rounded-xl bg-white border border-[#E5E2D9] space-y-1.5 shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-bold text-stone-800">{n.authorName}</span>
+                      <button
+                        type="button"
+                        onClick={() => handleLikeMargin(n.id)}
+                        className={`flex items-center gap-0.5 text-[10px] ${
+                          n.userLiked ? 'text-rose-600' : 'text-stone-400 hover:text-stone-700'
+                        }`}
+                      >
+                        <Heart className="w-2.5 h-2.5 fill-current" />
+                        <span>{n.likes || 0}</span>
+                      </button>
+                    </div>
+                    {n.selectedText && (
+                      <p className="text-[10px] text-stone-500 italic bg-[#FAF8F5] p-1 rounded-md border-r-2 border-[#4A5D4E]">
+                        «{n.selectedText}»
+                      </p>
+                    )}
+                    <p className="leading-relaxed text-stone-700">{n.note}</p>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-[#E5E2D9]">
+            <button
+              type="button"
+              onClick={() => openAddMarginModal()}
+              className="w-full py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>إضافة هامش أو ملاحظة على المقال</span>
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* ------------------------------------------------------------- */}
+      {/* MAIN ARTICLE BODY (القارئ المريح) */}
+      {/* ------------------------------------------------------------- */}
+      <div className={`mx-auto px-4 sm:px-6 pt-8 sm:pt-12 transition-all ${isFullscreen ? 'max-w-4xl' : 'max-w-3xl'}`}>
         {/* Type Badge & Category */}
         <div className="flex flex-wrap items-center gap-2 mb-4">
           {article.type === 'study' && (
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] dark:bg-emerald-950/40 dark:text-emerald-300 border border-[#4A5D4E]/25 flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25 flex items-center gap-1.5">
               <FileText className="w-3.5 h-3.5" />
               <span>دراسة بحثية محكمة</span>
             </span>
           )}
           {article.type === 'translated_article' && (
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#6B5268]/10 text-[#5B4258] dark:bg-purple-950/40 dark:text-purple-300 border border-[#6B5268]/25 flex items-center gap-1.5">
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#245037]/10 text-[#245037] border border-[#245037]/25 flex items-center gap-1.5">
               <Languages className="w-3.5 h-3.5" />
-              <span>مقال / دراسة مترجمة ومحققة</span>
+              <span>ترجمة نقدية مقارنة</span>
             </span>
           )}
           {article.type === 'article' && (
-            <span className="px-3 py-1 rounded-full text-xs font-bold bg-[#8A6D3B]/10 text-[#6E5528] border border-[#8A6D3B]/25 flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>مقالة فكرية وفلسفية</span>
+            <span className="px-3 py-1 rounded-full text-xs font-bold bg-stone-200/60 text-stone-800 border border-stone-300 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>مقال فكري وتحليلي</span>
             </span>
           )}
 
-          <span className="px-3 py-1 rounded-full text-xs font-semibold bg-black/5 border border-current/10">
-            {article.category}
-          </span>
+          {article.category && (
+            <span className="px-3 py-1 rounded-full text-xs font-medium bg-current/5 border border-current/15 opacity-80">
+              {article.category}
+            </span>
+          )}
 
-          {article.deweyDecimal && (
-            <span className="px-2.5 py-1 rounded-full text-[11px] font-mono opacity-70 bg-black/5">
-              ديوي: {article.deweyDecimal}
+          {article.readingTimeMinutes && (
+            <span className="px-3 py-1 rounded-full text-xs opacity-70 flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              <span>{article.readingTimeMinutes} دقيقة قراءة</span>
             </span>
           )}
         </div>
 
         {/* Title */}
-        <h1 className="font-amiri font-bold text-2xl sm:text-4xl lg:text-5xl leading-tight mb-4">
+        <h1 className="font-amiri font-bold text-3xl sm:text-5xl leading-tight sm:leading-snug mb-3">
           {article.title}
         </h1>
 
-        {/* Subtitle */}
+        {/* Subtitle / Original Title */}
         {article.subtitle && (
-          <p className="text-base sm:text-lg opacity-80 mb-6 font-medium leading-relaxed">
+          <p className="font-amiri text-lg sm:text-xl opacity-80 mb-4 leading-relaxed">
             {article.subtitle}
           </p>
         )}
 
-        {/* Author / Translator Metadata Box */}
-        <div className="p-4 sm:p-5 rounded-2xl border border-current/15 bg-black/[0.02] mb-8 space-y-3 text-xs sm:text-sm">
-          <div className="flex flex-wrap items-center justify-between gap-4 pb-3 border-b border-current/10">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-[#4A5D4E] text-white flex items-center justify-center font-amiri font-bold text-lg shrink-0">
-                {article.author.slice(0, 1)}
-              </div>
-              <div>
-                <p className="font-bold">
-                  {article.type === 'translated_article' ? `المؤلف الأصلي: ${article.originalAuthor || article.author}` : `بقلم: ${article.author}`}
-                </p>
-                {article.type === 'translated_article' && (
-                  <p className="text-xs text-[#4A5D4E] font-semibold">
-                    ترجمة وتحقيق: <strong>{article.translator || 'أيمن كناني'}</strong>
-                  </p>
-                )}
-              </div>
-            </div>
+        {article.originalTitle && (
+          <p className="text-xs sm:text-sm font-sans opacity-70 italic mb-4 dir-ltr text-right">
+            Original: {article.originalTitle}
+          </p>
+        )}
 
-            <div className="flex items-center gap-4 text-xs opacity-75">
-              <span className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" />
-                <span>{article.readingTimeMinutes} دقيقة قراءة</span>
-              </span>
-              <span className="flex items-center gap-1.5">
-                <Eye className="w-3.5 h-3.5" />
-                <span>{article.views} قراءة</span>
-              </span>
-              <span>{article.publishedAt}</span>
-            </div>
+        {/* Author Info & Date */}
+        <div className="flex flex-wrap items-center justify-between gap-3 py-3 my-4 border-y border-current/15 text-xs opacity-80">
+          <div className="flex items-center gap-2">
+            <span className="font-bold">{article.author || 'أيمن كناني'}</span>
+            <span>•</span>
+            <span>{article.publishedAt}</span>
           </div>
 
-          {/* Translation Details Callout if Translated */}
-          {article.type === 'translated_article' && (
-            <div className="text-xs opacity-85 leading-relaxed bg-[#6B5268]/10 p-3 rounded-xl border border-[#6B5268]/20 space-y-1">
-              <div className="font-bold text-[#5B4258] flex items-center gap-1.5">
-                <Languages className="w-3.5 h-3.5" />
-                <span>بيانات المصنف الأصلي والترجمة:</span>
-              </div>
-              {article.originalLanguage && (
-                <p>• اللغة الأصلية: <strong>{article.originalLanguage}</strong></p>
-              )}
-              {article.originalSource && (
-                <p>• المصدر وجهة النشر الأصلية: <em>{article.originalSource}</em></p>
-              )}
-              {article.originalYear && (
-                <p>• سنة الإصدار الأصلي: {article.originalYear}م</p>
-              )}
-            </div>
-          )}
-
-          {/* DOI if Study */}
-          {article.type === 'study' && article.doi && (
-            <div className="text-xs font-mono opacity-80 flex items-center gap-2">
-              <span className="font-bold">معرف الكائن الرقمي (DOI):</span>
-              <span className="underline">{article.doi}</span>
-            </div>
-          )}
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1">
+              <Eye className="w-3.5 h-3.5" />
+              <span>{article.views || 0} قراءة</span>
+            </span>
+            <span className="flex items-center gap-1">
+              <Heart className="w-3.5 h-3.5" />
+              <span>{likes} إعجاب</span>
+            </span>
+          </div>
         </div>
 
-        {/* 1. Multilingual Abstract Box (المستخلص متعدد اللغات - عربي / إنجليزي / فرنسي) */}
+        {/* Multilingual Abstract Box */}
         {currentAbstractText && (
-          <section className="p-5 sm:p-6 rounded-2xl bg-[#FAF8F5] border-r-4 border-r-[#4A5D4E] border border-[#E5E2D9] mb-8 shadow-2xs">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3 pb-3 border-b border-[#E5E2D9]">
+          <div className="my-8 p-5 sm:p-6 rounded-2xl border border-current/20 bg-current/5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-current/10">
               <div className="flex items-center gap-2">
-                <Globe className="w-4 h-4 text-[#4A5D4E]" />
-                <h2 className="font-amiri font-bold text-lg text-[#4A5D4E]">
-                  مستخلص {article.type === 'study' ? 'البحث الأكاديمي' : 'المقال'} (Abstract)
-                </h2>
+                <Sparkles className="w-4 h-4 text-[#4A5D4E]" />
+                <h3 className="font-amiri font-bold text-base">
+                  المستخلص الأكاديمي (Abstract)
+                </h3>
               </div>
 
-              {/* Language Switcher Tabs */}
-              <div className="flex items-center gap-1.5">
-                {availableLangs.map(lang => (
-                  <button
-                    key={lang.code}
-                    type="button"
-                    id={`abstract-lang-${lang.code}`}
-                    onClick={() => setActiveLang(lang.code)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                      activeLang === lang.code
-                        ? 'bg-[#4A5D4E] text-white shadow-2xs'
-                        : 'bg-white text-stone-700 border border-[#E5E2D9] hover:bg-[#F2EFE9]'
-                    }`}
-                  >
-                    <span>{lang.flag}</span>
-                    <span>{lang.label}</span>
-                  </button>
-                ))}
-
-                <button
-                  type="button"
-                  id="copy-abstract-btn"
-                  onClick={handleCopyAbstract}
-                  className="p-1.5 rounded-lg border border-[#E5E2D9] hover:bg-white text-xs text-stone-600 transition-colors cursor-pointer"
-                  title="نسخ المستخلص"
-                >
-                  {copiedAbstract ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
-              </div>
+              {/* Language switcher tabs */}
+              {availableLangs.length > 1 && (
+                <div className="flex items-center gap-1">
+                  {availableLangs.map(l => (
+                    <button
+                      key={l.code}
+                      type="button"
+                      onClick={() => setActiveLang(l.code)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer ${
+                        activeLang === l.code
+                          ? 'bg-[#4A5D4E] text-white'
+                          : 'hover:bg-black/5 opacity-70'
+                      }`}
+                    >
+                      {l.label}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
 
             <p
-              dir={availableLangs.find(l => l.code === activeLang)?.dir || 'rtl'}
-              className={`text-sm sm:text-base leading-relaxed opacity-95 text-justify font-cairo ${
-                activeLang !== 'ar' ? 'font-sans' : ''
+              className={`text-sm sm:text-base leading-relaxed opacity-90 ${
+                activeLang === 'en' || activeLang === 'fr' ? 'font-sans dir-ltr text-left' : 'font-cairo'
               }`}
             >
               {currentAbstractText}
             </p>
-          </section>
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="button"
+                onClick={handleCopyAbstract}
+                className="text-xs font-semibold opacity-70 hover:opacity-100 flex items-center gap-1 cursor-pointer"
+              >
+                {copiedAbstract ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                <span>{copiedAbstract ? 'تم نسخ المستخلص' : 'نسخ المستخلص'}</span>
+              </button>
+            </div>
+          </div>
         )}
 
-        {/* 2. Table of Contents Section (فهرس المقالات والدراسات والمحاور) */}
-        {tableOfContents.length > 0 && (
-          <section className="mb-10 p-5 rounded-2xl bg-white border border-[#E5E2D9] shadow-2xs">
-            <div
-              onClick={() => setIsTocOpen(prev => !prev)}
-              className="flex items-center justify-between cursor-pointer select-none"
-            >
-              <h3 className="font-amiri font-bold text-base sm:text-lg text-stone-900 flex items-center gap-2">
-                <ListTree className="w-4 h-4 text-[#4A5D4E]" />
-                <span>فهرس المحتويات والمحاور ({tableOfContents.length} محاور)</span>
-              </h3>
-              <div className="flex items-center gap-1 text-xs text-[#4A5D4E] font-bold">
-                <span>{isTocOpen ? 'طي الفهرس' : 'عرض الفهرس'}</span>
-                {isTocOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-              </div>
-            </div>
+        {/* ------------------------------------------------------------- */}
+        {/* BILINGUAL OR SINGLE TEXT VIEW */}
+        {/* ------------------------------------------------------------- */}
+        {isBilingualMode && isBilingualAvailable ? (
+          <BilingualReaderView
+            article={article}
+            fontSize={fontSize}
+            theme={theme === 'night' || theme === 'pristine' ? 'paper' : theme}
+            marginNotes={readerNotes}
+            onOpenAddMarginModal={(pIdx, text) => openAddMarginModal(pIdx, text)}
+            onOpenMarginPopover={(pIdx, text, notes) => openMarginPopover(pIdx, text, notes)}
+          />
+        ) : (
+          /* Single Article Body with Marginalia paragraph markers */
+          <section
+            className={`space-y-6 pt-4 text-justify ${fontClassNames[currentFont]}`}
+            style={{ fontSize: `${fontSize}px` }}
+          >
+            {article.content.split('\n\n').map((para, idx) => {
+              const trimmed = para.trim();
+              if (!trimmed) return null;
 
-            {isTocOpen && (
-              <div className="mt-4 pt-3 border-t border-[#E5E2D9] grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs sm:text-sm">
-                {tableOfContents.map((item, idx) => (
-                  <button
-                    key={item.id}
-                    type="button"
-                    onClick={() => scrollToSection(item.id)}
-                    className={`text-right p-2.5 rounded-xl hover:bg-[#F7F5F0] transition-colors flex items-center gap-2.5 cursor-pointer border border-transparent hover:border-[#E5E2D9] ${
-                      item.level === 3 ? 'pr-6 text-stone-600 text-xs' : 'font-semibold text-stone-900'
+              // Check for Headings
+              if (trimmed.startsWith('# ')) {
+                return (
+                  <h1 key={idx} className="font-amiri font-bold text-2xl sm:text-3xl pt-6 pb-2 border-b border-current/15">
+                    {trimmed.replace('# ', '')}
+                  </h1>
+                );
+              }
+              if (trimmed.startsWith('## ')) {
+                const headingId = `heading-${headingCounter++}`;
+                return (
+                  <h2
+                    key={idx}
+                    id={headingId}
+                    className="font-amiri font-bold text-xl sm:text-2xl pt-6 pb-1 text-[#4A5D4E] flex items-center gap-2"
+                  >
+                    <span>{trimmed.replace('## ', '')}</span>
+                  </h2>
+                );
+              }
+              if (trimmed.startsWith('### ')) {
+                const headingId = `heading-${headingCounter++}`;
+                return (
+                  <h3
+                    key={idx}
+                    id={headingId}
+                    className="font-amiri font-bold text-lg sm:text-xl pt-4 pb-1 opacity-90"
+                  >
+                    {trimmed.replace('### ', '')}
+                  </h3>
+                );
+              }
+
+              // Quotes
+              if (trimmed.startsWith('> ')) {
+                return (
+                  <blockquote
+                    key={idx}
+                    className="p-4 sm:p-5 my-4 border-r-4 border-[#4A5D4E] bg-current/5 rounded-l-2xl italic font-amiri text-lg leading-loose"
+                  >
+                    {renderTextWithCitations(trimmed.replace('> ', ''))}
+                  </blockquote>
+                );
+              }
+
+              // Divider
+              if (trimmed === '---' || trimmed === '***') {
+                return <hr key={idx} className="my-8 border-current/20" />;
+              }
+
+              // Custom HTML blocks (such as Commentary Study Cards, Blockquotes, HRs)
+              if (trimmed.startsWith('<div') || trimmed.startsWith('<blockquote') || trimmed.startsWith('<hr')) {
+                return (
+                  <div
+                    key={idx}
+                    className="my-5"
+                    dangerouslySetInnerHTML={{ __html: trimmed }}
+                  />
+                );
+              }
+
+              // Paragraph with Marginalia markers
+              const paraNotes = readerNotes.filter(n => n.paragraphIndex === idx);
+              const isHovered = hoveredParagraphIdx === idx;
+              const cleanContent = trimmed.replace(/^<p[^>]*>/i, '').replace(/<\/p>$/i, '');
+
+              return (
+                <div
+                  key={idx}
+                  id={`paragraph-${idx}`}
+                  onMouseEnter={() => setHoveredParagraphIdx(idx)}
+                  onMouseLeave={() => setHoveredParagraphIdx(null)}
+                  className="relative group transition-colors py-1 rounded-xl px-2 -mx-2 hover:bg-black/[0.02]"
+                >
+                  {/* Floating Action Buttons for Paragraph Marginalia */}
+                  <div
+                    className={`absolute left-0 top-1 transition-opacity duration-200 flex items-center gap-1 ${
+                      isHovered || paraNotes.length > 0 ? 'opacity-100' : 'opacity-0'
                     }`}
                   >
-                    <span className="w-5 h-5 rounded-md bg-[#4A5D4E]/10 text-[#4A5D4E] text-[11px] font-mono font-bold flex items-center justify-center shrink-0">
-                      {idx + 1}
-                    </span>
-                    <span className="truncate">{item.title}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+                    {paraNotes.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => openMarginPopover(idx, cleanContent, paraNotes)}
+                        className="px-2 py-1 rounded-lg bg-[#4A5D4E] hover:bg-[#3D4E41] text-white text-xs font-bold flex items-center gap-1 shadow-xs cursor-pointer transition-transform hover:scale-105"
+                        title="عرض هوامش وملاحظات القراء على هذه الفقرة"
+                      >
+                        <span>📌</span>
+                        <span>هوامش ({paraNotes.length})</span>
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => openAddMarginModal(idx, cleanContent)}
+                      className="px-2 py-1 rounded-lg bg-white/95 hover:bg-white text-stone-700 hover:text-[#4A5D4E] text-xs font-semibold flex items-center gap-1 border border-stone-300 shadow-xs cursor-pointer transition-transform hover:scale-105"
+                      title="إضافة هامش أو تعقيب على هذه الفقرة"
+                    >
+                      <PenLine className="w-3 h-3 text-[#4A5D4E]" />
+                      <span className="hidden sm:inline">إضافة هامش</span>
+                    </button>
+                  </div>
+
+                  <p className="leading-loose indent-6">
+                    {renderTextWithCitations(cleanContent)}
+                  </p>
+                </div>
+              );
+            })}
           </section>
         )}
 
-        {/* 3. Article Body Content with Interactive Numbered Citations */}
-        <section
-          style={{ fontSize: `${fontSize}px`, lineHeight: '2.1' }}
-          className="article-rich-content font-amiri text-justify space-y-6 select-text mb-16"
-        >
-          {article.content.split('\n\n').map((block, idx) => {
-            const trimmed = block.trim();
-            if (!trimmed) return null;
-
-            if (trimmed.startsWith('## ')) {
-              const currentId = `heading-${headingCounter++}`;
-              return (
-                <h2
-                  id={currentId}
-                  key={idx}
-                  className="font-bold text-xl sm:text-2xl mt-8 mb-4 pb-2 border-b border-current/15 text-[#4A5D4E] font-amiri scroll-mt-20"
-                >
-                  {trimmed.replace('## ', '')}
-                </h2>
-              );
-            }
-
-            if (trimmed.startsWith('### ')) {
-              const currentId = `heading-${headingCounter++}`;
-              return (
-                <h3
-                  id={currentId}
-                  key={idx}
-                  className="font-bold text-lg sm:text-xl mt-6 mb-3 text-inherit font-amiri scroll-mt-20"
-                >
-                  {trimmed.replace('### ', '')}
-                </h3>
-              );
-            }
-
-            if (trimmed.startsWith('* ') || trimmed.startsWith('- ')) {
-              const items = trimmed.split('\n');
-              return (
-                <ul key={idx} className="list-disc list-inside space-y-2 pr-4 my-4 opacity-95 text-base">
-                  {items.map((item, iIdx) => (
-                    <li key={iIdx}>{renderTextWithCitations(item.replace(/^[\*\-]\s+/, ''))}</li>
-                  ))}
-                </ul>
-              );
-            }
-
-            if (trimmed.startsWith('---')) {
-              return (
-                <div key={idx} className="my-8 text-center opacity-40 font-serif">
-                  ❖ ─── ✦ ─── ❖
-                </div>
-              );
-            }
-
-            return (
-              <p key={idx} className="leading-loose indent-6">
-                {renderTextWithCitations(trimmed)}
-              </p>
-            );
-          })}
-        </section>
-
-        {/* 4. Numbered Footnotes & Citations Section (الهوامش والإحالات مع زر العودة للنص) */}
+        {/* ------------------------------------------------------------- */}
+        {/* NUMBERED FOOTNOTES SECTION (الهوامش والإحالات) */}
+        {/* ------------------------------------------------------------- */}
         {articleFootnotes && articleFootnotes.length > 0 && (
           <section
             id="footnotes-section"
-            className="mt-10 p-5 sm:p-6 rounded-2xl border border-[#E5E2D9] bg-white text-xs space-y-3 shadow-2xs"
+            className="mt-12 p-5 sm:p-7 rounded-3xl border border-[#E5E2D9] bg-white text-stone-900 text-xs space-y-3 shadow-2xs"
           >
             <div className="flex items-center justify-between pb-3 border-b border-[#E5E2D9]">
               <h4 className="font-amiri font-bold text-base text-stone-900 flex items-center gap-2">
                 <Quote className="w-4 h-4 text-[#4A5D4E]" />
-                <span>الهوامش والإحالات التوضيحية ({articleFootnotes.length}):</span>
+                <span>الهوامش والإحالات التوثيقية ({articleFootnotes.length}):</span>
               </h4>
 
               <button
@@ -743,14 +1079,14 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
                   <div
                     key={fn.id}
                     id={`footnote-${fn.id}`}
-                    className={`p-2.5 rounded-xl transition-all flex items-start justify-between gap-3 ${
+                    className={`p-3 rounded-2xl transition-all flex items-start justify-between gap-3 ${
                       isHighlight
                         ? 'bg-[#4A5D4E]/15 border border-[#4A5D4E] ring-2 ring-[#4A5D4E]/30'
                         : 'bg-[#FAF8F5] border border-[#E5E2D9]/60'
                     }`}
                   >
                     <div className="flex items-start gap-2 min-w-0">
-                      <span className="font-mono font-bold text-[#4A5D4E] bg-white px-1.5 py-0.5 rounded-md border border-current/20 text-xs shrink-0">
+                      <span className="font-mono font-bold text-[#4A5D4E] bg-white px-2 py-0.5 rounded-md border border-current/20 text-xs shrink-0">
                         [{fn.id}]
                       </span>
                       <p className="opacity-90 leading-relaxed font-cairo text-stone-800">
@@ -758,15 +1094,14 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
                       </p>
                     </div>
 
-                    {/* Button to scroll back to citation in the text! */}
                     <button
                       type="button"
                       onClick={() => jumpBackToCitation(fn.id)}
-                      className="text-[11px] font-bold text-[#4A5D4E] hover:underline flex items-center gap-1 shrink-0 p-1 rounded-md hover:bg-black/5 cursor-pointer"
+                      className="text-[11px] font-bold text-[#4A5D4E] hover:underline flex items-center gap-1 shrink-0 p-1.5 rounded-md hover:bg-black/5 cursor-pointer"
                       title="العودة لموضع الهامش في متن النص"
                     >
                       <span>العودة للنص</span>
-                      <CornerUpRight className="w-3 h-3 rotate-180" />
+                      <CornerUpRight className="w-3.5 h-3.5 rotate-180" />
                     </button>
                   </div>
                 );
@@ -775,263 +1110,71 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           </section>
         )}
 
-        {/* 5. Academic References / Bibliography Section (المراجع والمصادر) */}
-        {article.references && article.references.length > 0 && (
-          <section className="mt-8 p-5 sm:p-6 rounded-2xl border border-[#E5E2D9] bg-white text-xs space-y-3 shadow-2xs">
-            <h4 className="font-amiri font-bold text-base mb-1 text-stone-900 flex items-center gap-2">
-              <Quote className="w-4 h-4 text-[#4A5D4E]" />
-              <span>قائمة المراجع والمصادر الأكاديمية (References):</span>
-            </h4>
-            <ol className="space-y-2 pt-1 font-sans">
-              {article.references.map((ref, rIdx) => {
-                const refNum = rIdx + 1;
-                const isHighlight = highlightedFootnote === refNum;
-                return (
-                  <li
-                    key={rIdx}
-                    id={`reference-${refNum}`}
-                    className={`p-2 rounded-xl transition-all flex items-start justify-between gap-3 ${
-                      isHighlight
-                        ? 'bg-[#4A5D4E]/15 border border-[#4A5D4E] ring-2 ring-[#4A5D4E]/30'
-                        : 'bg-[#FAF8F5] border border-transparent'
-                    }`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className="font-mono font-bold text-[#4A5D4E] text-xs shrink-0">
-                        [{refNum}]
-                      </span>
-                      <span className="opacity-90 leading-relaxed text-stone-800">
-                        {ref}
-                      </span>
-                    </div>
+        {/* ------------------------------------------------------------- */}
+        {/* USER SPECIFICATION: ردود على المقالات (Article Replies & Discussions) */}
+        {/* ------------------------------------------------------------- */}
+        <ArticleReplies
+          articleId={article.id}
+          articleTitle={article.title}
+        />
 
-                    <button
-                      type="button"
-                      onClick={() => jumpBackToCitation(refNum)}
-                      className="text-[11px] font-bold text-[#4A5D4E] hover:underline flex items-center gap-1 shrink-0 p-1 rounded-md hover:bg-black/5 cursor-pointer"
-                      title="العودة لموضع الإحالة في المتن"
-                    >
-                      <span>العودة للنص</span>
-                      <CornerUpRight className="w-3 h-3 rotate-180" />
-                    </button>
-                  </li>
-                );
-              })}
-            </ol>
-          </section>
-        )}
+        {/* ------------------------------------------------------------- */}
+        {/* USER SPECIFICATION: خريطة مقالات ربط بين مقالات (Knowledge Map) */}
+        {/* ------------------------------------------------------------- */}
+        <ArticleKnowledgeMap
+          currentArticle={article}
+          allArticles={allArticles}
+          onSelectArticle={onSelectArticle}
+        />
 
-        {/* 6. Reader Notes & Marginalia (هوامش وملاحظات القراء والباحثين) */}
-        <section className="mt-12 p-5 sm:p-6 rounded-2xl border border-[#E5E2D9] bg-[#FAF8F5] shadow-2xs">
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#E5E2D9]">
-            <div>
-              <h3 className="font-amiri font-bold text-lg text-stone-900 flex items-center gap-2">
-                <PenLine className="w-4 h-4 text-[#4A5D4E]" />
-                <span>هوامش وملاحظات القراء والباحثين</span>
-              </h3>
-              <p className="text-xs text-stone-500 mt-0.5">
-                يمكنك تدوين انطباعاتك النقدية وملاحظاتك وهوامشك وحفظها على هذا المقال
-              </p>
-            </div>
-
+        {/* Floating Quick Marginalia Button for Selected Text */}
+        {floatingSelection && (
+          <div
+            style={{
+              position: 'absolute',
+              left: `${floatingSelection.x}px`,
+              top: `${floatingSelection.y}px`,
+              transform: 'translate(-50%, -100%)',
+            }}
+            className="z-50 animate-fadeIn"
+          >
             <button
               type="button"
-              id="add-reader-note-btn"
-              onClick={() => setIsAddingNote(prev => !prev)}
-              className="px-3 py-1.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3D4E41] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer shadow-2xs"
+              onClick={() => openAddMarginModal(undefined, floatingSelection.text)}
+              className="px-4 py-2 rounded-full bg-[#4A5D4E] hover:bg-[#38493C] text-white text-xs font-bold shadow-xl flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer ring-2 ring-white"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>إضافة هامش أو ملاحظة</span>
+              <PenLine className="w-3.5 h-3.5 text-emerald-300" />
+              <span>إضافة هامش وملاحظة على النص المحدد</span>
             </button>
           </div>
-
-          {noteSuccessMsg && (
-            <div className="my-3 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold flex items-center gap-2">
-              <Check className="w-4 h-4" />
-              <span>{noteSuccessMsg}</span>
-            </div>
-          )}
-
-          {/* New Note Form */}
-          {isAddingNote && (
-            <form onSubmit={handleSaveReaderNote} className="mt-4 p-4 rounded-2xl bg-white border border-[#E5E2D9] space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    اسم القارئ / الباحث (اختياري):
-                  </label>
-                  <input
-                    type="text"
-                    value={newNoteAuthor}
-                    onChange={e => setNewNoteAuthor(e.target.value)}
-                    placeholder="مثال: د. باحث فلسفي، قارئ مهتم..."
-                    className="w-full p-2 text-xs rounded-xl border border-stone-200 bg-[#FDFCF8] text-stone-900 font-cairo outline-hidden"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-stone-700 mb-1">
-                    اقتباس أو موضع الهامش في المقال (اختياري):
-                  </label>
-                  <input
-                    type="text"
-                    value={newNoteQuote}
-                    onChange={e => setNewNoteQuote(e.target.value)}
-                    placeholder="مثال: تعليق على الفقرة الثانية أو مفهوم كذا..."
-                    className="w-full p-2 text-xs rounded-xl border border-stone-200 bg-[#FDFCF8] text-stone-900 font-cairo outline-hidden"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-stone-700 mb-1">
-                  نص الملاحظة أو الهامش التحليلي:
-                </label>
-                <textarea
-                  rows={3}
-                  value={newNoteText}
-                  onChange={e => setNewNoteText(e.target.value)}
-                  placeholder="اكتب فكرتك أو ملاحظتك هنا..."
-                  className="w-full p-2.5 text-xs sm:text-sm rounded-xl border border-stone-200 bg-[#FDFCF8] text-stone-900 font-cairo outline-hidden"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setIsAddingNote(false)}
-                  className="px-3 py-1.5 rounded-xl border border-stone-200 text-xs font-semibold text-stone-600 hover:bg-stone-100 cursor-pointer"
-                >
-                  إلغاء
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-1.5 rounded-xl bg-[#4A5D4E] text-white text-xs font-bold hover:bg-[#3D4E41] transition-colors cursor-pointer"
-                >
-                  حفظ الملاحظة
-                </button>
-              </div>
-            </form>
-          )}
-
-          {/* Reader Notes List */}
-          <div className="mt-4 space-y-3">
-            {readerNotes.length === 0 ? (
-              <p className="text-xs text-stone-500 py-3 text-center">
-                لا توجد هوامش مدونة بعد. كن أول من يضيف هامشاً أو تعقيباً فكرياً على هذه المادة!
-              </p>
-            ) : (
-              readerNotes.map(note => (
-                <div
-                  key={note.id}
-                  className="p-3.5 rounded-2xl bg-white border border-[#E5E2D9] shadow-2xs space-y-1.5"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-stone-800">
-                        {note.authorName || 'قارئ وباحث'}
-                      </span>
-                      <span className="text-stone-400 text-[11px]">
-                        {new Date(note.createdAt).toLocaleDateString('ar-EG')}
-                      </span>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleDeleteReaderNote(note.id)}
-                      className="text-stone-400 hover:text-rose-600 p-1 rounded-md transition-colors cursor-pointer"
-                      title="حذف الملاحظة"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-
-                  {note.selectedText && (
-                    <p className="text-xs text-[#4A5D4E] bg-[#4A5D4E]/5 px-2.5 py-1 rounded-lg border border-[#4A5D4E]/15 italic">
-                      تعقيب على: "{note.selectedText}"
-                    </p>
-                  )}
-
-                  <p className="text-xs sm:text-sm text-stone-700 font-cairo leading-relaxed">
-                    {note.note}
-                  </p>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* Bottom Social & Action Bar */}
-        <div className="mt-12 pt-6 border-t border-current/15 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <button
-              type="button"
-              id="like-article-btn"
-              onClick={handleLike}
-              className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 transition-all cursor-pointer ${
-                isLiked
-                  ? 'bg-rose-500 text-white shadow-xs'
-                  : 'border border-current/20 hover:bg-black/5 opacity-80'
-              }`}
-            >
-              <Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />
-              <span>{likes} إعجاب واستفادة</span>
-            </button>
-
-            <button
-              type="button"
-              id="share-article-btn"
-              onClick={handleCopyLink}
-              className="px-4 py-2 rounded-xl text-xs font-bold border border-current/20 hover:bg-black/5 opacity-80 flex items-center gap-2 cursor-pointer transition-all"
-            >
-              {copiedLink ? <Check className="w-4 h-4 text-emerald-600" /> : <Share2 className="w-4 h-4" />}
-              <span>{copiedLink ? 'تم نسخ الرابط' : 'مشاركة الرابط'}</span>
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-1.5">
-            {(article.tags || []).map(tag => (
-              <span
-                key={tag}
-                className="px-2.5 py-1 rounded-lg text-xs bg-black/5 border border-current/10 opacity-70"
-              >
-                #{tag}
-              </span>
-            ))}
-          </div>
-        </div>
-
-        {/* Related Articles & Studies */}
-        {relatedArticles.length > 0 && onSelectArticle && (
-          <section className="mt-16 pt-8 border-t border-current/15">
-            <h3 className="font-amiri font-bold text-xl mb-4 opacity-90">
-              اقرأ أيضاً من نفس الحقل المعرفي:
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {relatedArticles.map(rel => (
-                <div
-                  key={rel.id}
-                  onClick={() => onSelectArticle(rel.id)}
-                  className="p-4 rounded-2xl border border-current/15 bg-black/[0.02] hover:bg-black/[0.05] transition-all cursor-pointer flex flex-col justify-between"
-                >
-                  <div>
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-black/5 opacity-80 mb-2 inline-block">
-                      {rel.type === 'study' ? 'دراسة' : rel.type === 'translated_article' ? 'ترجمة' : 'مقالة'}
-                    </span>
-                    <h4 className="font-amiri font-bold text-sm leading-snug line-clamp-2 mb-2">
-                      {rel.title}
-                    </h4>
-                  </div>
-                  <p className="text-[11px] opacity-70 mt-2 flex items-center gap-1 text-[#4A5D4E] font-semibold">
-                    <span>قراءة المادة</span>
-                    <ArrowRight className="w-3 h-3 rotate-180" />
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
         )}
       </div>
+
+      {/* Add Margin Note Modal */}
+      <AddMarginNoteModal
+        isOpen={isMarginModalOpen}
+        onClose={() => setIsMarginModalOpen(false)}
+        onSave={handleSaveMarginFromModal}
+        targetType="article"
+        targetId={article.id}
+        paragraphIndex={activeMarginParagraph}
+        selectedText={activeMarginQuote}
+      />
+
+      {/* View Margin Notes Popover Modal */}
+      <MarginNotesPopover
+        isOpen={isMarginPopoverOpen}
+        onClose={() => setIsMarginPopoverOpen(false)}
+        paragraphIndex={activeMarginParagraph}
+        quoteText={activeMarginQuote}
+        notes={activePopoverNotes}
+        onLikeNote={handleLikeMargin}
+        onDeleteNote={handleDeleteMargin}
+        onAddAnotherNote={() => {
+          setIsMarginPopoverOpen(false);
+          setIsMarginModalOpen(true);
+        }}
+      />
     </article>
   );
 };

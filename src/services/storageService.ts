@@ -1,5 +1,5 @@
-import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem, IntellectualItem, UnifiedSearchResult, ArticleReaderNote } from '../types';
-import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
+import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem, IntellectualItem, UnifiedSearchResult, ArticleReaderNote, MarginNote } from '../types';
+import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG, INITIAL_MARGIN_NOTES } from '../data/initialData';
 import { INITIAL_INTELLECTUAL_ITEMS, INITIAL_FEATURED_NOVELS_SAMPLE } from '../data/initialIntellectualData';
 import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
 import { toArabicGenre } from '../utils/genreHelper';
@@ -872,29 +872,75 @@ export const storageService = {
     return this.getArticles().find(a => a.slug === slug);
   },
 
-  // --- Reader Notes & Marginalia ---
-  getArticleReaderNotes(articleId: string): ArticleReaderNote[] {
-    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
-    return allNotes.filter(n => n.articleId === articleId);
+  // --- Reader Notes & Marginalia (هوامش وملاحظات القراء التفاعلية) ---
+  getAllMarginNotes(): MarginNote[] {
+    return getStored<MarginNote[]>(KEYS.READER_NOTES, INITIAL_MARGIN_NOTES);
   },
 
-  addArticleReaderNote(note: Omit<ArticleReaderNote, 'id' | 'createdAt'>): ArticleReaderNote {
-    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
-    const newNote: ArticleReaderNote = {
+  saveAllMarginNotes(notes: MarginNote[]): void {
+    setStored(KEYS.READER_NOTES, notes);
+  },
+
+  getMarginNotes(targetType: 'article' | 'chapter', targetId: string): MarginNote[] {
+    const all = this.getAllMarginNotes();
+    return all.filter(n => {
+      if (n.targetType === targetType && n.targetId === targetId) return true;
+      // Backwards compatibility for legacy articleId field
+      if (targetType === 'article' && (n as any).articleId === targetId) return true;
+      return false;
+    });
+  },
+
+  addMarginNote(note: Omit<MarginNote, 'id' | 'createdAt' | 'likes'>): MarginNote {
+    const all = this.getAllMarginNotes();
+    const newNote: MarginNote = {
       ...note,
-      id: `note-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+      id: `margin-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
       createdAt: new Date().toISOString(),
+      likes: 0,
+      userLiked: false,
     };
-    allNotes.unshift(newNote);
-    setStored(KEYS.READER_NOTES, allNotes);
+    all.unshift(newNote);
+    this.saveAllMarginNotes(all);
     return newNote;
   },
 
-  deleteArticleReaderNote(noteId: string): boolean {
-    const allNotes = getStored<ArticleReaderNote[]>(KEYS.READER_NOTES, []);
-    const filtered = allNotes.filter(n => n.id !== noteId);
-    setStored(KEYS.READER_NOTES, filtered);
+  deleteMarginNote(noteId: string): boolean {
+    const all = this.getAllMarginNotes();
+    const filtered = all.filter(n => n.id !== noteId);
+    this.saveAllMarginNotes(filtered);
     return true;
+  },
+
+  toggleLikeMarginNote(noteId: string): { liked: boolean; likes: number } {
+    const all = this.getAllMarginNotes();
+    const note = all.find(n => n.id === noteId);
+    if (!note) return { liked: false, likes: 0 };
+    const currentLikes = note.likes || 0;
+    const currentlyLiked = !!note.userLiked;
+    note.userLiked = !currentlyLiked;
+    note.likes = currentlyLiked ? Math.max(0, currentLikes - 1) : currentLikes + 1;
+    this.saveAllMarginNotes(all);
+    return { liked: note.userLiked, likes: note.likes };
+  },
+
+  getArticleReaderNotes(articleId: string): ArticleReaderNote[] {
+    return this.getMarginNotes('article', articleId);
+  },
+
+  addArticleReaderNote(note: { articleId: string; selectedText?: string; note: string; authorName?: string; paragraphIndex?: number }): ArticleReaderNote {
+    return this.addMarginNote({
+      targetType: 'article',
+      targetId: note.articleId,
+      selectedText: note.selectedText || '',
+      paragraphIndex: note.paragraphIndex,
+      note: note.note,
+      authorName: note.authorName || 'قارئ مهتم',
+    });
+  },
+
+  deleteArticleReaderNote(noteId: string): boolean {
+    return this.deleteMarginNote(noteId);
   },
 
   addArticleFootnote(articleId: string, text: string): boolean {

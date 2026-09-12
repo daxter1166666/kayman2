@@ -241,3 +241,40 @@ export const INITIAL_AD_SETTINGS: AdSettings = {
   ]
 };
 
+export const INITIAL_MARGIN_NOTES = [
+  {
+    id: 'margin-1',
+    targetType: 'article' as const,
+    targetId: 'trans-1',
+    selectedText: 'الوعي هو ما يجعل مشكلة الجسد-العقل مستعصية حقاً',
+    paragraphIndex: 1,
+    note: 'إشارة ناغل هنا جوهرية في تفكيك النزعة السلوكية الفيزيائية؛ فالصعوبة ليست نقصاً في البيانات العصبية، بل نابعة من طبيعة الوعي الذاتية التي لا تخضع للقياس الكمي الخارجي.',
+    authorName: 'د. طارق المعمري (أستاذ فلسفة العقل)',
+    createdAt: '2026-03-02T10:15:00.000Z',
+    likes: 14,
+  },
+  {
+    id: 'margin-2',
+    targetType: 'article' as const,
+    targetId: 'trans-1',
+    selectedText: 'تحديد الموقع بالصدى (Echolocation)',
+    paragraphIndex: 3,
+    note: 'اختيار ناغل لحاسة السونار لدى الخفاش نموذج عبقري: فحتى لو فهمنا الخوارزمية الرياضية للصدى، لن ندرك أبداً كيف يبدو الشعور به كخبرة حية من منظور الخفاش نفسه.',
+    authorName: 'سارة الزهراني (باحثة دراسات إدراكية)',
+    createdAt: '2026-03-03T14:20:00.000Z',
+    likes: 9,
+  },
+  {
+    id: 'margin-3',
+    targetType: 'chapter' as const,
+    targetId: 'chap-1',
+    novelId: 'novel-demo-1',
+    selectedText: 'في أعماق واحة صحراوية مهجورة',
+    paragraphIndex: 0,
+    note: 'بداية سردية مشحونة برمزية المكان الصحراوي كفضاء للبحث والتجرد الروحي قبل مواجهة ألغاز المخطوطات القديمة.',
+    authorName: 'مروان الشامي (ناقد روائي)',
+    createdAt: '2026-03-04T09:30:00.000Z',
+    likes: 6,
+  }
+];
+

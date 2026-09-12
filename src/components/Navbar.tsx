@@ -31,6 +31,8 @@ interface NavbarProps {
   onOpenDonationModal?: () => void;
   onScrollToAuthor?: () => void;
   onOpenAddArticle?: () => void;
+  onOpenSmartEditors?: () => void;
+  hideSearchBar?: boolean;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -50,6 +52,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   onOpenDonationModal,
   onScrollToAuthor,
   onOpenAddArticle,
+  onOpenSmartEditors,
+  hideSearchBar = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
 
@@ -89,29 +93,31 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Search Bar */}
-          <div className="hidden md:flex flex-1 max-w-md mx-4">
-            <div className="relative w-full">
-              <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8A83]" />
-              <input
-                type="text"
-                id="global-search-input"
-                placeholder="ابحث في الموسوعة: كتب، دراسات، مقالات فكرية ومترجمة..."
-                value={searchQuery}
-                onChange={e => onSearchChange(e.target.value)}
-                className="w-full pr-10 pl-8 py-2 text-xs rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] focus:border-[#4A5D4E] focus:ring-1 focus:ring-[#4A5D4E] text-[#2C2C2C] placeholder-[#8E8A83] focus:outline-none transition-all font-cairo text-right"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  id="clear-search-btn"
-                  onClick={() => onSearchChange('')}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8E8A83] hover:text-[#2C2C2C] p-1 cursor-pointer"
-                >
-                  ✕
-                </button>
-              )}
+          {!hideSearchBar && (
+            <div className="hidden md:flex flex-1 max-w-md mx-4">
+              <div className="relative w-full">
+                <Search className="w-4 h-4 absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8E8A83]" />
+                <input
+                  type="text"
+                  id="global-search-input"
+                  placeholder="ابحث في الموسوعة: كتب، دراسات، مقالات فكرية ومترجمة..."
+                  value={searchQuery}
+                  onChange={e => onSearchChange(e.target.value)}
+                  className="w-full pr-10 pl-8 py-2 text-xs rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] focus:border-[#4A5D4E] focus:ring-1 focus:ring-[#4A5D4E] text-[#2C2C2C] placeholder-[#8E8A83] focus:outline-none transition-all font-cairo text-right"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    id="clear-search-btn"
+                    onClick={() => onSearchChange('')}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-[#8E8A83] hover:text-[#2C2C2C] p-1 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Desktop Navigation Actions */}
           <div className="hidden lg:flex items-center gap-2 font-cairo">
@@ -149,6 +155,20 @@ export const Navbar: React.FC<NavbarProps> = ({
                 </span>
               )}
             </button>
+
+            {/* Smart Editors Suite Shortcut */}
+            {onOpenSmartEditors && (
+              <button
+                type="button"
+                id="nav-smart-editors-btn"
+                onClick={onOpenSmartEditors}
+                className="px-3 py-1.5 rounded-xl border border-emerald-300/80 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs active:scale-98"
+                title="المحررات الذكية للكتب والمقالات والدراسات"
+              >
+                <Feather className="w-3.5 h-3.5 text-emerald-700" />
+                <span>المحررات الذكية</span>
+              </button>
+            )}
 
             {/* Reader Article Contribution Button */}
             {onOpenAddArticle && (
@@ -335,6 +355,24 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <Heart className="w-3.5 h-3.5 fill-rose-600" />
                   <span>دعم الكاتب</span>
+                </button>
+              )}
+
+              {onOpenSmartEditors && (
+                <button
+                  type="button"
+                  id="mobile-nav-smart-editors-btn"
+                  onClick={() => {
+                    onOpenSmartEditors();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="col-span-2 p-2.5 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-right font-bold flex items-center justify-between"
+                >
+                  <div className="flex items-center gap-2">
+                    <Feather className="w-4 h-4 text-emerald-700" />
+                    <span>المحررات الذكية (كتب، مقالات، دراسات)</span>
+                  </div>
+                  <span className="text-[11px] bg-emerald-700 text-white px-2 py-0.5 rounded-md">استوديو</span>
                 </button>
               )}
 

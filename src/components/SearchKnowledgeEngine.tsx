@@ -1,29 +1,31 @@
-import React, { useState, useMemo } from 'react';
-import { UnifiedSearchResult, IntellectualItem } from '../types';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { UnifiedSearchResult, IntellectualItem, Novel, Chapter } from '../types';
+import { SmartEditorsSuite } from './SmartEditorsSuite';
 import {
   Search,
   Book,
   FileText,
-  Languages,
   Sparkles,
-  Bookmark,
-  ChevronDown,
-  ChevronUp,
   ArrowRight,
   Eye,
-  Heart,
   Clock,
-  Layers,
-  Shuffle,
   X,
   BookOpen,
+  Shuffle,
+  ChevronLeft,
   Filter,
-  CheckCircle2,
-  Library,
-  Compass
+  SlidersHorizontal,
+  GraduationCap,
+  Globe,
+  ExternalLink,
+  Layers,
+  Feather,
+  PlusCircle,
+  PenTool,
+  Bookmark
 } from 'lucide-react';
 
-interface SearchKnowledgeEngineProps {
+export interface SearchKnowledgeEngineProps {
   initialQuery?: string;
   onSelectBook: (novelId: string) => void;
   onSelectChapter: (novelId: string, chapterId: string) => void;
@@ -32,12 +34,16 @@ interface SearchKnowledgeEngineProps {
   results?: UnifiedSearchResult[];
   searchQuery: string;
   onSearchChange: (q: string) => void;
-  selectedTypeFilter: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter';
-  onTypeFilterChange: (type: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter') => void;
+  selectedTypeFilter: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter' | 'smart_editors';
+  onTypeFilterChange: (type: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter' | 'smart_editors') => void;
   selectedCategory: string;
   onCategoryChange: (cat: string) => void;
   allCategories?: string[];
   categories?: string[];
+  novels?: Novel[];
+  chapters?: Chapter[];
+  articles?: IntellectualItem[];
+  onRefreshData?: () => void;
   stats?: {
     booksCount: number;
     studiesCount: number;
@@ -47,6 +53,7 @@ interface SearchKnowledgeEngineProps {
   };
   onRandomPick?: () => void;
   onOpenAddArticle?: () => void;
+  onOpenSmartEditor?: (item?: { type: 'article' | 'study' | 'book' | 'chapter'; id?: string }) => void;
 }
 
 export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
@@ -60,43 +67,90 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
   onCategoryChange,
   allCategories: propAllCategories,
   categories: propCategories,
+  novels = [],
+  chapters = [],
+  articles = [],
+  onRefreshData = () => {},
   onSelectBook,
   onSelectChapter,
   onSelectArticle,
   stats,
   onRandomPick,
   onOpenAddArticle,
+  onOpenSmartEditor,
 }) => {
   const searchResults = propSearchResults || propResults || [];
-  const allCategories = propAllCategories || propCategories || [];
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const [localQuery, setLocalQuery] = useState(searchQuery);
 
-  const safeStats = stats || {
-    booksCount: 0,
-    studiesCount: 0,
-    articlesCount: 0,
-    translationsCount: 0,
-    chaptersCount: 0,
-  };
+  // Isolated Editor Studio State: 'article' | 'chapter' | null
+  const [isolatedStudioMode, setIsolatedStudioMode] = useState<'article' | 'book' | null>(null);
 
-  // Track which book cards have their chapters accordion expanded
-  const [expandedBookIds, setExpandedBookIds] = useState<Record<string, boolean>>({});
+  // Sync external search query
+  useEffect(() => {
+    setLocalQuery(searchQuery);
+  }, [searchQuery]);
 
-  const toggleBookAccordion = (bookId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setExpandedBookIds(prev => ({
-      ...prev,
-      [bookId]: !prev[bookId],
-    }));
-  };
+  // Focus search input on mount or shortcut '/'
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (
+        (e.key === '/' || ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k')) &&
+        document.activeElement?.tagName !== 'INPUT' &&
+        document.activeElement?.tagName !== 'TEXTAREA'
+      ) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+      if (e.key === 'Escape' && searchQuery) {
+        onSearchChange('');
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [searchQuery, onSearchChange]);
 
-  // Helper to highlight query inside text
-  const renderHighlighted = (text: string, query: string) => {
-    if (!text) return '';
-    if (!query || !query.trim()) return text;
-    const parts = text.split(new RegExp(`(${query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
+  // Sample article titles (أمثلة مقالات فقط عناوين)
+  const sampleArticleTitles = useMemo(() => {
+    const titles: string[] = [];
+    if (articles && articles.length > 0) {
+      articles.forEach(a => {
+        if (a.title && !titles.includes(a.title)) {
+          titles.push(a.title);
+        }
+      });
+    }
+    if (novels && novels.length > 0) {
+      novels.forEach(n => {
+        if (n.title && !titles.includes(n.title)) {
+          titles.push(n.title);
+        }
+      });
+    }
+    const fallbacks = [
+      'الوعي المأزوم وسؤال المعنى في الفلسفة المعاصرة',
+      'الهرمنيوطيقا والتأويل الثقافي للنصوص الأدبية',
+      'نقد الحداثة وما بعد الحداثة في الفكر العربي',
+      'جدلية الشرق والغرب في الفكر المقارن',
+      'فلسفة الأخلاق والعدالة في العصر الرقمي',
+      'الرواية البوليفونية وتشظي الهوية السردية'
+    ];
+    fallbacks.forEach(f => {
+      if (!titles.includes(f) && titles.length < 8) {
+        titles.push(f);
+      }
+    });
+    return titles.slice(0, 7);
+  }, [articles, novels]);
+
+  // Highlight query keywords in search snippets
+  const highlightMatch = (text: string, query: string) => {
+    if (!text || !query.trim()) return text;
+    const cleanQ = query.trim();
+    const parts = text.split(new RegExp(`(${cleanQ.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi'));
     return parts.map((part, i) =>
-      part.toLowerCase() === query.toLowerCase() ? (
-        <mark key={i} className="bg-amber-100 text-amber-900 font-bold px-1 rounded-xs">
+      part.toLowerCase() === cleanQ.toLowerCase() ? (
+        <mark key={i} className="bg-amber-100 text-amber-950 font-semibold px-0.5 rounded-xs">
           {part}
         </mark>
       ) : (
@@ -105,457 +159,542 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
     );
   };
 
-  const filterTabs: Array<{
-    id: 'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter';
-    label: string;
-    count?: number;
-    icon: React.ReactNode;
-  }> = [
-    { id: 'all', label: 'كافة المعارف', icon: <Compass className="w-4 h-4" /> },
-    { id: 'book', label: 'الكتب والمؤلفات', count: safeStats.booksCount, icon: <Book className="w-4 h-4" /> },
-    { id: 'study', label: 'الدراسات والأبحاث', count: safeStats.studiesCount, icon: <FileText className="w-4 h-4" /> },
-    { id: 'article', label: 'المقالات الفكرية', count: safeStats.articlesCount, icon: <Sparkles className="w-4 h-4" /> },
-    { id: 'translated_article', label: 'المقالات المترجمة', count: safeStats.translationsCount, icon: <Languages className="w-4 h-4" /> },
-    { id: 'chapter', label: 'فصول الكتب', count: safeStats.chaptersCount, icon: <Layers className="w-4 h-4" /> },
-  ];
+  const handleSearchSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    onSearchChange(localQuery.trim());
+  };
 
-  return (
-    <div className="w-full bg-[#FDFCF8] text-[#2C2C2C]">
-      {/* Hero Knowledge Search Bar Section */}
-      <section className="relative overflow-hidden pt-8 pb-10 sm:pt-14 sm:pb-12 border-b border-[#E5E2D9] bg-[#FAF8F5]">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 text-center">
-          {/* Encyclopedia Badge */}
-          <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full text-xs font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/20 mb-4">
-            <Library className="w-3.5 h-3.5" />
-            <span>محرك البحث الفكري والمستودع المعرفي الشامل</span>
-          </div>
+  const handleClear = () => {
+    setLocalQuery('');
+    onSearchChange('');
+    searchInputRef.current?.focus();
+  };
 
-          <h1 className="font-amiri font-bold text-3xl sm:text-5xl text-[#2C2C2C] mb-3 tracking-tight">
-            ابحث في كافة الكتب والدراسات والمقالات الفكرية
-          </h1>
-          <p className="text-sm sm:text-base text-[#6E6A64] max-w-2xl mx-auto mb-7 font-cairo leading-relaxed">
-            مستودع بحثي معرفي يضم مؤلفات وروايات، أبحاثاً محكمة، مقالات نقدية وفلسفية، ومقالات ودراسات مترجمة ومحققة
-          </p>
+  const handlePickSample = (title: string) => {
+    setLocalQuery(title);
+    onSearchChange(title);
+  };
 
-          {/* Prominent Search Bar */}
-          <div className="relative max-w-3xl mx-auto">
-            <div className="relative flex items-center shadow-xs hover:shadow-md transition-shadow rounded-2xl bg-white border border-[#E5E2D9] focus-within:border-[#4A5D4E]">
-              <div className="pr-4 pl-2 text-[#8E8A83]">
-                <Search className="w-5 h-5 text-[#4A5D4E]" />
-              </div>
+  const handleLuckyPick = () => {
+    if (sampleArticleTitles.length > 0) {
+      const randomIndex = Math.floor(Math.random() * sampleArticleTitles.length);
+      const chosen = sampleArticleTitles[randomIndex];
+      setLocalQuery(chosen);
+      onSearchChange(chosen);
+    } else if (onRandomPick) {
+      onRandomPick();
+    }
+  };
 
-              <input
-                type="text"
-                id="main-knowledge-search-input"
-                value={searchQuery}
-                onChange={e => onSearchChange(e.target.value)}
-                placeholder="ابحث عن: عنوان كتاب، دراسة، مفهوم فلسفي، مقالة مترجمة، اسم باحث..."
-                className="w-full py-3.5 sm:py-4 pr-2 pl-12 text-sm sm:text-base font-cairo bg-transparent outline-hidden text-[#2C2C2C] placeholder:text-[#8E8A83]"
-                autoComplete="off"
-              />
+  const handleResultClick = (item: UnifiedSearchResult) => {
+    if (item.type === 'book') {
+      onSelectBook(item.id);
+    } else if (item.type === 'chapter' && item.novelId && item.chapterId) {
+      onSelectChapter(item.novelId, item.chapterId);
+    } else {
+      onSelectArticle(item.id);
+    }
+  };
 
-              {searchQuery && (
-                <button
-                  type="button"
-                  id="clear-search-btn"
-                  onClick={() => onSearchChange('')}
-                  className="absolute left-24 text-[#8E8A83] hover:text-[#2C2C2C] p-1.5 rounded-lg hover:bg-[#F7F5EE] cursor-pointer"
-                  title="مسح البحث"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              )}
+  // Launch isolated article creation
+  const handleOpenNewArticleStudio = () => {
+    setIsolatedStudioMode('article');
+  };
 
-              {/* Add Article from readers button */}
-              {onOpenAddArticle && (
-                <button
-                  type="button"
-                  id="search-add-article-btn"
-                  onClick={onOpenAddArticle}
-                  className="ml-1 px-3 py-1.5 text-xs font-bold text-[#4A5D4E] hover:text-[#3C4C3F] bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shrink-0 border border-[#4A5D4E]/20"
-                  title="إضافة مقال أو دراسة من القراء"
-                >
-                  <FileText className="w-3.5 h-3.5 text-[#4A5D4E]" />
-                  <span className="hidden sm:inline">أضف مقالاً</span>
-                </button>
-              )}
+  // Launch isolated chapter creation
+  const handleOpenNewChapterStudio = () => {
+    setIsolatedStudioMode('book');
+  };
 
-              {/* Random / Surprise me button */}
-              <button
-                type="button"
-                id="random-knowledge-btn"
-                onClick={onRandomPick}
-                className="ml-2 pl-3 pr-2 text-xs font-bold text-[#6E6A64] hover:text-[#4A5D4E] flex items-center gap-1.5 border-r border-[#E5E2D9] py-2 cursor-pointer shrink-0"
-                title="تصفح مادة عشوائية مثل ويكيبيديا"
-              >
-                <Shuffle className="w-3.5 h-3.5 text-[#4A5D4E]" />
-                <span className="hidden sm:inline">مادة عشوائية</span>
-              </button>
-            </div>
+  // Exit isolated studio back to search engine
+  const handleExitStudio = () => {
+    setIsolatedStudioMode(null);
+    if (selectedTypeFilter === 'smart_editors') {
+      onTypeFilterChange('all');
+    }
+  };
 
-            {/* Live Knowledge Statistics Counter Bar */}
-            <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-6 mt-4 text-xs font-medium text-[#6E6A64]">
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4A5D4E]"></span>
-                <span><strong>{safeStats.booksCount}</strong> كتب وروايات</span>
-              </span>
-              <span className="text-[#D5D2C9]">•</span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4A5D4E]"></span>
-                <span><strong>{safeStats.studiesCount}</strong> دراسات بحثية</span>
-              </span>
-              <span className="text-[#D5D2C9]">•</span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4A5D4E]"></span>
-                <span><strong>{safeStats.articlesCount}</strong> مقالات فكرية</span>
-              </span>
-              <span className="text-[#D5D2C9]">•</span>
-              <span className="flex items-center gap-1.5">
-                <span className="w-2 h-2 rounded-full bg-[#4A5D4E]"></span>
-                <span><strong>{safeStats.translationsCount}</strong> مقالات مترجمة</span>
-              </span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Main Results Body */}
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">
-        {/* Filter Navigation Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none border-b border-[#E5E2D9] mb-6">
-          {filterTabs.map(tab => {
-            const isActive = selectedTypeFilter === tab.id;
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                id={`filter-tab-${tab.id}`}
-                onClick={() => onTypeFilterChange(tab.id)}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  isActive
-                    ? 'bg-[#4A5D4E] text-white shadow-xs'
-                    : 'bg-white text-[#5A5751] border border-[#E5E2D9] hover:bg-[#F7F5EE] hover:text-[#2C2C2C]'
-                }`}
-              >
-                <span className={isActive ? 'text-white' : 'text-[#4A5D4E]'}>
-                  {tab.icon}
-                </span>
-                <span>{tab.label}</span>
-                {tab.count !== undefined && (
-                  <span
-                    className={`text-[11px] px-1.5 py-0.2 rounded-full ${
-                      isActive
-                        ? 'bg-white/20 text-white'
-                        : 'bg-[#F5F2EB] text-[#6E6A64]'
-                    }`}
-                  >
-                    {tab.count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Category Pills Bar */}
-        {allCategories.length > 0 && (
-          <div className="mb-6 p-3.5 rounded-2xl bg-white border border-[#E5E2D9] shadow-2xs">
-            <div className="flex items-center gap-2 mb-2 px-1">
-              <Filter className="w-3.5 h-3.5 text-[#4A5D4E]" />
-              <span className="text-xs font-bold text-[#5A5751]">
-                التصنيف والحقل المعرفي:
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-              <button
-                type="button"
-                id="cat-all-btn"
-                onClick={() => onCategoryChange('all')}
-                className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-                  selectedCategory === 'all'
-                    ? 'bg-[#4A5D4E] text-white shadow-2xs'
-                    : 'bg-[#F7F5EE] text-[#5A5751] hover:bg-[#EFECE5] border border-transparent hover:border-[#E5E2D9]'
-                }`}
-              >
-                كافة التصنيفات
-              </button>
-              {allCategories.map(cat => (
-                <button
-                  key={cat}
-                  type="button"
-                  id={`cat-btn-${cat}`}
-                  onClick={() => onCategoryChange(cat)}
-                  className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap transition-all cursor-pointer ${
-                    selectedCategory === cat
-                      ? 'bg-[#4A5D4E] text-white shadow-2xs'
-                      : 'bg-[#F7F5EE] text-[#5A5751] hover:bg-[#EFECE5] border border-transparent hover:border-[#E5E2D9]'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Search Results Summary Header */}
-        <div className="flex items-center justify-between mb-6 pb-2 border-b border-[#E5E2D9]">
-          <p className="text-xs sm:text-sm font-semibold text-[#6E6A64]">
-            {searchQuery ? (
-              <>
-                نتائج البحث عن: <strong className="text-[#2C2C2C]">"{searchQuery}"</strong> (
-                {searchResults.length} مادة معرفية)
-              </>
-            ) : (
-              <>عرض كافة المواد المعرفية المفهرسة ({searchResults.length} مادة)</>
-            )}
-          </p>
-
-          <span className="text-xs text-[#8E8A83] hidden sm:inline">
-            اضغط على أي عنوان لقراءة المادة أو استعراض الفصول
-          </span>
-        </div>
-
-        {/* Search Results List */}
-        {searchResults.length === 0 ? (
-          <div className="py-16 text-center rounded-3xl border border-dashed border-stone-300 p-8 bg-white">
-            <Search className="w-12 h-12 text-stone-300 mx-auto mb-3" />
-            <h3 className="font-amiri font-bold text-xl text-stone-800 mb-2">
-              لم نعثر على مادة تطابق استعلامك "{searchQuery}"
-            </h3>
-            <p className="text-sm text-stone-500 max-w-md mx-auto mb-6 font-cairo">
-              جرب البحث بكلمات عامة مثل "وعي"، "فلسفة"، "خفاش"، "مكان"، أو اختر أحد تصنيفات المعرفة أعلاه.
-            </p>
+  // ---------------------------------------------------------------------------
+  // 0. ISOLATED PROFESSIONAL EDITING STUDIO (Completely Isolated from Search)
+  // ---------------------------------------------------------------------------
+  if (isolatedStudioMode !== null || selectedTypeFilter === 'smart_editors') {
+    const activeStudio = isolatedStudioMode || 'article';
+    return (
+      <div className="w-full bg-[#FDFCF8] min-h-screen py-5 px-3 sm:px-6 font-cairo">
+        <div className="max-w-6xl mx-auto space-y-4">
+          {/* Top Return Banner (Ensures Complete Isolation) */}
+          <div className="flex items-center justify-between bg-white border border-[#E5E2D9] p-3 sm:p-4 rounded-2xl shadow-xs">
             <button
               type="button"
-              onClick={() => {
-                onSearchChange('');
-                onTypeFilterChange('all');
-                onCategoryChange('all');
-              }}
-              className="px-4 py-2 rounded-xl bg-[#4A5D4E] text-white text-xs font-bold hover:bg-[#3d4d40] transition-colors cursor-pointer"
+              id="return-to-search-btn"
+              onClick={handleExitStudio}
+              className="px-4 py-2.5 rounded-xl bg-[#2C2C2C] hover:bg-[#1A1A1A] text-white text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-xs"
             >
-              عرض كافة المعارف والمؤلفات
+              <ArrowRight className="w-4 h-4" />
+              <span>العودة إلى محرك البحث الرئيسي</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-bold text-[#4A5D4E] bg-[#4A5D4E]/10 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
+                <PenTool className="w-3.5 h-3.5" />
+                <span>
+                  {activeStudio === 'book'
+                    ? 'بيئة تأليف وتحرير فصول الكتب والروايات (معزولة تماماً)'
+                    : 'بيئة تحرير المقالات والدراسات الفكرية (معزولة تماماً)'}
+                </span>
+              </span>
+            </div>
+          </div>
+
+          {/* Dedicated Smart Editors Suite */}
+          <SmartEditorsSuite
+            novels={novels}
+            chapters={chapters}
+            articles={articles}
+            onRefreshData={onRefreshData}
+            initialMode={activeStudio}
+            modeFilter={activeStudio === 'book' ? 'books_only' : 'articles_only'}
+            onPreviewArticle={onSelectArticle}
+            onPreviewChapter={onSelectChapter}
+            onPreviewBook={onSelectBook}
+            onClose={handleExitStudio}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const isSearchActive = Boolean(searchQuery.trim());
+
+  // ---------------------------------------------------------------------------
+  // 1. GOOGLE SEARCH RESULTS VIEW (When user typed or clicked a title)
+  // ---------------------------------------------------------------------------
+  if (isSearchActive) {
+    return (
+      <div className="w-full bg-[#FFFFFF] min-h-[85vh] font-cairo text-[#2C2C2C]">
+        {/* Google-Style Top Search Header */}
+        <header className="sticky top-0 z-30 bg-white border-b border-[#E5E2D9] px-4 sm:px-8 py-3 shadow-2xs">
+          <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="flex items-center gap-4 flex-1">
+              {/* Home Brand Logo / Name */}
+              <button
+                type="button"
+                onClick={handleClear}
+                className="shrink-0 text-right group cursor-pointer"
+                title="العودة للصفحة الرئيسية لمحرك البحث"
+              >
+                <span className="font-amiri font-bold text-xl text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors block leading-none">
+                  أيمن كناني
+                </span>
+                <span className="text-[10px] text-[#8E8A83] block mt-0.5">
+                  محرك البحث الفكري
+                </span>
+              </button>
+
+              {/* Active Search Bar with SUBMIT BUTTON INSIDE */}
+              <form onSubmit={handleSearchSubmit} className="flex-1 max-w-2xl">
+                <div className="relative flex items-center w-full bg-white rounded-full border border-[#D5D0C5] hover:border-[#B5B0A4] focus-within:border-[#4A5D4E] focus-within:ring-2 focus-within:ring-[#4A5D4E]/20 shadow-xs p-1">
+                  <div className="pr-3 text-[#70757a]">
+                    <Search className="w-4 h-4" />
+                  </div>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    id="google-search-results-input"
+                    value={localQuery}
+                    onChange={e => {
+                      setLocalQuery(e.target.value);
+                      onSearchChange(e.target.value);
+                    }}
+                    placeholder="ابحث في المقالات والبحوث والمؤلفات..."
+                    className="flex-1 bg-transparent border-none text-sm text-[#2C2C2C] placeholder-[#8E8A83] focus:outline-none px-2 text-right"
+                  />
+                  {localQuery && (
+                    <button
+                      type="button"
+                      id="google-clear-search-btn"
+                      onClick={handleClear}
+                      className="p-1 text-[#8E8A83] hover:text-[#2C2C2C] rounded-full cursor-pointer ml-1"
+                      title="مسح البحث"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  )}
+                  {/* Search Button INSIDE the Input Box */}
+                  <button
+                    type="submit"
+                    id="results-search-btn-inside"
+                    className="px-3.5 py-1.5 rounded-full bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-2xs"
+                  >
+                    <span>بحث</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Prominent Quick-Action Creation Buttons (Isolated Environment) */}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                id="results-header-add-article-btn"
+                onClick={handleOpenNewArticleStudio}
+                className="px-3 py-1.5 rounded-xl bg-[#EBF3ED] hover:bg-[#DFECE2] text-[#245037] border border-[#245037]/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                title="فتح محرر المقالات والدراسات في بيئة معزولة"
+              >
+                <FileText className="w-3.5 h-3.5 text-[#245037]" />
+                <span>+ إنشاء مقال جديد</span>
+              </button>
+
+              <button
+                type="button"
+                id="results-header-add-chapter-btn"
+                onClick={handleOpenNewChapterStudio}
+                className="px-3 py-1.5 rounded-xl bg-[#FFF8E7] hover:bg-[#FDF0D0] text-[#8C5D0B] border border-[#8C5D0B]/20 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                title="فتح محرر فصول الكتب في بيئة معزولة"
+              >
+                <Book className="w-3.5 h-3.5 text-[#8C5D0B]" />
+                <span>+ إضافة فصل كتاب</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Filter Tabs (الكل | مقالات | دراسات | كتب) */}
+          <div className="max-w-6xl mx-auto flex items-center gap-6 mt-3 pt-2 text-xs font-semibold overflow-x-auto no-scrollbar border-t border-[#F0ECE1]">
+            <button
+              type="button"
+              onClick={() => onTypeFilterChange('all')}
+              className={`pb-2.5 transition-all cursor-pointer whitespace-nowrap border-b-2 ${
+                selectedTypeFilter === 'all'
+                  ? 'border-[#4A5D4E] text-[#4A5D4E] font-bold'
+                  : 'border-transparent text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              الكل ({searchResults.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => onTypeFilterChange('article')}
+              className={`pb-2.5 transition-all cursor-pointer whitespace-nowrap border-b-2 flex items-center gap-1.5 ${
+                selectedTypeFilter === 'article'
+                  ? 'border-[#4A5D4E] text-[#4A5D4E] font-bold'
+                  : 'border-transparent text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <FileText className="w-3.5 h-3.5" />
+              <span>مقالات فكرية</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onTypeFilterChange('study')}
+              className={`pb-2.5 transition-all cursor-pointer whitespace-nowrap border-b-2 flex items-center gap-1.5 ${
+                selectedTypeFilter === 'study'
+                  ? 'border-[#4A5D4E] text-[#4A5D4E] font-bold'
+                  : 'border-transparent text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <GraduationCap className="w-3.5 h-3.5" />
+              <span>دراسات أكاديمية</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onTypeFilterChange('book')}
+              className={`pb-2.5 transition-all cursor-pointer whitespace-nowrap border-b-2 flex items-center gap-1.5 ${
+                selectedTypeFilter === 'book'
+                  ? 'border-[#4A5D4E] text-[#4A5D4E] font-bold'
+                  : 'border-transparent text-[#6E6A64] hover:text-[#2C2C2C]'
+              }`}
+            >
+              <Book className="w-3.5 h-3.5" />
+              <span>الكتب والروايات</span>
             </button>
           </div>
-        ) : (
-          <div className="space-y-4">
-            {searchResults.map(item => {
-              const isBook = item.type === 'book';
-              const isStudy = item.type === 'study';
-              const isArticle = item.type === 'article';
-              const isTranslated = item.type === 'translated_article';
-              const isChapter = item.type === 'chapter';
-              const isExpanded = !!expandedBookIds[item.id];
+        </header>
 
-              return (
-                <article
-                  key={`${item.type}-${item.id}`}
-                  className="group rounded-2xl border border-[#E5E2D9] bg-white hover:border-[#4A5D4E]/50 transition-all p-5 sm:p-6 shadow-2xs hover:shadow-xs"
-                >
-                  <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      {/* Badge / Type line */}
-                      <div className="flex flex-wrap items-center gap-2 mb-2 text-xs">
-                        {isBook && (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#4A5D4E]/10 text-[#4A5D4E] border border-[#4A5D4E]/25 flex items-center gap-1">
-                            <Book className="w-3 h-3" />
-                            <span>كتاب ومؤلف كامل</span>
-                          </span>
-                        )}
-                        {isStudy && (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold bg-amber-50 text-[#8C5E45] border border-amber-200/70 flex items-center gap-1">
-                            <FileText className="w-3 h-3 text-[#8C5E45]" />
-                            <span>دراسة بحثية محكمة</span>
-                          </span>
-                        )}
-                        {isArticle && (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#C88A3B]/10 text-[#8A5A1B] border border-[#C88A3B]/25 flex items-center gap-1">
-                            <Sparkles className="w-3 h-3 text-[#8A5A1B]" />
-                            <span>مقال فكري وفلسفي</span>
-                          </span>
-                        )}
-                        {isTranslated && (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold bg-indigo-50 text-indigo-800 border border-indigo-200/70 flex items-center gap-1">
-                            <Languages className="w-3 h-3 text-indigo-700" />
-                            <span>مقال / دراسة مترجمة</span>
-                          </span>
-                        )}
-                        {isChapter && (
-                          <span className="px-2.5 py-0.5 rounded-full font-bold bg-[#F7F5EE] text-[#4A5D4E] border border-[#E5E2D9] flex items-center gap-1">
-                            <Layers className="w-3 h-3 text-[#4A5D4E]" />
-                            <span>فصل في كتاب</span>
-                          </span>
-                        )}
-
-                        <span className="px-2.5 py-0.5 rounded-full bg-[#FAF8F5] text-[#5A5751] border border-[#E5E2D9] font-medium">
-                          {item.category}
-                        </span>
-
-                        {item.readingTimeMinutes && (
-                          <span className="text-[#8E8A83] flex items-center gap-1 text-[11px]">
-                            <Clock className="w-3 h-3" />
-                            <span>{item.readingTimeMinutes} دقيقة</span>
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Main Title (Clickable) */}
-                      <h2
-                        onClick={() => {
-                          if (isBook) {
-                            toggleBookAccordion(item.id);
-                          } else if (isChapter && item.novelId && item.chapterId) {
-                            onSelectChapter(item.novelId, item.chapterId);
-                          } else {
-                            onSelectArticle(item.id);
-                          }
-                        }}
-                        className="font-amiri font-bold text-lg sm:text-2xl text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors cursor-pointer mb-2 leading-snug"
-                      >
-                        {renderHighlighted(item.title, searchQuery)}
-                      </h2>
-
-                      {/* Subtitle / Author details */}
-                      <div className="text-xs sm:text-sm text-[#5A5751] mb-3 space-y-0.5 font-cairo">
-                        {isTranslated && (
-                          <p>
-                            المؤلف الأصلي: <strong className="text-[#2C2C2C]">{item.originalAuthor}</strong> • ترجمة وتحقيق: <strong className="text-[#4A5D4E]">{item.translator || 'أيمن كناني'}</strong>
-                          </p>
-                        )}
-                        {isBook && (
-                          <p>
-                            المؤلف: <strong className="text-[#4A5D4E]">{item.author}</strong> • يتضمن ({item.chapters?.length || 0}) فصول مفهرسة
-                          </p>
-                        )}
-                        {isStudy && (
-                          <p>
-                            الباحث: <strong className="text-[#4A5D4E]">{item.author}</strong>
-                          </p>
-                        )}
-                        {isArticle && (
-                          <p>
-                            بقلم: <strong className="text-[#4A5D4E]">{item.author}</strong>
-                          </p>
-                        )}
-                        {isChapter && item.novelTitle && (
-                          <p>
-                            من مؤلف: <strong className="text-[#4A5D4E]">{item.novelTitle}</strong>
-                          </p>
-                        )}
-                      </div>
-
-                      {/* Snippet / Abstract */}
-                      <p className="text-xs sm:text-sm text-[#6E6A64] line-clamp-3 leading-relaxed font-cairo">
-                        {renderHighlighted(item.snippet, searchQuery)}
-                      </p>
-                    </div>
-
-                    {/* Left Action Buttons */}
-                    <div className="flex flex-row sm:flex-col items-center sm:items-end gap-2 shrink-0 self-stretch sm:self-auto justify-between sm:justify-start pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E5E2D9]">
-                      {isBook && (
-                        <>
-                          <button
-                            type="button"
-                            id={`expand-book-btn-${item.id}`}
-                            onClick={e => toggleBookAccordion(item.id, e)}
-                            className="px-3 py-1.5 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] hover:bg-[#4A5D4E]/20 text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-colors"
-                          >
-                            <span>فصول الكتاب ({item.chapters?.length || 0})</span>
-                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                          </button>
-
-                          <button
-                            type="button"
-                            id={`view-book-detail-${item.id}`}
-                            onClick={() => onSelectBook(item.id)}
-                            className="px-3 py-1.5 rounded-xl border border-[#E5E2D9] hover:bg-[#F7F5EE] text-xs font-semibold text-[#5A5751] cursor-pointer"
-                          >
-                            صفحة الكتاب
-                          </button>
-                        </>
-                      )}
-
-                      {(isStudy || isArticle || isTranslated) && (
-                        <button
-                          type="button"
-                          id={`read-article-btn-${item.id}`}
-                          onClick={() => onSelectArticle(item.id)}
-                          className="px-4 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3D4E41] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                        >
-                          <span>{isStudy ? 'قراءة البحث' : isTranslated ? 'قراءة الترجمة' : 'قراءة المقال'}</span>
-                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                        </button>
-                      )}
-
-                      {isChapter && item.novelId && item.chapterId && (
-                        <button
-                          type="button"
-                          id={`read-chapter-btn-${item.id}`}
-                          onClick={() => onSelectChapter(item.novelId!, item.chapterId!)}
-                          className="px-4 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3D4E41] text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer transition-all shadow-xs"
-                        >
-                          <span>قراءة الفصل مباشرة</span>
-                          <ArrowRight className="w-3.5 h-3.5 rotate-180" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Accordion: Chapters expansion */}
-                  {isBook && isExpanded && item.chapters && item.chapters.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-[#E5E2D9] bg-[#FAF8F5] -mx-5 -mb-5 sm:-mx-6 sm:-mb-6 p-4 sm:p-5 rounded-b-2xl animate-fadeIn">
-                      <div className="flex items-center justify-between mb-3">
-                        <h4 className="font-amiri font-bold text-sm text-[#4A5D4E] flex items-center gap-2">
-                          <Layers className="w-4 h-4" />
-                          <span>فهرس فصول كتاب "{item.title}" (اضغط للقراءة الفورية):</span>
-                        </h4>
-                        <span className="text-[11px] text-[#8E8A83] font-cairo">
-                          {item.chapters.length} فصول منشورة
-                        </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {item.chapters.map(chap => (
-                          <div
-                            key={chap.id}
-                            onClick={() => onSelectChapter(item.id, chap.id)}
-                            className="p-2.5 sm:p-3 rounded-xl bg-white border border-[#E5E2D9] hover:border-[#4A5D4E] hover:bg-[#F7F5EE] transition-all cursor-pointer flex items-center justify-between gap-3 group/chap"
-                          >
-                            <div className="flex items-center gap-2.5 min-w-0">
-                              <span className="w-6 h-6 rounded-lg bg-[#4A5D4E]/10 text-[#4A5D4E] text-xs font-mono font-bold flex items-center justify-center shrink-0">
-                                {chap.chapterNumber}
-                              </span>
-                              <span className="font-amiri font-bold text-xs sm:text-sm text-[#2C2C2C] group-hover/chap:text-[#4A5D4E] truncate">
-                                {chap.title}
-                              </span>
-                            </div>
-
-                            <span className="text-[11px] font-semibold text-[#4A5D4E] shrink-0 opacity-0 group-hover/chap:opacity-100 transition-opacity flex items-center gap-1">
-                              <span>قراءة</span>
-                              <ArrowRight className="w-3 h-3 rotate-180" />
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mt-3 text-center">
-                        <button
-                          type="button"
-                          onClick={() => onSelectBook(item.id)}
-                          className="text-xs font-bold text-[#6E6A64] hover:text-[#4A5D4E] underline cursor-pointer font-cairo"
-                        >
-                          الانتقال إلى صفحة تفاصيل الكتاب والتصدير والأعمال المصاحبة ←
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </article>
-              );
-            })}
+        {/* Results Body */}
+        <main className="max-w-4xl mx-auto px-4 sm:px-6 py-4">
+          {/* Stats Bar (Like Google: حوالي X من النتائج 0.02 ثانية) */}
+          <div className="text-[12px] text-[#70757a] mb-6 flex items-center justify-between">
+            <span>
+              تم العثور على {searchResults.length} نتيجة بحث لـ «{searchQuery}» (0.02 ثانية)
+            </span>
           </div>
-        )}
+
+          {/* Results List */}
+          {searchResults.length > 0 ? (
+            <div className="space-y-7">
+              {searchResults.map((item, idx) => {
+                const categoryName = item.category || 'فكر وثقافة';
+                const typeLabel =
+                  item.type === 'study'
+                    ? 'دراسة'
+                    : item.type === 'book'
+                    ? 'كتاب'
+                    : item.type === 'chapter'
+                    ? 'فصل'
+                    : item.type === 'translated_article'
+                    ? 'ترجمة'
+                    : 'مقال';
+
+                return (
+                  <article
+                    key={item.id || idx}
+                    className="group max-w-2xl"
+                  >
+                    {/* Breadcrumb URL (like Google) */}
+                    <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1 font-sans">
+                      <span className="text-emerald-800 font-medium">aymankanani.com</span>
+                      <span className="text-[#8E8A83]">›</span>
+                      <span>{typeLabel}</span>
+                      <span className="text-[#8E8A83]">›</span>
+                      <span className="truncate max-w-[200px]">{categoryName}</span>
+                    </div>
+
+                    {/* Result Title Link (Google Blue) */}
+                    <h2 className="text-lg sm:text-xl font-bold font-amiri leading-snug mb-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleResultClick(item)}
+                        className="text-[#1a0dab] hover:underline text-right group-hover:text-[#174ea6] transition-colors cursor-pointer"
+                      >
+                        {item.title}
+                      </button>
+                    </h2>
+
+                    {/* Excerpt / Snippet */}
+                    <p className="text-sm text-[#4d5156] leading-relaxed line-clamp-2 sm:line-clamp-3 mb-2 font-cairo">
+                      {highlightMatch(item.snippet || item.subtitle || '', searchQuery)}
+                    </p>
+
+                    {/* Meta info tags */}
+                    <div className="flex items-center gap-3 text-[11px] text-[#70757a]">
+                      {item.author && (
+                        <span>الكاتب: {item.author}</span>
+                      )}
+                      {item.readingTimeMinutes && (
+                        <span>• {item.readingTimeMinutes} دقيقة قراءة</span>
+                      )}
+                      {item.chaptersCount && item.type === 'book' && (
+                        <span>• {item.chaptersCount} فصول</span>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            /* No Results Found View */
+            <div className="py-12 text-right">
+              <p className="text-base text-[#2C2C2C] mb-3">
+                لم يتم العثور على أي نتائج مطابقة لـ <strong className="text-red-700">«{searchQuery}»</strong>.
+              </p>
+              <p className="text-xs text-[#70757a] mb-6 leading-relaxed">
+                اقتراحات:
+                <br />• تأكد من كتابة الكلمات بشكل صحيح دون أخطاء إملائية.
+                <br />• جرب استخدام كلمات بحث أكثر عمومية أو مصطلحات فكرية بديلة.
+                <br />• جرب النقر على أحد العناوين المقترحة أدناه:
+              </p>
+
+              {/* Sample Titles to pick when no results */}
+              <div className="pt-4 border-t border-[#E5E2D9]">
+                <span className="text-xs font-bold text-[#4A5D4E] block mb-3">
+                  أمثلة مقالات مقترحة:
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {sampleArticleTitles.map((title, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => handlePickSample(title)}
+                      className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#F5F2EA] hover:bg-[#EBE7DC] text-[#2C2C2C] transition-all cursor-pointer"
+                    >
+                      {title}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Bottom Sample Titles (أمثلة مقالات إضافية) */}
+          {searchResults.length > 0 && (
+            <div className="mt-12 pt-6 border-t border-[#E5E2D9]">
+              <span className="text-xs font-bold text-[#70757a] block mb-3">
+                بحوث ومقالات أخرى قد تهمك (انقر للبحث الفوري):
+              </span>
+              <div className="flex flex-wrap gap-2">
+                {sampleArticleTitles.map((title, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => handlePickSample(title)}
+                    className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#F8F7F2] hover:bg-[#EAE6DA] text-[#3D3A34] transition-all cursor-pointer border border-[#E5E2D9]"
+                  >
+                    {title}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </main>
       </div>
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // 2. THE PURE GOOGLE HOMEPAGE (Search Bar + Inside Search Button + Sample Titles)
+  // ---------------------------------------------------------------------------
+  return (
+    <div className="w-full min-h-[82vh] flex flex-col justify-between bg-[#FDFCF8] font-cairo text-[#2C2C2C] px-4">
+      {/* Top Bar with SEPARATE DISTINCT ACTION BUTTONS FOR CREATION */}
+      <div className="w-full max-w-5xl mx-auto flex items-center justify-between pt-5 text-xs text-[#8E8A83]">
+        <span className="font-medium text-[11px] text-[#4A5D4E]">
+          الموسوعة الرسمية للكاتب والباحث أيمن كناني
+        </span>
+
+        {/* Distinct Action Buttons for Creating Articles & Book Chapters */}
+        <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            id="home-create-article-btn"
+            onClick={handleOpenNewArticleStudio}
+            className="px-3.5 py-1.5 rounded-xl bg-[#EBF3ED] hover:bg-[#DFECE2] text-[#245037] border border-[#245037]/25 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+            title="الانتقال إلى محرر المقالات الفكرية في بيئة عمل معزولة"
+          >
+            <FileText className="w-3.5 h-3.5 text-[#245037]" />
+            <span>+ إنشاء مقال جديد</span>
+          </button>
+
+          <button
+            type="button"
+            id="home-create-chapter-btn"
+            onClick={handleOpenNewChapterStudio}
+            className="px-3.5 py-1.5 rounded-xl bg-[#FFF8E7] hover:bg-[#FDF0D0] text-[#8C5D0B] border border-[#8C5D0B]/25 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+            title="الانتقال إلى محرر فصول الكتب في بيئة عمل معزولة"
+          >
+            <Book className="w-3.5 h-3.5 text-[#8C5D0B]" />
+            <span>+ إضافة فصل كتاب جديد</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Main Google-Style Center Container */}
+      <div className="w-full max-w-2xl mx-auto my-auto py-10 flex flex-col items-center text-center">
+        {/* Brand Display Title (Google Logo Equivalent) */}
+        <div className="mb-7 select-none">
+          <h1 className="font-amiri font-bold text-4xl sm:text-6xl text-[#2C2C2C] tracking-tight mb-2">
+            أيمن كناني
+          </h1>
+          <p className="font-cairo text-sm sm:text-base text-[#4A5D4E] font-medium tracking-wide">
+            محرك البحث الفكري والمعرفي
+          </p>
+        </div>
+
+        {/* Google-Style Search Input Form WITH SEARCH BUTTON INSIDE (داخل المربع) */}
+        <form onSubmit={handleSearchSubmit} className="w-full">
+          <div className="relative flex items-center w-full bg-white rounded-full border border-[#D5D0C5] hover:border-[#B5B0A4] focus-within:border-[#4A5D4E] focus-within:ring-2 focus-within:ring-[#4A5D4E]/20 shadow-xs hover:shadow-md transition-all p-1.5 sm:p-2 group">
+            {/* Magnifying Glass on the right */}
+            <div className="pr-3 text-[#70757a] group-focus-within:text-[#4A5D4E] transition-colors">
+              <Search className="w-5 h-5" />
+            </div>
+
+            {/* Search Input Text Field */}
+            <input
+              ref={searchInputRef}
+              type="text"
+              id="google-main-search-input"
+              value={localQuery}
+              onChange={e => setLocalQuery(e.target.value)}
+              placeholder="ابحث في المقالات، الدراسات، والكتب..."
+              className="flex-1 bg-transparent border-none text-sm sm:text-base text-[#2C2C2C] placeholder-[#8E8A83] focus:outline-none px-3 text-right"
+              autoFocus
+            />
+
+            {/* Clear Button Inside (if query exists) */}
+            {localQuery && (
+              <button
+                type="button"
+                id="clear-main-input-btn"
+                onClick={handleClear}
+                className="p-1.5 text-[#8E8A83] hover:text-[#2C2C2C] rounded-full cursor-pointer ml-1 transition-colors"
+                title="مسح النص"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            )}
+
+            {/* DEDICATED SEARCH BUTTON INSIDE THE INPUT BOX (كما طلب المستخدم تماماً) */}
+            <button
+              type="submit"
+              id="google-inside-search-btn"
+              className="px-5 sm:px-7 py-2.5 rounded-full bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs sm:text-sm font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer shrink-0"
+              title="بحث فوري في الموسوعة"
+            >
+              <Search className="w-4 h-4" />
+              <span>بحث</span>
+            </button>
+          </div>
+        </form>
+
+        {/* ------------------------------------------------------------- */}
+        {/* EXACT USER SPECIFICATION: بضع العناوين أمثلة مقالات فقط عناوين */}
+        {/* ------------------------------------------------------------- */}
+        <div className="w-full mt-10 text-center">
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="h-[1px] w-8 bg-[#E5E2D9]"></span>
+            <span className="text-xs font-bold text-[#6E6A64]">
+              أمثلة مقالات (انقر على أي عنوان للبحث الفوري):
+            </span>
+            <span className="h-[1px] w-8 bg-[#E5E2D9]"></span>
+          </div>
+
+          <div className="flex flex-wrap justify-center gap-2.5 max-w-xl mx-auto">
+            {sampleArticleTitles.map((title, idx) => (
+              <button
+                key={idx}
+                type="button"
+                id={`sample-article-title-${idx}`}
+                onClick={() => handlePickSample(title)}
+                className="px-4 py-2 rounded-full text-xs font-medium bg-white hover:bg-[#FAF8F5] border border-[#E5E2D9] hover:border-[#4A5D4E] text-[#2C2C2C] hover:text-[#4A5D4E] shadow-2xs hover:shadow-xs transition-all cursor-pointer leading-snug text-center"
+              >
+                {title}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Google-Style Footer */}
+      <footer className="w-full max-w-5xl mx-auto py-4 border-t border-[#E5E2D9] flex flex-col sm:flex-row items-center justify-between text-[11px] text-[#8E8A83] gap-2">
+        <div>
+          <span>الموقع الرسمي للكاتب أيمن كناني • جميع الحقوق محفوظة</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={handleOpenNewArticleStudio}
+            className="hover:text-[#4A5D4E] hover:underline cursor-pointer text-emerald-800 font-semibold"
+          >
+            محرر المقالات المعزول
+          </button>
+          <button
+            type="button"
+            onClick={handleOpenNewChapterStudio}
+            className="hover:text-[#4A5D4E] hover:underline cursor-pointer text-amber-800 font-semibold"
+          >
+            محرر فصول الكتب المعزول
+          </button>
+          {onRandomPick && (
+            <button
+              type="button"
+              onClick={handleLuckyPick}
+              className="hover:text-[#4A5D4E] hover:underline cursor-pointer flex items-center gap-1"
+            >
+              <Shuffle className="w-3 h-3" />
+              <span>مقال عشوائي</span>
+            </button>
+          )}
+        </div>
+      </footer>
     </div>
   );
 };

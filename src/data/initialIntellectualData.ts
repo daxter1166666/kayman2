@@ -215,12 +215,13 @@ export const INITIAL_INTELLECTUAL_ITEMS: IntellectualItem[] = [
     id: 'trans-1',
     title: 'ما الذي يعنيه أن تكون خفاشاً؟ سبر أغوار المشكلة المستعصية للوعي الذاتي',
     subtitle: 'الترجمة الكاملة المحققة للنص الفلسفي الكلاسيكي في نقد النزعة المادية الاختزالية',
+    originalTitle: 'What Is It Like to Be a Bat?',
     slug: 'what-is-it-like-to-be-a-bat-nagel-arabic',
     type: 'translated_article',
     author: 'توماس ناغل (Thomas Nagel)',
     originalAuthor: 'توماس ناغل (Thomas Nagel)',
     translator: 'أيمن كناني',
-    originalLanguage: 'الإنجليزية',
+    originalLanguage: 'الإنجليزية (English)',
     originalSource: 'The Philosophical Review, Vol. 83, No. 4 (Oct., 1974), pp. 435-450',
     originalYear: '1974',
     abstract: 'تُعد مقالة الفيلسوف الأمريكي توماس ناغل "ما الذي يعنيه أن تكون خفاشاً؟" من أكثر النصوص تأثيراً في فلسفة العقل الحديثة. يجادل ناغل بأن أي نظرية فيزيائية تختزل الوعي في العمليات العصبية الموضوعية تفشل بالضرورة في استيعاب الطبيعة الذاتية الباطنة للخبرة (Subjective Character of Experience). مهما عرفنا تشريحياً عن جهاز السونار لدى الخفاش، فلن نعرف أبداً كيف يبدو الشعور بالتحليق واصطياد الحشرات من وجهة نظر الخفاش نفسه.',
@@ -248,6 +249,74 @@ export const INITIAL_INTELLECTUAL_ITEMS: IntellectualItem[] = [
       { id: 1, text: 'ملاحظة المترجم: عبارة (What it is like to be) صيغت في الأدبيات الفلسفية للتعبير عن الكيفية النوعية للشعور بالوجود من الداخل.' },
       { id: 2, text: 'يستخدم ناغل الخفاش تحديداً لأن له جهازاً حسياً مختلفاً جوهرياً عن البشر (تحديد الموقع بالصدى)، مما يبرز استحالة الولوج للخبرة الذاتية عبر الملاحظة الخارجية.' }
     ],
+    parallelSegments: [
+      {
+        id: 'seg-1',
+        sectionTitle: 'المقدمة وتأطير الإشكالية',
+        originalText: 'Consciousness is what makes the mind-body problem really intractable. Perhaps that is why current discussions of the problem give it little attention or else take a deceptively simple approach to it.',
+        translatedText: 'الوعي هو ما يجعل مشكلة الجسد-العقل مستعصية حقاً. ولعل هذا هو السبب في أن النظريات الاختزالية الحالية لا تكاد توليها أدنى اهتمام، أو أنها تقدم عنها تفسيراً مضللاً في وضوحه.'
+      },
+      {
+        id: 'seg-2',
+        originalText: 'Every reductionist triumph in natural science works by setting aside the subjective appearance to isolate objective, measurable physical properties. But this approach fails utterly for consciousness, because to set aside subjectivity is to set aside the very phenomenon to be explained.',
+        translatedText: 'إن كل ظاهرة اختزالية في العلوم الطبيعية (مثل اختزال الحرارة في حركة الجزيئات) تُثبت نجاحها لأنها تستبعد الجانب الذاتي وتُبقي على الخصائص الموضوعية القابلة للقياس؛ لكن الأمر ينقلب كلياً حين نريد دراسة الوعي ذاته، لأن استبعاد الذاتية هنا يعني ببساطة استبعاد الموضوع المراد دراسته!'
+      },
+      {
+        id: 'seg-3',
+        sectionTitle: '1. طابع الخبرة الذاتية / The Subjective Character of Experience',
+        originalText: 'Fundamentally an organism has conscious mental states if and only if there is something that it is like to be that organism—something it is like for the organism itself.',
+        translatedText: 'إن الكائن الحي يمتلك حالات واعية فقط إذا كان هناك شيء ما يشبه أن يكون هو هذا الكائن بعينه — شيء ما يُمثل خبرة أن تكون ذلك الكائن بالنسبة له شخصياً.'
+      },
+      {
+        id: 'seg-4',
+        originalText: 'We may call this the subjective character of experience. It is not captured by any of the familiar reductive analyses of the mental, for all of them are logically compatible with its absence. Behavior and functional connections can be simulated by a machine without any conscious interiority.',
+        translatedText: 'يمكننا تسمية هذا بالطابع الذاتي للخبرة (The subjective character of experience). ولا يمكن لأي تحليل وظيفي أو فيزيائي للسلوك أن يحيط بهذا الطابع؛ لأن السلوك يمكن محاكاته بواسطة آلة روبوتية معقدة دون أن تمتلك تلك الآلة أي باطن شعوري على الإطلاق.'
+      },
+      {
+        id: 'seg-5',
+        sectionTitle: '2. لماذا الخفاش؟ / Why the Bat?',
+        originalText: 'I have chosen bats because mammals are generally admitted to have conscious experiences, and yet their perceptual apparatus is alien to our human sensory equipment. Bats perceive external reality primarily by sonar, or echolocation, detecting reflections from their own rapid, high-frequency screeches.',
+        translatedText: 'اخترت الخفاش لأن معظم الناس يعترفون بأن للثدييات خبرات واعية، ولأن أجهزته الإدراكية تمثل نشازاً صارخاً بالنسبة لجهازنا الحسي البشري. فالخفاش يستكشف محيطه أساساً عن طريق السونار، أو تحديد الموقع بالصدى (Echolocation)، مرسلاً صرخات عالية التردد ليرسم صورة ثلاثية الأبعاد للعالم المحيط.'
+      },
+      {
+        id: 'seg-6',
+        originalText: 'Now we have each reason to believe that bat sonar is not similar in its operation to any sense that we possess. There is no reason to suppose that it is subjectively like anything we can experience or imagine. The question is: what is it like to be a bat flying through the dark and perceiving the world through echoing clicks?',
+        translatedText: 'والآن، لدينا كل الأسباب لنعتقد بأن السونار لدى الخفاش لا يشبه في شيء أي حاسة نملكها. لا شيء يدفعنا للاعتقاد بأنه يشبه الرؤية أو السمع كما نختبرهما. والسؤال هو: ما الذي يشبهه أن تكون خفاشاً يطير في عتمة الليل ويستشعر العالم بنبضات الصدى؟'
+      },
+      {
+        id: 'seg-7',
+        originalText: 'If I try to imagine this, I am restricted to the resources of my own mind, and those resources are inadequate to the task. I can imagine having webbing on my arms, hanging upside down, and catching insects. But that only tells me what it would be like for me to behave as a bat behaves. It does not tell me what it is like for a bat to be a bat.',
+        translatedText: 'إذا حاولت تخيل ذلك: كأن أتخيل أن لي غشاء بين ذراعي وساقي، وأنني أتدلى مقلوباً من السقف في النهار، وأتناول الحشرات في الليل... فإن كل هذا التخيل يخبرني فقط بما قد يبدو عليه الأمر بالنسبة لي لو أنني تصرفت كخفاش! لكنه لا يخبرني بما يشبهه الأمر بالنسبة للخفاش ذاته.'
+      },
+      {
+        id: 'seg-8',
+        sectionTitle: '3. حدود الموضوعية العلمية / Limits of Scientific Objectivity',
+        originalText: 'The transition from subjective to objective is the core drive of scientific inquiry. We discard our subjective feeling of warmth to speak of kinetic energy, and our perception of color for wavelengths of light. But can we apply the same rule to the mind?',
+        translatedText: 'إن الانتقال من النظرة الذاتية إلى النظرة الموضوعية هو محرك العلم كله؛ فنحن نترك إحساسنا بالحرارة لنتكلم عن الطاقة الحركية، ونترك رؤيتنا للألوان لنتكلم عن الأطوال الموجية للفوتونات. لكن هل نستطيع تطبيق نفس القاعدة على العقل؟'
+      },
+      {
+        id: 'seg-9',
+        originalText: 'If we attempt to describe consciousness in objective terms that eliminate the subjective point of view, we have discarded the very feature that makes it consciousness. That is the impasse facing contemporary physicalist theories.',
+        translatedText: 'إذا أردنا وصف الوعي بلغة موضوعية تماماً تفصل بينه وبين أي وجهة نظر ذاتية خاصة، فإننا نكون قد جردناه من الخاصية الوحيدة التي تجعله وعياً! هذا هو المأزق الذي تقف عنده كل محاولات التفسير الفيزيائي المعاصرة.'
+      }
+    ],
+    originalContent: `Consciousness is what makes the mind-body problem really intractable. Perhaps that is why current discussions of the problem give it little attention or else take a deceptively simple approach to it.
+
+Every reductionist triumph in natural science works by setting aside the subjective appearance to isolate objective, measurable physical properties. But this approach fails utterly for consciousness, because to set aside subjectivity is to set aside the very phenomenon to be explained.
+
+Fundamentally an organism has conscious mental states if and only if there is something that it is like to be that organism—something it is like for the organism itself.
+
+We may call this the subjective character of experience. It is not captured by any of the familiar reductive analyses of the mental, for all of them are logically compatible with its absence. Behavior and functional connections can be simulated by a machine without any conscious interiority.
+
+I have chosen bats because mammals are generally admitted to have conscious experiences, and yet their perceptual apparatus is alien to our human sensory equipment. Bats perceive external reality primarily by sonar, or echolocation, detecting reflections from their own rapid, high-frequency screeches.
+
+Now we have each reason to believe that bat sonar is not similar in its operation to any sense that we possess. There is no reason to suppose that it is subjectively like anything we can experience or imagine. The question is: what is it like to be a bat flying through the dark and perceiving the world through echoing clicks?
+
+If I try to imagine this, I am restricted to the resources of my own mind, and those resources are inadequate to the task. I can imagine having webbing on my arms, hanging upside down, and catching insects. But that only tells me what it would be like for me to behave as a bat behaves. It does not tell me what it is like for a bat to be a bat.
+
+The transition from subjective to objective is the core drive of scientific inquiry. We discard our subjective feeling of warmth to speak of kinetic energy, and our perception of color for wavelengths of light. But can we apply the same rule to the mind?
+
+If we attempt to describe consciousness in objective terms that eliminate the subjective point of view, we have discarded the very feature that makes it consciousness. That is the impasse facing contemporary physicalist theories.`,
     content: `## تصدير المترجم (بقلم أيمن كناني)
 
 يسرني أن أقدم للقارئ والباحث العربي هذه الترجمة الكاملة المحققة لواحد من أعظم النصوص الفلسفية في القرن العشرين [1]. تأتي أهمية مقالة توماس ناغل من كونها وضعت حداً لغطرسة النزعة الفيزيائية الساذجة التي كانت تظن أن الكشف عن الشبكات العصبية للدماغ يفسر بالكامل لغز الوعي الإنساني [2]. يذكرنا ناغل بأن هناك دائماً "باطناً" لا يمكن رؤيته من الخارج بالمجهر أو المسح الإشعاعي، وهذا الباطن هو جوهر ما نكونه [3].
@@ -282,12 +351,13 @@ export const INITIAL_INTELLECTUAL_ITEMS: IntellectualItem[] = [
     id: 'trans-2',
     title: 'الفلسفة كرياضة روحية وطريقة حياة',
     subtitle: 'كيف كانت الفلسفة الكلاسيكية تحولاً كلياً للذات لا مجرد تنظير أكاديمي؟',
+    originalTitle: 'Exercices spirituels et philosophie antique',
     slug: 'philosophy-as-a-way-of-life-hadot-arabic',
     type: 'translated_article',
     author: 'بيير هادو (Pierre Hadot)',
     originalAuthor: 'بيير هادو (Pierre Hadot)',
     translator: 'أيمن كناني',
-    originalLanguage: 'الفرنسية',
+    originalLanguage: 'الفرنسية (Français)',
     originalSource: 'Exercices spirituels et philosophie antique, Études Augustiniennes (1981)',
     originalYear: '1981',
     abstract: 'دراسة محققة ومترجمة لواحد من أبرز نصوص المؤرخ الفرنسي بيير هادو. يوضح هادو كيف انحرفت الفلسفة في العصور الحديثة لتصبح نظريات مجردة ودروساً مدرسية جافة في الجامعات، بينما كانت في العصور الإغريقية والرومانية (عند سقراط، الرواقيين، والأبيقوريين) "تمارين روحية" وتدريباً يومياً على التحرر من القلق، وترويض الشهوات، وتحديق البصر في الكون.',
@@ -309,6 +379,50 @@ export const INITIAL_INTELLECTUAL_ITEMS: IntellectualItem[] = [
     footnotes: [
       { id: 1, text: 'استخدم هادو مصطلح "التمارين الروحية" (Spiritual Exercises) متعمداً رغم دلالته الدينية اللاحقة، ليؤكد أن العقل والوجدان والجسد ينخرطون معاً في العملية الفلسفية.' }
     ],
+    parallelSegments: [
+      {
+        id: 'hadot-1',
+        sectionTitle: 'توطئة وتأطير / Introduction',
+        originalText: 'La philosophie antique n\'était jamais la construction d\'un système abstrait de concepts, mais un appel à choisir un mode d\'existence précis.',
+        translatedText: 'الفلسفة القديمة لم تكن أبداً صياغة لمنظومة فكرية مجردة، بل كانت دعوة لاختيار نمط وجودي محدد.'
+      },
+      {
+        id: 'hadot-2',
+        originalText: 'C\'était un exercice permanent que l\'être humain pratiquait à chaque instant : en mangeant, en discutant avec un ami, et en faisant face à la mort et à la maladie.',
+        translatedText: 'لقد كانت تمريناً مستمراً يمارسه الإنسان في كل لحظة: عند تناول الطعام، عند التحدث مع الصديق، وعند مواجهة الموت والمرض.'
+      },
+      {
+        id: 'hadot-3',
+        sectionTitle: '1. ماهية التمارين الروحية / Nature des exercices spirituels',
+        originalText: 'Le mot « spirituel » peut sembler équivoque, mais il est le plus adéquat car il n\'appartient pas seulement à la pensée logique, mais engage l\'imagination, la volonté et la sensibilité.',
+        translatedText: 'إن كلمة "روحية" (Spirituel) قد تثير التباساً، لكنها الأنسب لأنها لا تخص الفكر المنطقي وحده، بل تطال الخيال، الإرادة، والإحساس.'
+      },
+      {
+        id: 'hadot-4',
+        originalText: 'Ces exercices comprennent la méditation sur la mort (Memento Mori), l\'examen de conscience quotidien, et la vue d\'en haut qui contemple l\'univers depuis une perspective cosmique pour relativiser les angoisses terrestres.',
+        translatedText: 'تشمل هذه التمارين: التأمل في الموت (Memento Mori)، وفحص الضمير اليومي، والنظرة من علُ (The View from Above) لتخيل كوكب الأرض من مسافة كونية شاسعة لرؤية صغر الهموم البشرية التي نستعظمها.'
+      },
+      {
+        id: 'hadot-5',
+        sectionTitle: '2. سقراط كنموذج للحياة الفلسفية / Socrate comme modèle',
+        originalText: 'Socrate n\'a pas laissé une seule ligne écrite ; pourtant, il demeure gravé dans la mémoire de l\'humanité comme le plus grand des philosophes.',
+        translatedText: 'لم يترك سقراط سطراً مكتوباً واحداً؛ ومع ذلك ظل حياً في ذاكرة الإنسانية كأعظم فيلسوف.'
+      },
+      {
+        id: 'hadot-6',
+        originalText: 'Pourquoi ? Parce que sa philosophie s\'identifiait entièrement à son corps, au timbre de sa voix et à sa sérénité face à la ciguë. La philosophie pour lui n\'était pas un discours que l\'on prononce, mais une présence vivante.',
+        translatedText: 'لماذا؟ لأن فلسفته كانت متطابقة تماماً مع جسده ونبرة صوته وثباته أمام كأس السم. الفلسفة عنده لم تكن خطاباً يُقال، بل حضوراً يُعاش.'
+      }
+    ],
+    originalContent: `La philosophie antique n'était jamais la construction d'un système abstrait de concepts, mais un appel à choisir un mode d'existence précis. C'était un exercice permanent que l'être humain pratiquait à chaque instant : en mangeant, en discutant avec un ami, et en faisant face à la mort et à la maladie.
+
+Le mot « spirituel » peut sembler équivoque, mais il est le plus adéquat car il n'appartient pas seulement à la pensée logique, mais engage l'imagination, la volonté et la sensibilité tout entière.
+
+Ces exercices comprennent la méditation sur la mort (Memento Mori), l'examen de conscience quotidien, et la vue d'en haut qui contemple l'univers depuis une perspective cosmique pour relativiser les angoisses terrestres.
+
+Socrate n'a pas laissé une seule ligne écrite ; pourtant, il demeure gravé dans la mémoire de l'humanité comme le plus grand des philosophes.
+
+Pourquoi ? Parce que sa philosophie s'identifiait entièrement à son corps, au timbre de sa voix et à sa sérénité face à la ciguë. La philosophie pour lui n'était pas un discours que l'on prononce, mais une présence vivante.`,
     content: `## توطئة المترجم (أيمن كناني)
 
 حين نقرأ الفلسفة اليوم في قاعات الجامعات، نجدها غالباً مقسمة إلى أبحاث جافة في نظرية المعرفة والمنطق الصوري وتحليل اللغة، حتى يخيل للقارئ أنها لعبة شطرنج لغوية لا صلة لها بآلامه اليومية وأسئلته الحارقة. جاء بيير هادو ليعيد توجيه البوصلة، مذكراً إيانا بأن الفيلسوف القديم لم يكن يُعرف بعدد الكتب التي ألفها، بل **بالطريقة التي عاش بها ومات عليها**.

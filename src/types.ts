@@ -296,19 +296,36 @@ export interface MultilingualAbstract {
   fr?: string; // Français
 }
 
-export interface ArticleReaderNote {
+export interface MarginNote {
   id: string;
-  articleId: string;
-  selectedText?: string;
+  targetType: 'article' | 'chapter';
+  targetId: string; // articleId or chapterId
+  novelId?: string; // for chapters
+  selectedText: string;
+  paragraphIndex?: number;
   note: string;
+  authorName: string;
   createdAt: string;
-  authorName?: string;
+  likes?: number;
+  userLiked?: boolean;
+  noteType?: 'comment' | 'question' | 'critique' | 'glossary';
+}
+
+export type ArticleReaderNote = MarginNote;
+
+export interface ParallelSegment {
+  id: string;
+  originalText: string;
+  translatedText: string;
+  sectionTitle?: string;
+  notes?: string;
 }
 
 export interface IntellectualItem {
   id: string;
   title: string;
   subtitle?: string;
+  originalTitle?: string; // e.g. "What Is It Like to Be a Bat?"
   slug: string;
   type: 'article' | 'study' | 'translated_article';
   author: string;
@@ -319,7 +336,9 @@ export interface IntellectualItem {
   originalYear?: string; // e.g. "1974"
   abstract?: string; // مستخلص البحث أو ملخص المقال
   multilingualAbstract?: MultilingualAbstract; // ملخص متعدد اللغات (عربي، إنجليزي، فرنسي)
-  content: string; // النص الكامل المنسق
+  content: string; // النص الكامل المنسق (باللغة العربية)
+  originalContent?: string; // النص الكامل باللغة الأصلية (للترجمات والدراسات المقارنة)
+  parallelSegments?: ParallelSegment[]; // فقرات متوازية للمزامنة السطرية
   category: string; // فلسفة، علم نفس، نقد أدبي، ذكاء اصطناعي، أدب، اجتماع
   tags: string[];
   readingTimeMinutes: number;
@@ -329,8 +348,10 @@ export interface IntellectualItem {
   publishedAt: string;
   references?: string[]; // مراجع ومصادر البحث الأكاديمي
   footnotes?: { id: number; text: string }[]; // هوامش وإحالات
+  commentaryStudies?: Array<{ id: string; title: string; author: string; studyType?: string; content?: string; articleId?: string }>; // دراسات تعقيبية مرتبطة
   isFeatured?: boolean;
   isReaderContribution?: boolean;
+  status?: 'PUBLISHED' | 'DRAFT';
   coverImage?: string;
   deweyDecimal?: string;
   doi?: string; // Digital Object Identifier
@@ -358,6 +379,9 @@ export interface UnifiedSearchResult {
   chapterId?: string;
   // If book:
   chapters?: Array<{ id: string; chapterNumber: number; title: string; views?: number }>;
+  chaptersCount?: number;
+  deweyCode?: string;
+  tags?: string[];
   pdfDownloadUrl?: string;
   // If article/study/translated:
   readingTimeMinutes?: number;
