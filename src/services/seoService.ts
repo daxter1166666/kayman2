@@ -1,4 +1,4 @@
-import { Novel, Chapter, AuthorProfile, SiteBranding, SeoSettings, NovelSeoMeta, ChapterSeoMeta, TableOfContentItem } from '../types';
+import { Novel, Chapter, AuthorProfile, SiteBranding, SeoSettings, NovelSeoMeta, ChapterSeoMeta, TableOfContentItem, IntellectualItem } from '../types';
 import { storageService } from './storageService';
 import { getDeweyInfo, formatDeweyDisplay } from '../utils/deweyDecimal';
 
@@ -17,6 +17,15 @@ export interface SeoMetaOptions {
   section?: string;
   tags?: string[];
   structuredData?: Record<string, any> | Array<Record<string, any>>;
+  // Google Scholar / Academic Indexation tags
+  citationTitle?: string;
+  citationAuthor?: string;
+  citationDate?: string;
+  citationPublicationDate?: string;
+  citationPdfUrl?: string;
+  citationLanguage?: string;
+  citationDoi?: string;
+  citationJournalTitle?: string;
 }
 
 class SeoService {
@@ -115,6 +124,21 @@ class SeoService {
       const handle = seoSettings.twitterHandle.startsWith('@') ? seoSettings.twitterHandle : `@${seoSettings.twitterHandle}`;
       this.setMetaTag('name', 'twitter:site', handle);
       this.setMetaTag('name', 'twitter:creator', handle);
+    }
+
+    // --- Google Scholar & Academic Metadata Tags (Highwire Press / PRISM Tags) ---
+    if (options.citationTitle) {
+      this.setMetaTag('name', 'citation_title', options.citationTitle);
+      this.setMetaTag('name', 'citation_author', options.citationAuthor || options.author || 'أيمن كناني');
+      this.setMetaTag('name', 'citation_publication_date', (options.citationPublicationDate || options.citationDate || options.publishedTime || new Date().toISOString()).slice(0, 10));
+      this.setMetaTag('name', 'citation_language', options.citationLanguage || 'ar');
+      this.setMetaTag('name', 'citation_journal_title', options.citationJournalTitle || branding.siteName || 'أيمن كناني - المنصة الرسمية');
+      if (options.citationPdfUrl) {
+        this.setMetaTag('name', 'citation_pdf_url', options.citationPdfUrl);
+      }
+      if (options.citationDoi) {
+        this.setMetaTag('name', 'citation_doi', options.citationDoi);
+      }
     }
 
     // --- Canonical Link ---
@@ -392,6 +416,63 @@ class SeoService {
             'name': chapter.title,
             'item': chapterUrl
           }
+        ]
+      }
+    ];
+  }
+
+  /**
+   * Builds Schema.org JSON-LD for Intellectual Items (Studies, Articles, Translations).
+   * Maps studies to ScholarlyArticle with author, abstract, and keywords for rich snippets.
+   */
+  public buildArticleJsonLd(article: IntellectualItem, authorProfile?: AuthorProfile): Array<Record<string, any>> {
+    const seoSettings = storageService.getSeoSettings();
+    const rootUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    const canonical = `${rootUrl}/?article=${article.id}`;
+    const authorName = article.author || authorProfile?.name || seoSettings.authorName || 'أيمن كناني';
+
+    const isStudy = article.type === 'study';
+    const mainEntity: Record<string, any> = {
+      '@context': 'https://schema.org',
+      '@type': isStudy ? 'ScholarlyArticle' : 'Article',
+      '@id': `${canonical}#article`,
+      'url': canonical,
+      'headline': article.title,
+      'name': article.title,
+      'description': article.abstract || article.content.slice(0, 150),
+      'inLanguage': 'ar',
+      'datePublished': article.publishedAt,
+      'author': {
+        '@type': 'Person',
+        'name': authorName,
+        'url': `${rootUrl}/#author`
+      },
+      'publisher': {
+        '@type': 'Organization',
+        'name': 'المنصة الرسمية لأيمن كناني',
+        'url': rootUrl
+      },
+      'about': article.category,
+      'keywords': (article.tags || []).join(', '),
+      'wordCount': article.wordCount || article.content.split(/\s+/).length
+    };
+
+    if (article.originalAuthor) {
+      mainEntity.translator = {
+        '@type': 'Person',
+        'name': article.translator || authorName
+      };
+    }
+
+    return [
+      mainEntity,
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          { '@type': 'ListItem', 'position': 1, 'name': 'الرئيسية', 'item': rootUrl },
+          { '@type': 'ListItem', 'position': 2, 'name': article.category || 'دراسات وأبحاث', 'item': `${rootUrl}/?view=catalog` },
+          { '@type': 'ListItem', 'position': 3, 'name': article.title, 'item': canonical }
         ]
       }
     ];

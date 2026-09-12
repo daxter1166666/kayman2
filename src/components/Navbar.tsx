@@ -32,6 +32,7 @@ interface NavbarProps {
   onScrollToAuthor?: () => void;
   onOpenAddArticle?: () => void;
   onOpenSmartEditors?: () => void;
+  onOpenCommandPalette?: () => void;
   hideSearchBar?: boolean;
 }
 
@@ -53,6 +54,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onScrollToAuthor,
   onOpenAddArticle,
   onOpenSmartEditors,
+  onOpenCommandPalette,
   hideSearchBar = false,
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState<boolean>(false);
@@ -105,7 +107,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onChange={e => onSearchChange(e.target.value)}
                   className="w-full pr-10 pl-8 py-2 text-xs rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] focus:border-[#4A5D4E] focus:ring-1 focus:ring-[#4A5D4E] text-[#2C2C2C] placeholder-[#8E8A83] focus:outline-none transition-all font-cairo text-right"
                 />
-                {searchQuery && (
+                {searchQuery ? (
                   <button
                     type="button"
                     id="clear-search-btn"
@@ -114,7 +116,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                   >
                     ✕
                   </button>
-                )}
+                ) : onOpenCommandPalette ? (
+                  <button
+                    type="button"
+                    id="open-cmd-palette-btn"
+                    onClick={onOpenCommandPalette}
+                    className="absolute left-2.5 top-1/2 -translate-y-1/2 px-1.5 py-0.5 text-[10px] font-mono font-bold rounded bg-white/90 border border-[#E5E2D9] text-[#6E6A64] hover:text-[#4A5D4E] hover:border-[#4A5D4E] shadow-2xs cursor-pointer flex items-center gap-1"
+                    title="لوحة الأوامر السريعة والتنقل الفوري (Ctrl+K)"
+                  >
+                    <span>⌘K</span>
+                  </button>
+                ) : null}
               </div>
             </div>
           )}

@@ -29,6 +29,9 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AuthorProfileSection } from './components/AuthorProfileSection';
 import { DonationModal } from './components/DonationModal';
 import { PWAInstallModal } from './components/PWAInstallModal';
+import { CommandPalette } from './components/CommandPalette';
+import { UserHighlightsDrawer } from './components/UserHighlightsDrawer';
+import { AuthorPortalModal } from './components/AuthorPortalModal';
 import { applyBrandingToPWA } from './utils/pwaHelper';
 import { toArabicGenre } from './utils/genreHelper';
 import {
@@ -80,6 +83,21 @@ export default function App() {
   const [showBookmarksDrawer, setShowBookmarksDrawer] = useState<boolean>(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
+  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
+  const [showHighlightsDrawer, setShowHighlightsDrawer] = useState<boolean>(false);
+  const [showAuthorPortal, setShowAuthorPortal] = useState<boolean>(false);
+
+  // Global Cmd+K / Ctrl+K keyboard shortcut for Command Palette
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(prev => !prev);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   // PWA Install Prompt State
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
@@ -608,6 +626,7 @@ export default function App() {
         siteBranding={siteBranding}
         onOpenDonationModal={() => setShowDonationModal(true)}
         onScrollToAuthor={handleScrollToAuthorBio}
+        onOpenCommandPalette={() => setShowCommandPalette(true)}
         hideSearchBar={currentView === 'catalog'}
         onOpenSmartEditors={() => {
           setSelectedTypeFilter('smart_editors');
@@ -759,6 +778,7 @@ export default function App() {
               onOpenSmartEditor={() => {
                 setSelectedTypeFilter('smart_editors');
               }}
+              onOpenAuthorPortal={() => setShowAuthorPortal(true)}
             />
           </main>
         )}
@@ -885,6 +905,70 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
+      <CommandPalette
+        isOpen={showCommandPalette}
+        onClose={() => setShowCommandPalette(false)}
+        novels={novels}
+        chapters={chapters}
+        articles={articles}
+        categories={categories}
+        onSelectBook={(novelId) => {
+          setSelectedNovelId(novelId);
+          setCurrentView('novel_detail');
+        }}
+        onSelectChapter={(novelId, chapterId) => {
+          setSelectedNovelId(novelId);
+          setSelectedChapterId(chapterId);
+          setCurrentView('reader');
+        }}
+        onSelectArticle={(articleId) => {
+          setSelectedArticleId(articleId);
+          setCurrentView('article_reader');
+        }}
+        onOpenControlPanel={() => {
+          handleOpenControlPanel();
+        }}
+        onOpenHighlightsDrawer={() => {
+          setShowHighlightsDrawer(true);
+        }}
+        onOpenAdminLogin={() => {
+          setShowAdminLoginModal(true);
+        }}
+        onScrollToAuthor={() => {
+          handleScrollToAuthorBio();
+        }}
+      />
+
+      {/* Global Researcher Highlights Drawer */}
+      <UserHighlightsDrawer
+        isOpen={showHighlightsDrawer}
+        onClose={() => setShowHighlightsDrawer(false)}
+        onNavigateToItem={(type, id, extraId) => {
+          if (type === 'novel') {
+            setSelectedNovelId(id);
+            setCurrentView('novel_detail');
+          } else if (type === 'chapter') {
+            if (extraId) setSelectedNovelId(extraId);
+            setSelectedChapterId(id);
+            setCurrentView('reader');
+          } else if (type === 'article') {
+            setSelectedArticleId(id);
+            setCurrentView('article_reader');
+          }
+        }}
+      />
+
+      {/* Author & Writers Portal Modal */}
+      <AuthorPortalModal
+        isOpen={showAuthorPortal}
+        onClose={() => setShowAuthorPortal(false)}
+        onLoginSuccess={() => {
+          refreshData();
+          setIsAdminLoggedIn(storageService.isAdminLoggedIn());
+        }}
+      />
 
       {/* Global Footer with legal links & AdSlot (Only on sub-views; Search has its own minimalist footer) */}
       {currentView !== 'catalog' && (

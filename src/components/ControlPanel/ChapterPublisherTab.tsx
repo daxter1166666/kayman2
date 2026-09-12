@@ -4,6 +4,7 @@ import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { ConfirmModal } from '../ConfirmModal';
 import { cleanChapterContent, hasHtmlOrStyleResidue } from '../../utils/textCleaner';
+import { ScholarlyIntegratedEditor } from '../RichTextEditor/ScholarlyIntegratedEditor';
 import {
   FilePlus,
   Edit3,
@@ -439,13 +440,12 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
                 </div>
               )}
 
-              <textarea
+              <ScholarlyIntegratedEditor
                 id="chapter-content-textarea"
-                rows={14}
-                placeholder="ابدأ بكتابة أحداث الفصل هنا... افصل بين الفقرات بسطر فارغ لضمان أفضل تجربة قراءة ومطالعة مريحة..."
                 value={content}
-                onChange={e => setContent(e.target.value)}
-                className="w-full p-4 text-sm sm:text-base rounded-2xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-amiri leading-relaxed"
+                onChange={setContent}
+                minHeight="360px"
+                placeholder="ابدأ بكتابة أحداث الفصل هنا... استخدم أدوات التنسيق العلوية لتنسيق الحوار، إضافة الأبيات الشعرية، وتنسيق علامات الترقيم العربية..."
                 required
               />
 

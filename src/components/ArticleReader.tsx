@@ -5,6 +5,8 @@ import { AddMarginNoteModal, MarginNotesPopover } from './MarginaliaSystem';
 import { BilingualReaderView } from './BilingualReaderView';
 import { ArticleKnowledgeMap } from './ArticleKnowledgeMap';
 import { ArticleReplies } from './ArticleReplies';
+import { CitationExportModal } from './CitationExportModal';
+import { UserHighlightsDrawer } from './UserHighlightsDrawer';
 import {
   ArrowRight,
   Clock,
@@ -65,10 +67,12 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
 
   // Reading Comfort States (تكبير، خطوط، ألوان، هوامش عائمة)
   const [fontSize, setFontSize] = useState<number>(19);
-  const [theme, setTheme] = useState<'paper' | 'sepia' | 'sage' | 'night' | 'pristine'>('paper');
+  const [theme, setTheme] = useState<'paper' | 'sepia' | 'sage' | 'night' | 'pristine' | 'eink'>('paper');
   const [currentFont, setCurrentFont] = useState<'amiri' | 'cairo' | 'traditional'>('amiri');
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
   const [isFloatingMarginDrawerOpen, setIsFloatingMarginDrawerOpen] = useState<boolean>(false);
+  const [isCitationModalOpen, setIsCitationModalOpen] = useState<boolean>(false);
+  const [isHighlightsDrawerOpen, setIsHighlightsDrawerOpen] = useState<boolean>(false);
 
   // Multilingual Abstract state
   const availableLangs = useMemo(() => {
@@ -146,13 +150,26 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
   // Floating text selection toolbar for marginalia
   const [floatingSelection, setFloatingSelection] = useState<{ x: number; y: number; text: string } | null>(null);
 
+  // Active Article State (to reflect live translation updates without full page refresh)
+  const [currentArticle, setCurrentArticle] = useState<IntellectualItem>(article);
+  useEffect(() => {
+    setCurrentArticle(article);
+  }, [article]);
+
   // Bilingual Parallel Reading Mode State
   const isBilingualAvailable = Boolean(
-    article.type === 'translated_article' ||
-    article.originalContent ||
-    (article.parallelSegments && article.parallelSegments.length > 0)
+    currentArticle.type === 'translated_article' ||
+    currentArticle.originalContent ||
+    currentArticle.translatedContent ||
+    (currentArticle.parallelSegments && currentArticle.parallelSegments.length > 0)
   );
   const [isBilingualMode, setIsBilingualMode] = useState<boolean>(isBilingualAvailable);
+
+  // Add Translation Modal State
+  const [isAddingTranslationModalOpen, setIsAddingTranslationModalOpen] = useState<boolean>(false);
+  const [transTitleInput, setTransTitleInput] = useState<string>('');
+  const [transContentInput, setTransContentInput] = useState<string>('');
+  const [transAuthorInput, setTransAuthorInput] = useState<string>('');
 
   // Footnotes from article (dynamically updated if author adds a footnote)
   const [articleFootnotes, setArticleFootnotes] = useState(article.footnotes || []);
@@ -279,6 +296,24 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
     }
   };
 
+  // Save English Translation for the Article
+  const handleSaveTranslation = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transContentInput.trim()) return;
+    const updates = {
+      translatedTitle: transTitleInput.trim() || undefined,
+      translatedContent: transContentInput.trim(),
+      originalContent: transContentInput.trim(),
+      translatedLanguage: 'English',
+      translator: transAuthorInput.trim() || undefined,
+      type: 'translated_article' as const,
+    };
+    storageService.updateArticle(currentArticle.id, updates);
+    setCurrentArticle(prev => ({ ...prev, ...updates }));
+    setIsBilingualMode(true);
+    setIsAddingTranslationModalOpen(false);
+  };
+
   // Save Reader Note
   const handleSaveReaderNote = (e: React.FormEvent) => {
     e.preventDefault();
@@ -345,13 +380,14 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
     setActivePopoverNotes(prev => prev.filter(n => n.id !== noteId));
   };
 
-  // Theme Styles (5 themes)
+  // Theme Styles (6 themes)
   const themeStyles = {
     paper: 'bg-[#FDFCF8] text-[#2C2C2C]',
     sepia: 'bg-[#F4EEDD] text-[#3D332A]',
     sage: 'bg-[#EBF3ED] text-[#1E3A2F]',
     night: 'bg-[#18181B] text-[#E4E4E7]',
     pristine: 'bg-[#FFFFFF] text-[#1F2937]',
+    eink: 'bg-[#F2F2F2] text-[#111111] font-medium tracking-wide',
   };
 
   // Font Styles
@@ -475,8 +511,8 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               </div>
             )}
 
-            {/* Bilingual Parallel Reading Toggle */}
-            {isBilingualAvailable && (
+            {/* Bilingual Parallel Reading Toggle / Add Translation */}
+            {isBilingualAvailable ? (
               <button
                 type="button"
                 id="toggle-bilingual-mode-btn"
@@ -492,6 +528,22 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
                 <span className="hidden sm:inline">
                   {isBilingualMode ? 'المتن الفردي' : 'القراءة المزدوجة'}
                 </span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                id="open-add-translation-modal-btn"
+                onClick={() => {
+                  setTransTitleInput(currentArticle.translatedTitle || '');
+                  setTransContentInput(currentArticle.translatedContent || '');
+                  setTransAuthorInput(currentArticle.translator || '');
+                  setIsAddingTranslationModalOpen(true);
+                }}
+                className="px-3 py-1.5 rounded-xl border border-[#4A5D4E]/40 hover:bg-[#4A5D4E]/10 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                title="إضافة ترجمة إنجليزية لهذا المقال وتفعيل القراءة المزدوجة"
+              >
+                <Languages className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">+ إضافة ترجمة للمقال</span>
               </button>
             )}
 
@@ -596,7 +648,41 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
               >
                 ليل
               </button>
+              <button
+                type="button"
+                onClick={() => setTheme('eink')}
+                className={`w-5 h-5 rounded-lg text-[9px] font-bold ${
+                  theme === 'eink' ? 'ring-2 ring-black' : ''
+                } bg-[#E5E5E5] text-[#111111] border border-black/40`}
+                title="حبر إلكتروني فائق التباين (E-Ink Paper)"
+              >
+                حبر
+              </button>
             </div>
+
+            {/* Academic Citation & Export Modal Trigger */}
+            <button
+              type="button"
+              id="open-citation-modal-btn"
+              onClick={() => setIsCitationModalOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl border border-current/20 hover:bg-black/5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[#4A5D4E] bg-white/60"
+              title="توليد استشهاد أكاديمي (APA, MLA, Chicago, Harvard, BibTeX, RIS)"
+            >
+              <Quote className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">توثيق أكاديمي</span>
+            </button>
+
+            {/* Researcher Highlights Drawer Trigger */}
+            <button
+              type="button"
+              id="open-highlights-drawer-btn"
+              onClick={() => setIsHighlightsDrawerOpen(true)}
+              className="px-2.5 py-1.5 rounded-xl border border-current/20 hover:bg-black/5 text-xs font-semibold flex items-center gap-1.5 cursor-pointer text-[#C88A3B] bg-white/60"
+              title="دفتر تظليلات واقتباسات الباحث"
+            >
+              <BookMarked className="w-3.5 h-3.5" />
+              <span className="hidden lg:inline">دفتر الاقتباسات</span>
+            </button>
 
             {/* 4. Floating Margin Notes Drawer Toggle (قراءة الهوامش العائمة) */}
             <button
@@ -890,9 +976,9 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
         {/* ------------------------------------------------------------- */}
         {isBilingualMode && isBilingualAvailable ? (
           <BilingualReaderView
-            article={article}
+            article={currentArticle}
             fontSize={fontSize}
-            theme={theme === 'night' || theme === 'pristine' ? 'paper' : theme}
+            theme={theme === 'night' || theme === 'pristine' || theme === 'eink' ? 'paper' : theme}
             marginNotes={readerNotes}
             onOpenAddMarginModal={(pIdx, text) => openAddMarginModal(pIdx, text)}
             onOpenMarginPopover={(pIdx, text, notes) => openMarginPopover(pIdx, text, notes)}
@@ -1127,7 +1213,7 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           onSelectArticle={onSelectArticle}
         />
 
-        {/* Floating Quick Marginalia Button for Selected Text */}
+        {/* Floating Researcher Toolbar for Selected Text */}
         {floatingSelection && (
           <div
             style={{
@@ -1138,17 +1224,128 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
             }}
             className="z-50 animate-fadeIn"
           >
-            <button
-              type="button"
-              onClick={() => openAddMarginModal(undefined, floatingSelection.text)}
-              className="px-4 py-2 rounded-full bg-[#4A5D4E] hover:bg-[#38493C] text-white text-xs font-bold shadow-xl flex items-center gap-1.5 transition-transform hover:scale-105 cursor-pointer ring-2 ring-white"
-            >
-              <PenLine className="w-3.5 h-3.5 text-emerald-300" />
-              <span>إضافة هامش وملاحظة على النص المحدد</span>
-            </button>
+            <div className="flex items-center gap-1 p-1.5 rounded-2xl bg-[#2C2C2C] text-white shadow-2xl border border-white/20 backdrop-blur-md">
+              {/* Highlight colors */}
+              <button
+                type="button"
+                onClick={() => {
+                  storageService.addUserHighlight({
+                    targetId: article.id,
+                    targetType: 'article',
+                    targetTitle: article.title,
+                    text: floatingSelection.text,
+                    color: 'gold',
+                  });
+                  setFloatingSelection(null);
+                }}
+                className="w-6 h-6 rounded-full bg-amber-400 hover:scale-110 transition-transform cursor-pointer border border-white/40"
+                title="تظليل ذهبي"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  storageService.addUserHighlight({
+                    targetId: article.id,
+                    targetType: 'article',
+                    targetTitle: article.title,
+                    text: floatingSelection.text,
+                    color: 'emerald',
+                  });
+                  setFloatingSelection(null);
+                }}
+                className="w-6 h-6 rounded-full bg-emerald-400 hover:scale-110 transition-transform cursor-pointer border border-white/40"
+                title="تظليل زمردي"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  storageService.addUserHighlight({
+                    targetId: article.id,
+                    targetType: 'article',
+                    targetTitle: article.title,
+                    text: floatingSelection.text,
+                    color: 'cyan',
+                  });
+                  setFloatingSelection(null);
+                }}
+                className="w-6 h-6 rounded-full bg-sky-400 hover:scale-110 transition-transform cursor-pointer border border-white/40"
+                title="تظليل سماوي"
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  storageService.addUserHighlight({
+                    targetId: article.id,
+                    targetType: 'article',
+                    targetTitle: article.title,
+                    text: floatingSelection.text,
+                    color: 'rose',
+                  });
+                  setFloatingSelection(null);
+                }}
+                className="w-6 h-6 rounded-full bg-rose-400 hover:scale-110 transition-transform cursor-pointer border border-white/40"
+                title="تظليل وردي"
+              />
+
+              <div className="w-px h-4 bg-white/20 mx-1" />
+
+              {/* Copy with Academic Attribution */}
+              <button
+                type="button"
+                onClick={() => {
+                  const attribution = `\n\n— أيمن كناني، "${article.title}"، منصة الكاتب أيمن كناني للروايات والدراسات الفكرية (${window.location.href})`;
+                  navigator.clipboard.writeText(`«${floatingSelection.text}»${attribution}`);
+                  setFloatingSelection(null);
+                  setNoteSuccessMsg('تم نسخ النص مع التوثيق الأكاديمي المعتمد والمصدر!');
+                  setTimeout(() => setNoteSuccessMsg(''), 3500);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg hover:bg-white/10 text-white flex items-center gap-1 cursor-pointer"
+                title="نسخ النص مع التوثيق المرجعي الأكاديمي التلقائي"
+              >
+                <Quote className="w-3 h-3 text-[#C88A3B]" />
+                <span>نسخ بتوثيق</span>
+              </button>
+
+              {/* Add Marginalia Note */}
+              <button
+                type="button"
+                onClick={() => {
+                  openAddMarginModal(undefined, floatingSelection.text);
+                  setFloatingSelection(null);
+                }}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-lg bg-[#4A5D4E] hover:bg-[#38493C] text-white flex items-center gap-1 cursor-pointer"
+                title="إضافة هامش وملاحظة نقدية على النص"
+              >
+                <PenLine className="w-3 h-3 text-emerald-300" />
+                <span>هامش</span>
+              </button>
+            </div>
           </div>
         )}
       </div>
+
+      {/* Citation Export Modal */}
+      <CitationExportModal
+        isOpen={isCitationModalOpen}
+        onClose={() => setIsCitationModalOpen(false)}
+        item={{
+          type: article.type,
+          title: article.title,
+          author: article.author || 'أيمن كناني',
+          publishedDate: article.publishedAt,
+          category: article.category,
+          originalAuthor: article.originalAuthor,
+          translator: article.translator,
+          doi: article.doi,
+          url: window.location.href,
+        }}
+      />
+
+      {/* User Highlights Drawer */}
+      <UserHighlightsDrawer
+        isOpen={isHighlightsDrawerOpen}
+        onClose={() => setIsHighlightsDrawerOpen(false)}
+      />
 
       {/* Add Margin Note Modal */}
       <AddMarginNoteModal
@@ -1175,6 +1372,97 @@ export const ArticleReader: React.FC<ArticleReaderProps> = ({
           setIsMarginModalOpen(true);
         }}
       />
+
+      {/* Add English Translation Modal */}
+      {isAddingTranslationModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs font-cairo">
+          <div className="bg-[#FDFCF8] border border-[#E5E2D9] rounded-3xl w-full max-w-2xl p-5 sm:p-6 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-[#E5E2D9]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-blue-700 text-white flex items-center justify-center shadow-xs">
+                  <Languages className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-amiri font-bold text-lg text-stone-900">
+                    إضافة ترجمة إنجليزية للمقال (Bilingual Reader)
+                  </h3>
+                  <p className="text-xs text-stone-500">
+                    أدخل النص المترجم لتفعيل وضع القراءة المزدوجة المتزامنة مع شريط الترجمة الفوري
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddingTranslationModalOpen(false)}
+                className="p-1.5 rounded-lg hover:bg-stone-200 text-stone-500 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveTranslation} className="space-y-4">
+              <div>
+                <label className="text-xs font-bold block mb-1 text-stone-800">
+                  عنوان المقال باللغة الإنجليزية (English Title):
+                </label>
+                <input
+                  type="text"
+                  dir="ltr"
+                  placeholder="e.g. Hermeneutics of Meaning in Contemporary Philosophy..."
+                  value={transTitleInput}
+                  onChange={e => setTransTitleInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-stone-200 bg-white font-serif text-left"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold block mb-1 text-stone-800">
+                  اسم المترجم (Translator):
+                </label>
+                <input
+                  type="text"
+                  placeholder="اسم المترجم"
+                  value={transAuthorInput}
+                  onChange={e => setTransAuthorInput(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-stone-200 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs font-bold block mb-1 text-stone-800">
+                  النص الإنجليزي المترجم (English Content) <span className="text-rose-500">*</span>:
+                </label>
+                <textarea
+                  dir="ltr"
+                  rows={8}
+                  required
+                  placeholder="Paste English translation paragraphs here..."
+                  value={transContentInput}
+                  onChange={e => setTransContentInput(e.target.value)}
+                  className="w-full p-3 text-xs sm:text-sm rounded-xl border border-stone-200 bg-white font-serif text-left leading-relaxed focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-stone-900"
+                />
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t border-stone-200">
+                <button
+                  type="button"
+                  onClick={() => setIsAddingTranslationModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-stone-200 text-xs font-bold hover:bg-stone-100 cursor-pointer"
+                >
+                  إلغاء
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs cursor-pointer"
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>حفظ وتفعيل القراءة المزدوجة</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </article>
   );
 };

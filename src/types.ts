@@ -168,6 +168,7 @@ export interface Novel {
   deweyCategoryName?: string; // Description (e.g. "813 - الروايات والقصص العربية")
   tableOfContents?: TableOfContentItem[];
   seo?: NovelSeoMeta;
+  headerColorStrip?: string;
 }
 
 export interface Chapter {
@@ -338,6 +339,9 @@ export interface IntellectualItem {
   multilingualAbstract?: MultilingualAbstract; // ملخص متعدد اللغات (عربي، إنجليزي، فرنسي)
   content: string; // النص الكامل المنسق (باللغة العربية)
   originalContent?: string; // النص الكامل باللغة الأصلية (للترجمات والدراسات المقارنة)
+  translatedTitle?: string; // عنوان المقال المترجم (مثل الإنجليزية)
+  translatedContent?: string; // النص المترجم للغة الهدف (مثل الإنجليزية)
+  translatedLanguage?: string; // اللغة المترجمة إليها (الإنجليزية)
   parallelSegments?: ParallelSegment[]; // فقرات متوازية للمزامنة السطرية
   category: string; // فلسفة، علم نفس، نقد أدبي، ذكاء اصطناعي، أدب، اجتماع
   tags: string[];
@@ -356,6 +360,41 @@ export interface IntellectualItem {
   deweyDecimal?: string;
   doi?: string; // Digital Object Identifier
   pdfDownloadUrl?: string;
+  headerColorStrip?: string; // شريط ملون فوق المقال (أندلسي، ذهبي، لازوردي...)
+  seo?: NovelSeoMeta; // إعدادات السيو المتقدمة للمقال
+}
+
+export interface AuthorAccount {
+  id: string;
+  name: string;
+  penName?: string;
+  email: string;
+  secretPasscode: string;
+  bio?: string;
+  avatarUrl?: string;
+  specialization?: string;
+  role: 'author' | 'admin' | 'contributor';
+  createdAt: string;
+  articlesCount?: number;
+  booksCount?: number;
+}
+
+export interface UserHighlight {
+  id: string;
+  targetId: string;
+  targetType: 'novel' | 'chapter' | 'article';
+  targetTitle: string;
+  text: string;
+  color: 'gold' | 'emerald' | 'cyan' | 'rose';
+  note?: string;
+  createdAt: string;
+}
+
+export interface AuthorAuthAccount {
+  authorName: string;
+  secretPasscode: string;
+  lastLogin?: string;
+  createdAt?: string;
 }
 
 export interface UnifiedSearchResult {

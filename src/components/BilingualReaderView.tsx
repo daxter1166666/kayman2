@@ -41,23 +41,43 @@ export const BilingualReaderView: React.FC<BilingualReaderViewProps> = ({
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [speakingIndex, setSpeakingIndex] = useState<number | null>(null);
 
-  // Compute aligned segments: Prefer article.parallelSegments, or auto-align paragraphs from originalContent & content
+  // Compute aligned segments: Prefer article.parallelSegments, or auto-align paragraphs from originalContent/translatedContent & content
   const segments: ParallelSegment[] = useMemo(() => {
     if (article.parallelSegments && article.parallelSegments.length > 0) {
       return article.parallelSegments;
     }
 
-    const origParas = (article.originalContent || '')
-      .split('\n\n')
-      .map(p => p.trim())
-      .filter(p => p.length > 0 && !p.startsWith('#'));
+    const cleanParas = (raw: string): string[] => {
+      if (!raw) return [];
+      // If HTML formatted from WYSIWYG
+      if (/<(p|div|h[1-6]|blockquote|li)[\s>]/i.test(raw)) {
+        // Extract inner text of block tags
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = raw;
+        const blocks = tempDiv.querySelectorAll('p, h1, h2, h3, h4, h5, h6, blockquote, li');
+        if (blocks.length > 0) {
+          const res: string[] = [];
+          blocks.forEach(b => {
+            const txt = b.textContent?.trim();
+            if (txt && txt.length > 0) res.push(txt);
+          });
+          return res;
+        }
+        return [tempDiv.textContent?.trim() || ''].filter(Boolean);
+      }
+      // Fallback newline splitting
+      return raw
+        .split('\n\n')
+        .map(p => p.trim())
+        .filter(p => p.length > 0 && !p.startsWith('#') && !p.startsWith('---'));
+    };
 
-    const transParas = (article.content || '')
-      .split('\n\n')
-      .map(p => p.trim())
-      .filter(p => p.length > 0 && !p.startsWith('#') && !p.startsWith('---'));
+    const foreignText = article.originalContent || article.translatedContent || '';
+    const origParas = cleanParas(foreignText);
+    const transParas = cleanParas(article.content || '');
 
     const maxLen = Math.max(origParas.length, transParas.length);
+    if (maxLen === 0) return [];
     const result: ParallelSegment[] = [];
 
     for (let i = 0; i < maxLen; i++) {
@@ -236,27 +256,32 @@ export const BilingualReaderView: React.FC<BilingualReaderViewProps> = ({
                       setHoveredIndex(null);
                       setHoveredOrigin(null);
                     }}
-                    className={`relative flex flex-col justify-between p-3.5 rounded-xl transition-colors ${
+                    className={`relative flex flex-col justify-between p-3.5 rounded-xl transition-all duration-300 ${
                       isHovered && hoveredOrigin === 'original'
-                        ? 'bg-emerald-100/40 ring-1 ring-[#4A5D4E]/40'
+                        ? 'bg-emerald-50/80 ring-2 ring-[#4A5D4E] shadow-lg scale-[1.01]'
                         : 'bg-[#FDFCF8]'
                     }`}
                   >
-                    {/* Synchronized Ribbon if user is hovering over the original text */}
+                    {/* Synchronized Ribbon if user is hovering over the original English text */}
                     {isHovered && hoveredOrigin === 'original' && (
-                      <div className="mb-3 p-2.5 rounded-xl bg-[#4A5D4E] text-white text-xs shadow-md animate-fadeIn flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <Languages className="w-4 h-4 text-emerald-300 shrink-0" />
-                          <span>شريط الترجمة المقابلة للنص الأصلي الممرر عليه:</span>
+                      <div className="mb-3.5 p-3.5 rounded-xl bg-gradient-to-l from-[#4A5D4E] via-[#38493C] to-[#1E2D22] text-white shadow-xl animate-fadeIn border-2 border-emerald-400/80 ring-4 ring-emerald-500/20">
+                        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/20">
+                          <div className="flex items-center gap-1.5 font-bold text-emerald-200 text-xs">
+                            <Sparkles className="w-4 h-4 text-emerald-300 animate-pulse" />
+                            <span>⚡ شريط النص العربي الأصلي المقابل للنص الممرر عليه:</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(seg.translatedText, `trans-${idx}`)}
+                            className="px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {copiedId === `trans-${idx}` ? <Check className="w-3 h-3 text-emerald-200" /> : <Copy className="w-3 h-3" />}
+                            <span>نسخ النص العربي</span>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(seg.translatedText, `trans-${idx}`)}
-                          className="px-2 py-0.5 rounded-md bg-white/20 hover:bg-white/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          {copiedId === `trans-${idx}` ? <Check className="w-3 h-3 text-emerald-200" /> : <Copy className="w-3 h-3" />}
-                          <span>نسخ</span>
-                        </button>
+                        <p className="font-amiri text-sm sm:text-base leading-relaxed text-emerald-50 font-medium">
+                          {seg.translatedText}
+                        </p>
                       </div>
                     )}
 
@@ -319,49 +344,35 @@ export const BilingualReaderView: React.FC<BilingualReaderViewProps> = ({
                       setHoveredIndex(null);
                       setHoveredOrigin(null);
                     }}
-                    className={`relative flex flex-col justify-between p-3.5 rounded-xl transition-colors ${
+                    className={`relative flex flex-col justify-between p-3.5 rounded-xl transition-all duration-300 ${
                       isHovered && hoveredOrigin === 'translated'
-                        ? 'bg-purple-50 ring-1 ring-[#6B5268]/40'
+                        ? 'bg-blue-50/80 ring-2 ring-[#205477] shadow-lg scale-[1.01]'
                         : 'bg-stone-50/60'
                     }`}
                   >
-                    {/* SYNCHRONIZED TRANSLATION RIBBON WHEN HOVERING ORIGINAL */}
-                    {isHovered && hoveredOrigin === 'original' && (
-                      <div
-                        dir="rtl"
-                        className="mb-3 p-3 rounded-xl bg-gradient-to-l from-[#4A5D4E] to-[#38493C] text-white text-xs shadow-lg animate-fadeIn border border-emerald-300/30"
-                      >
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="font-bold flex items-center gap-1.5 text-emerald-200">
-                            <Sparkles className="w-3.5 h-3.5" />
-                            <span>شريط الترجمة الفوري المقابل للنص الأصلي:</span>
-                          </span>
-                          <span className="text-[10px] opacity-75 font-mono">الفقرة #{idx + 1}</span>
-                        </div>
-                        <p className="font-amiri text-sm leading-relaxed text-emerald-50">
-                          {seg.translatedText}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Synchronized Original Ribbon if user hovers translated text */}
+                    {/* SYNCHRONIZED TRANSLATION RIBBON WHEN HOVERING ARABIC TEXT */}
                     {isHovered && hoveredOrigin === 'translated' && (
                       <div
                         dir="ltr"
-                        className="mb-3 p-2.5 rounded-xl bg-[#6B5268] text-white text-xs shadow-md animate-fadeIn flex items-center justify-between gap-2"
+                        className="mb-3.5 p-3.5 rounded-xl bg-gradient-to-r from-[#1E3A8A] via-[#205477] to-[#0F766E] text-white shadow-xl animate-fadeIn border-2 border-cyan-400/80 ring-4 ring-cyan-500/20"
                       >
-                        <div className="flex items-center gap-1.5 font-bold">
-                          <Languages className="w-4 h-4 text-purple-200 shrink-0" />
-                          <span>Corresponding Original Text:</span>
+                        <div className="flex items-center justify-between mb-2 pb-1.5 border-b border-white/20">
+                          <span className="font-bold flex items-center gap-1.5 text-cyan-200 text-xs">
+                            <Sparkles className="w-4 h-4 text-cyan-300 animate-pulse" />
+                            <span dir="rtl">⚡ شريط الترجمة الإنجليزية المقابلة للنص العربي الممرر عليه:</span>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(seg.originalText, `orig-${idx}`)}
+                            className="px-2.5 py-1 rounded-md bg-white/20 hover:bg-white/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+                          >
+                            {copiedId === `orig-${idx}` ? <Check className="w-3 h-3 text-cyan-200" /> : <Copy className="w-3 h-3" />}
+                            <span>نسخ الترجمة</span>
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleCopyText(seg.originalText, `orig-${idx}`)}
-                          className="px-2 py-0.5 rounded-md bg-white/20 hover:bg-white/30 text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-                        >
-                          {copiedId === `orig-${idx}` ? <Check className="w-3 h-3 text-emerald-200" /> : <Copy className="w-3 h-3" />}
-                          <span>Copy</span>
-                        </button>
+                        <p className="font-serif text-sm sm:text-base leading-relaxed text-cyan-50 font-medium">
+                          {seg.originalText}
+                        </p>
                       </div>
                     )}
 

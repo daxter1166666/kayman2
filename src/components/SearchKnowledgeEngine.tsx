@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { UnifiedSearchResult, IntellectualItem, Novel, Chapter } from '../types';
 import { SmartEditorsSuite } from './SmartEditorsSuite';
+import { ImageLightboxModal } from './ImageLightboxModal';
 import {
   Search,
   Book,
@@ -22,7 +23,9 @@ import {
   Feather,
   PlusCircle,
   PenTool,
-  Bookmark
+  Bookmark,
+  Maximize2,
+  ZoomIn
 } from 'lucide-react';
 
 export interface SearchKnowledgeEngineProps {
@@ -54,6 +57,7 @@ export interface SearchKnowledgeEngineProps {
   onRandomPick?: () => void;
   onOpenAddArticle?: () => void;
   onOpenSmartEditor?: (item?: { type: 'article' | 'study' | 'book' | 'chapter'; id?: string }) => void;
+  onOpenAuthorPortal?: () => void;
 }
 
 export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
@@ -78,10 +82,19 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
   onRandomPick,
   onOpenAddArticle,
   onOpenSmartEditor,
+  onOpenAuthorPortal,
 }) => {
   const searchResults = propSearchResults || propResults || [];
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [localQuery, setLocalQuery] = useState(searchQuery);
+
+  // Lightbox modal state for full-control-panel image magnification
+  const [lightboxImg, setLightboxImg] = useState<{
+    url: string;
+    title?: string;
+    author?: string;
+    caption?: string;
+  } | null>(null);
 
   // Isolated Editor Studio State: 'article' | 'chapter' | null
   const [isolatedStudioMode, setIsolatedStudioMode] = useState<'article' | 'book' | null>(null);
@@ -355,6 +368,18 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
                 <Book className="w-3.5 h-3.5 text-[#8C5D0B]" />
                 <span>+ إضافة فصل كتاب</span>
               </button>
+
+              {onOpenAuthorPortal && (
+                <button
+                  type="button"
+                  onClick={onOpenAuthorPortal}
+                  className="px-3 py-1.5 rounded-xl bg-[#FAF8F2] hover:bg-[#F0ECE1] text-[#2C2C2C] border border-[#E5E2D9] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs"
+                  title="بوابة الكتّاب والمؤلفين - تسجيل الدخول ونشر المؤلفات"
+                >
+                  <Feather className="w-3.5 h-3.5 text-[#C88A3B]" />
+                  <span>بوابة الكتّاب</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -435,48 +460,88 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
                     ? 'ترجمة'
                     : 'مقال';
 
+                const coverImg = item.coverImage;
+
                 return (
                   <article
                     key={item.id || idx}
-                    className="group max-w-2xl"
+                    className="group max-w-3xl flex flex-col-reverse sm:flex-row items-start justify-between gap-4 p-3.5 rounded-2xl hover:bg-[#FAF9F5] transition-all border border-transparent hover:border-[#E5E2D9]"
                   >
-                    {/* Breadcrumb URL (like Google) */}
-                    <div className="flex items-center gap-1.5 text-[12px] text-[#4d5156] mb-1 font-sans">
-                      <span className="text-emerald-800 font-medium">aymankanani.com</span>
-                      <span className="text-[#8E8A83]">›</span>
-                      <span>{typeLabel}</span>
-                      <span className="text-[#8E8A83]">›</span>
-                      <span className="truncate max-w-[200px]">{categoryName}</span>
+                    <div className="flex-1 min-w-0">
+                      {/* Type and Category Badges (Clean, no fake URLs) */}
+                      <div className="flex items-center gap-2 text-xs mb-1.5 font-cairo">
+                        <span className="px-2 py-0.5 rounded-md bg-[#4A5D4E]/10 text-[#4A5D4E] font-bold text-[11px]">
+                          {typeLabel}
+                        </span>
+                        <span className="text-[#8E8A83] text-xs">•</span>
+                        <span className="text-[#6E6A64] font-medium text-xs truncate max-w-[220px]">
+                          {categoryName}
+                        </span>
+                      </div>
+
+                      {/* Result Title Link (Google Blue) */}
+                      <h2 className="text-lg sm:text-xl font-bold font-amiri leading-snug mb-1.5">
+                        <button
+                          type="button"
+                          onClick={() => handleResultClick(item)}
+                          className="text-[#1a0dab] hover:underline text-right group-hover:text-[#174ea6] transition-colors cursor-pointer"
+                        >
+                          {item.title}
+                        </button>
+                      </h2>
+
+                      {/* Excerpt / Snippet */}
+                      <p className="text-sm text-[#4d5156] leading-relaxed line-clamp-2 sm:line-clamp-3 mb-2 font-cairo">
+                        {highlightMatch(item.snippet || item.subtitle || '', searchQuery)}
+                      </p>
+
+                      {/* Meta info tags */}
+                      <div className="flex items-center gap-3 text-[11px] text-[#70757a]">
+                        {item.author && (
+                          <span>الكاتب: {item.author}</span>
+                        )}
+                        {item.readingTimeMinutes && (
+                          <span>• {item.readingTimeMinutes} دقيقة قراءة</span>
+                        )}
+                        {item.chaptersCount && item.type === 'book' && (
+                          <span>• {item.chaptersCount} فصول</span>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Result Title Link (Google Blue) */}
-                    <h2 className="text-lg sm:text-xl font-bold font-amiri leading-snug mb-1.5">
-                      <button
-                        type="button"
-                        onClick={() => handleResultClick(item)}
-                        className="text-[#1a0dab] hover:underline text-right group-hover:text-[#174ea6] transition-colors cursor-pointer"
-                      >
-                        {item.title}
-                      </button>
-                    </h2>
-
-                    {/* Excerpt / Snippet */}
-                    <p className="text-sm text-[#4d5156] leading-relaxed line-clamp-2 sm:line-clamp-3 mb-2 font-cairo">
-                      {highlightMatch(item.snippet || item.subtitle || '', searchQuery)}
-                    </p>
-
-                    {/* Meta info tags */}
-                    <div className="flex items-center gap-3 text-[11px] text-[#70757a]">
-                      {item.author && (
-                        <span>الكاتب: {item.author}</span>
-                      )}
-                      {item.readingTimeMinutes && (
-                        <span>• {item.readingTimeMinutes} دقيقة قراءة</span>
-                      )}
-                      {item.chaptersCount && item.type === 'book' && (
-                        <span>• {item.chaptersCount} فصول</span>
-                      )}
-                    </div>
+                    {/* Image Thumbnail with Click-to-Magnify to Full Screen */}
+                    {coverImg && (
+                      <div className="relative group/thumb shrink-0 self-center sm:self-start">
+                        <img
+                          src={coverImg}
+                          alt={item.title}
+                          className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-xl shadow-2xs border border-[#E5E2D9] group-hover/thumb:brightness-90 transition-all cursor-pointer"
+                          onClick={() =>
+                            setLightboxImg({
+                              url: coverImg,
+                              title: item.title,
+                              author: item.author,
+                              caption: item.subtitle || item.snippet,
+                            })
+                          }
+                        />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setLightboxImg({
+                              url: coverImg,
+                              title: item.title,
+                              author: item.author,
+                              caption: item.subtitle || item.snippet,
+                            })
+                          }
+                          className="absolute inset-0 m-auto w-8 h-8 rounded-full bg-black/75 hover:bg-[#4A5D4E] text-white flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-all cursor-pointer shadow-lg"
+                          title="تكبير صورة البحث حتى تملأ لوحة التحكم والشاشة بأكملها"
+                        >
+                          <Maximize2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </article>
                 );
               })}
@@ -536,6 +601,16 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
             </div>
           )}
         </main>
+
+        {/* Image Lightbox Modal */}
+        <ImageLightboxModal
+          isOpen={Boolean(lightboxImg)}
+          onClose={() => setLightboxImg(null)}
+          imageUrl={lightboxImg?.url || ''}
+          title={lightboxImg?.title}
+          author={lightboxImg?.author}
+          caption={lightboxImg?.caption}
+        />
       </div>
     );
   }
@@ -574,6 +649,19 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
             <Book className="w-3.5 h-3.5 text-[#8C5D0B]" />
             <span>+ إضافة فصل كتاب جديد</span>
           </button>
+
+          {onOpenAuthorPortal && (
+            <button
+              type="button"
+              id="home-author-portal-btn"
+              onClick={onOpenAuthorPortal}
+              className="px-3.5 py-1.5 rounded-xl bg-[#FAF8F2] hover:bg-[#F0ECE1] text-[#2C2C2C] border border-[#E5E2D9] text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs hover:shadow-xs"
+              title="بوابة الكتّاب والمؤلفين - تسجيل الدخول ونشر المؤلفات"
+            >
+              <Feather className="w-3.5 h-3.5 text-[#C88A3B]" />
+              <span>بوابة الكتّاب</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -695,6 +783,16 @@ export const SearchKnowledgeEngine: React.FC<SearchKnowledgeEngineProps> = ({
           )}
         </div>
       </footer>
+
+      {/* Image Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={Boolean(lightboxImg)}
+        onClose={() => setLightboxImg(null)}
+        imageUrl={lightboxImg?.url || ''}
+        title={lightboxImg?.title}
+        author={lightboxImg?.author}
+        caption={lightboxImg?.caption}
+      />
     </div>
   );
 };

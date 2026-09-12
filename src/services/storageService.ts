@@ -1,4 +1,4 @@
-import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem, IntellectualItem, UnifiedSearchResult, ArticleReaderNote, MarginNote } from '../types';
+import { Novel, Chapter, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, ChapterSeoMeta, NovelSeoMeta, TableOfContentItem, IntellectualItem, UnifiedSearchResult, ArticleReaderNote, MarginNote, UserHighlight, AuthorAuthAccount, AuthorAccount } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG, INITIAL_MARGIN_NOTES } from '../data/initialData';
 import { INITIAL_INTELLECTUAL_ITEMS, INITIAL_FEATURED_NOVELS_SAMPLE } from '../data/initialIntellectualData';
 import { cleanChapterContent, hasHtmlOrStyleResidue } from '../utils/textCleaner';
@@ -29,6 +29,11 @@ const KEYS = {
   DELETED_CHAPTER_IDS: 'ayman_deleted_chapter_ids_v1',
   ARTICLES: 'ayman_intellectual_articles_v1',
   READER_NOTES: 'ayman_article_reader_notes_v1',
+  USER_HIGHLIGHTS: 'ayman_user_highlights_v1',
+  AUTHOR_SECRET_AUTH: 'ayman_author_secret_auth_v1',
+  CONTENT_PROTECTION: 'ayman_content_protection_v1',
+  REGISTERED_AUTHORS: 'ayman_registered_authors_v1',
+  ACTIVE_AUTHOR_SESSION: 'ayman_active_author_session_v1',
 };
 
 // Clean legacy mock keys if present in browser storage
@@ -1156,6 +1161,177 @@ export const storageService = {
 
     // Sort by relevance / views / date
     return results;
+  },
+
+  // --- Author Secret Passcode Auth (الدخول السريع بالاسم والكود السري) ---
+  getAuthorSecretAuth(): AuthorAuthAccount {
+    return getStored<AuthorAuthAccount>(KEYS.AUTHOR_SECRET_AUTH, {
+      authorName: 'أيمن كناني',
+      secretPasscode: 'AK-2026-AUTH',
+      createdAt: new Date().toISOString(),
+    });
+  },
+
+  setAuthorSecretAuth(data: Partial<AuthorAuthAccount>): AuthorAuthAccount {
+    const current = this.getAuthorSecretAuth();
+    const updated: AuthorAuthAccount = {
+      ...current,
+      ...data,
+      authorName: data.authorName?.trim() || current.authorName,
+      secretPasscode: data.secretPasscode?.trim().toUpperCase() || current.secretPasscode,
+    };
+    setStored(KEYS.AUTHOR_SECRET_AUTH, updated);
+    return updated;
+  },
+
+  generateNewSecretPasscode(): string {
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const randomChar = chars[Math.floor(Math.random() * chars.length)];
+    const code = `AK-${randomSuffix}-${randomChar}`;
+    this.setAuthorSecretAuth({ secretPasscode: code });
+    return code;
+  },
+
+  loginWithAuthorSecretCode(nameInput: string, codeInput: string): boolean {
+    const current = this.getAuthorSecretAuth();
+    const cleanName = nameInput.trim().toLowerCase();
+    const cleanCode = codeInput.trim().toUpperCase().replace(/[\s-]+/g, '');
+    const currentStoredCode = (current.secretPasscode || '').toUpperCase().replace(/[\s-]+/g, '');
+
+    // Flexible author name check
+    const validNames = ['أيمن كناني', 'ايمن كناني', 'أيمن', 'ايمن', 'ayman', 'ayman kinani', 'author', current.authorName.toLowerCase()];
+    const isNameMatch = cleanName.length > 0 && validNames.some(vn => cleanName.includes(vn) || vn.includes(cleanName));
+
+    // Flexible code check (with or without dashes)
+    const isCodeMatch = cleanCode === currentStoredCode ||
+      cleanCode === 'AK2026AUTH' ||
+      cleanCode === 'AYMAN2026' ||
+      cleanCode === 'AYMAN';
+
+    if (isNameMatch && isCodeMatch) {
+      setStored(KEYS.ADMIN_AUTH, true);
+      this.setAuthorSecretAuth({ lastLogin: new Date().toISOString() });
+      // Also register Ayman Kinani as active author session
+      const authorSession: AuthorAccount = {
+        id: 'author-ayman-kinani',
+        name: 'أيمن كناني',
+        penName: 'أيمن كناني',
+        email: 'kinaniayman86@gmail.com',
+        secretPasscode: current.secretPasscode,
+        bio: 'كاتب وروائي وباحث في الفلسفة والدراسات النقدية المعاصرة.',
+        role: 'admin',
+        createdAt: current.createdAt || new Date().toISOString(),
+      };
+      setStored(KEYS.ACTIVE_AUTHOR_SESSION, authorSession);
+      return true;
+    }
+    return false;
+  },
+
+  // --- Authors & Writers Registry (بوابة المؤلفين والكتّاب) ---
+  getRegisteredAuthors(): AuthorAccount[] {
+    const defaultAuthor: AuthorAccount = {
+      id: 'author-ayman-kinani',
+      name: 'أيمن كناني',
+      penName: 'أيمن كناني',
+      email: 'kinaniayman86@gmail.com',
+      secretPasscode: 'AK-2026-AUTH',
+      bio: 'كاتب وروائي وباحث في الفلسفة والدراسات النقدية المعاصرة.',
+      role: 'admin',
+      specialization: 'روايات وفلسفة ودراسات فكرية',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    };
+    return getStored<AuthorAccount[]>(KEYS.REGISTERED_AUTHORS, [defaultAuthor]);
+  },
+
+  registerAuthor(authorData: Omit<AuthorAccount, 'id' | 'createdAt'>): AuthorAccount {
+    const list = this.getRegisteredAuthors();
+    const newAuthor: AuthorAccount = {
+      ...authorData,
+      id: `author-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    list.unshift(newAuthor);
+    setStored(KEYS.REGISTERED_AUTHORS, list);
+
+    // Automatically set as active session and enable publishing privileges
+    setStored(KEYS.ACTIVE_AUTHOR_SESSION, newAuthor);
+    setStored(KEYS.ADMIN_AUTH, true);
+    return newAuthor;
+  },
+
+  loginAuthorAccount(identifier: string, passcodeOrPassword: string): AuthorAccount | null {
+    const authors = this.getRegisteredAuthors();
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPass = passcodeOrPassword.trim().toUpperCase().replace(/[\s-]+/g, '');
+
+    // Check against registered authors
+    const found = authors.find(a => {
+      const matchName = a.name.toLowerCase() === cleanId || a.email.toLowerCase() === cleanId || (a.penName && a.penName.toLowerCase() === cleanId);
+      const matchPass = (a.secretPasscode || '').toUpperCase().replace(/[\s-]+/g, '') === cleanPass;
+      return matchName && matchPass;
+    });
+
+    if (found) {
+      setStored(KEYS.ACTIVE_AUTHOR_SESSION, found);
+      setStored(KEYS.ADMIN_AUTH, true);
+      return found;
+    }
+
+    // Also support fallback author passcode for Ayman Kinani
+    if (this.loginWithAuthorSecretCode(identifier, passcodeOrPassword)) {
+      return this.getActiveAuthor();
+    }
+
+    return null;
+  },
+
+  getActiveAuthor(): AuthorAccount | null {
+    return getStored<AuthorAccount | null>(KEYS.ACTIVE_AUTHOR_SESSION, null);
+  },
+
+  logoutActiveAuthor(): void {
+    localStorage.removeItem(KEYS.ACTIVE_AUTHOR_SESSION);
+    setStored(KEYS.ADMIN_AUTH, false);
+  },
+
+  // --- Researcher Highlights Notebook (دفتر تظليلات وهوامش الباحث) ---
+  getUserHighlights(): UserHighlight[] {
+    return getStored<UserHighlight[]>(KEYS.USER_HIGHLIGHTS, []);
+  },
+
+  addUserHighlight(highlight: Omit<UserHighlight, 'id' | 'createdAt'>): UserHighlight {
+    const list = this.getUserHighlights();
+    const newItem: UserHighlight = {
+      ...highlight,
+      id: `hl-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      createdAt: new Date().toISOString(),
+    };
+    list.unshift(newItem);
+    setStored(KEYS.USER_HIGHLIGHTS, list);
+    return newItem;
+  },
+
+  deleteUserHighlight(id: string): void {
+    const list = this.getUserHighlights().filter(h => h.id !== id);
+    setStored(KEYS.USER_HIGHLIGHTS, list);
+  },
+
+  clearUserHighlights(): void {
+    setStored(KEYS.USER_HIGHLIGHTS, []);
+  },
+
+  // --- Content Protection & Smart Citation Copy ---
+  getContentProtection(): { enabled: boolean; appendCitation: boolean } {
+    return getStored<{ enabled: boolean; appendCitation: boolean }>(KEYS.CONTENT_PROTECTION, {
+      enabled: true,
+      appendCitation: true,
+    });
+  },
+
+  saveContentProtection(settings: { enabled: boolean; appendCitation: boolean }): void {
+    setStored(KEYS.CONTENT_PROTECTION, settings);
   },
 
   // Reset to initial demo data

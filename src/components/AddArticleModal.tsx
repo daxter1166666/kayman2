@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   X,
   FileText,
@@ -8,14 +8,20 @@ import {
   Eye,
   Plus,
   Trash2,
-  HelpCircle,
   Sparkles,
   CheckCircle2,
   Quote,
-  Hash,
-  ListOrdered
+  ListOrdered,
+  Globe,
+  CornerUpLeft,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
-import { IntellectualItem, MultilingualAbstract } from '../types';
+import { IntellectualItem, MultilingualAbstract, NovelSeoMeta, ParallelSegment } from '../types';
+import { ScholarlyIntegratedEditor } from './RichTextEditor/ScholarlyIntegratedEditor';
+import { ArticleSeoStudio } from './ArticleSeoStudio';
+import { BilingualReaderView } from './BilingualReaderView';
+import { storageService } from '../services/storageService';
 
 interface AddArticleModalProps {
   isOpen: boolean;
@@ -39,9 +45,10 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
   onClose,
   onArticleCreated,
 }) => {
-  const [activeTab, setActiveTab] = useState<'editor' | 'preview'>('editor');
+  // Modes: 'editor' (single large canvas), 'seo' (SEO studio), 'preview' (full article preview)
+  const [activeTab, setActiveTab] = useState<'editor' | 'seo' | 'preview'>('editor');
 
-  // Form State
+  // Core Form State
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [author, setAuthor] = useState('');
@@ -49,13 +56,28 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [tagsInput, setTagsInput] = useState('');
   const [content, setContent] = useState('');
+  const [headerColorStrip, setHeaderColorStrip] = useState<string>('emerald');
 
-  // Translation specific
-  const [originalAuthor, setOriginalAuthor] = useState('');
+  // English / Parallel Translation State (خامسا: إمكانية إضافة ترجمة للموضوع)
+  const [showTranslation, setShowTranslation] = useState<boolean>(false);
+  const [translatedTitle, setTranslatedTitle] = useState('');
+  const [translatedLanguage, setTranslatedLanguage] = useState('English');
   const [translator, setTranslator] = useState('');
-  const [originalLanguage, setOriginalLanguage] = useState('');
+  const [translatedContent, setTranslatedContent] = useState('');
+  const [originalAuthor, setOriginalAuthor] = useState('');
+  const [originalLanguage, setOriginalLanguage] = useState('العربية');
   const [originalSource, setOriginalSource] = useState('');
   const [originalYear, setOriginalYear] = useState('');
+
+  // Article SEO State
+  const [seo, setSeo] = useState<NovelSeoMeta>({
+    metaTitle: '',
+    metaDescription: '',
+    focusKeywords: '',
+    canonicalUrl: '',
+    ogImage: '',
+    noIndex: false,
+  });
 
   // Multilingual Abstract
   const [abstractAr, setAbstractAr] = useState('');
@@ -72,10 +94,27 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
   const [coverImageUrl, setCoverImageUrl] = useState('');
   const [submitError, setSubmitError] = useState<string | null>(null);
 
+  // Auto pre-fill author name from session
+  useEffect(() => {
+    if (isOpen) {
+      const active = storageService.getActiveAuthor();
+      if (active?.name) {
+        setAuthor(active.name);
+        if (!translator) setTranslator(active.name);
+      } else {
+        const secretAuth = storageService.getAuthorSecretAuth();
+        const fallbackName = secretAuth.authorName || 'أيمن كناني';
+        setAuthor(fallbackName);
+        if (!translator) setTranslator(fallbackName);
+      }
+    }
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
   // Words & reading time calculation
-  const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
+  const cleanRawText = content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+  const wordCount = cleanRawText ? cleanRawText.split(/\s+/).length : 0;
   const readingTimeMinutes = Math.max(1, Math.ceil(wordCount / 180));
 
   const handleAddReference = () => {
@@ -113,12 +152,43 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
     setFootnotes(prev => prev.filter((_, i) => i !== index));
   };
 
-  const insertCitationTag = (num: number) => {
-    setContent(prev => prev + ` [${num}] `);
-  };
+  // Auto-generate parallel segments from Arabic and English text
+  const generateAlignedSegments = (): ParallelSegment[] => {
+    const cleanParas = (raw: string): string[] => {
+      if (!raw) return [];
+      if (/<(p|div|h[1-6]|blockquote|li)[\s>]/i.test(raw)) {
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = raw;
+        const blocks = tempDiv.querySelectorAll('p, h1, h2, h3, h4, h5, h6, blockquote, li');
+        if (blocks.length > 0) {
+          const res: string[] = [];
+          blocks.forEach(b => {
+            const txt = b.textContent?.trim();
+            if (txt && txt.length > 0) res.push(txt);
+          });
+          return res;
+        }
+        return [tempDiv.textContent?.trim() || ''].filter(Boolean);
+      }
+      return raw
+        .split('\n\n')
+        .map(p => p.trim())
+        .filter(p => p.length > 0 && !p.startsWith('#') && !p.startsWith('---'));
+    };
 
-  const insertHeadingTag = () => {
-    setContent(prev => prev + '\n\n## عنوان القسم الجديد\n');
+    const transParas = cleanParas(content);
+    const origParas = cleanParas(translatedContent);
+    const maxLen = Math.max(origParas.length, transParas.length);
+    const res: ParallelSegment[] = [];
+
+    for (let i = 0; i < maxLen; i++) {
+      res.push({
+        id: `parallel-seg-${i}`,
+        originalText: origParas[i] || '—',
+        translatedText: transParas[i] || '—',
+      });
+    }
+    return res;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -126,51 +196,46 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
     setSubmitError(null);
 
     if (!title.trim()) {
-      setSubmitError('يرجى كتابة عنوان المقال أو الدراسة.');
+      setSubmitError('يرجى كتابة عنوان المقال.');
       return;
     }
 
-    if (!author.trim()) {
-      setSubmitError('يرجى تحديد اسم الكاتب أو الباحث المشارك.');
+    if (!content.trim()) {
+      setSubmitError('يرجى كتابة محتوى المقال في المساحة المخصصة.');
       return;
     }
-
-    if (!content.trim() || content.trim().length < 80) {
-      setSubmitError('يرجى كتابة نص كافٍ للمقال (على الأقل بضعة أسطر مفيدة).');
-      return;
-    }
-
-    const cleanReferences = references.map(r => r.trim()).filter(Boolean);
-    const cleanFootnotes = footnotes
-      .filter(f => f.text.trim())
-      .map((f, idx) => ({ id: idx + 1, text: f.text.trim() }));
 
     const tags = tagsInput
       .split(/[,،]/)
       .map(t => t.trim())
-      .filter(Boolean);
+      .filter(t => t.length > 0);
+
+    const cleanReferences = references.map(r => r.trim()).filter(Boolean);
+    const cleanFootnotes = footnotes.filter(f => f.text.trim().length > 0);
 
     const multilingualAbstract: MultilingualAbstract = {};
     if (abstractAr.trim()) multilingualAbstract.ar = abstractAr.trim();
     if (abstractEn.trim()) multilingualAbstract.en = abstractEn.trim();
     if (abstractFr.trim()) multilingualAbstract.fr = abstractFr.trim();
 
-    const slug = title
-      .trim()
-      .toLowerCase()
-      .replace(/[^\u0621-\u064A\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .slice(0, 50);
+    // Auto align parallel segments if translation exists
+    const hasTranslationData = Boolean(translatedContent.trim() || translatedTitle.trim());
+    const parallelSegments = hasTranslationData ? generateAlignedSegments() : undefined;
 
     const newArticleData: Omit<IntellectualItem, 'id' | 'views' | 'likes' | 'publishedAt'> = {
       title: title.trim(),
       subtitle: subtitle.trim() || undefined,
-      slug: `${slug}-${Date.now().toString().slice(-4)}`,
-      type,
+      slug: title.trim().toLowerCase().replace(/[\s/\\#?]+/g, '-').slice(0, 80) + '-' + Date.now().toString().slice(-4),
+      type: hasTranslationData ? 'translated_article' : type,
       author: author.trim(),
       originalAuthor: originalAuthor.trim() || undefined,
-      translator: translator.trim() || undefined,
-      originalLanguage: originalLanguage.trim() || undefined,
+      translator: translator.trim() || (hasTranslationData ? author.trim() : undefined),
+      originalLanguage: originalLanguage.trim() || 'العربية',
+      translatedLanguage: hasTranslationData ? translatedLanguage.trim() : undefined,
+      translatedTitle: translatedTitle.trim() || undefined,
+      translatedContent: translatedContent.trim() || undefined,
+      originalContent: translatedContent.trim() || undefined,
+      parallelSegments: parallelSegments && parallelSegments.length > 0 ? parallelSegments : undefined,
       originalSource: originalSource.trim() || undefined,
       originalYear: originalYear.trim() || undefined,
       abstract: abstractAr.trim() || undefined,
@@ -184,70 +249,86 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
       footnotes: cleanFootnotes.length > 0 ? cleanFootnotes : undefined,
       coverImage: coverImageUrl.trim() || undefined,
       isReaderContribution: true,
+      headerColorStrip: headerColorStrip || 'emerald',
+      seo: seo?.metaTitle || seo?.metaDescription ? seo : undefined,
     };
 
     try {
-      // Direct call to onArticleCreated
-      const fakeArticle: IntellectualItem = {
-        ...newArticleData,
-        id: `intellectual-${Date.now()}`,
-        views: 1,
-        likes: 1,
-        publishedAt: new Date().toISOString().split('T')[0],
-      };
-      onArticleCreated(fakeArticle);
+      const created = storageService.addArticle(newArticleData);
+      onArticleCreated(created);
       onClose();
-    } catch (err: any) {
+    } catch {
       setSubmitError('حدث خطأ أثناء حفظ المقال، يرجى المحاولة ثانية.');
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-[#2C2C2C]/50 backdrop-blur-xs font-cairo">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-[#2C2C2C]/50 backdrop-blur-xs font-cairo">
       <div
         id="add-article-modal-container"
-        className="bg-[#FDFCF8] border border-[#E5E2D9] rounded-3xl w-full max-w-4xl max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+        className="bg-[#FDFCF8] border border-[#E5E2D9] rounded-3xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden"
       >
         {/* Modal Header */}
-        <div className="p-4 sm:p-6 border-b border-[#E5E2D9] bg-[#F7F5EE] flex items-center justify-between gap-4 shrink-0">
+        <div className="p-3 sm:p-5 border-b border-[#E5E2D9] bg-[#F7F5EE] flex flex-wrap items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-[#4A5D4E] text-[#FDFCF8] flex items-center justify-center shadow-xs">
               <FileText className="w-5 h-5" />
             </div>
             <div>
               <h2 className="font-amiri font-bold text-lg sm:text-2xl text-[#2C2C2C]">
-                إضافة مقال أو دراسة من القراء
+                كتابة ونشر مقال جديد
               </h2>
               <p className="text-xs text-[#6E6A64]">
-                شارك مقالاتك وأبحاثك الأدبية والفكرية ليقرأها الجميع في الموسوعة
+                مساحة كتابة واسعة متكاملة تدعم التنسيق الفوري، السيو، والترجمة المزدوجة المتزامنة
               </p>
             </div>
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="hidden sm:flex rounded-xl bg-[#FDFCF8] p-1 border border-[#E5E2D9]">
+            {/* Action Tabs: Edit, Preview, SEO */}
+            <div className="flex rounded-xl bg-[#FDFCF8] p-1 border border-[#E5E2D9]">
               <button
                 type="button"
+                id="tab-btn-editor"
                 onClick={() => setActiveTab('editor')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'editor'
                     ? 'bg-[#4A5D4E] text-[#FDFCF8]'
                     : 'text-[#6E6A64] hover:text-[#2C2C2C]'
                 }`}
               >
-                التحرير والكتابة
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>الكتابة والتحرير</span>
               </button>
+
+              {/* Dedicated Preview Toggle Button */}
               <button
                 type="button"
+                id="tab-btn-preview"
                 onClick={() => setActiveTab('preview')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
                   activeTab === 'preview'
                     ? 'bg-[#4A5D4E] text-[#FDFCF8]'
                     : 'text-[#6E6A64] hover:text-[#2C2C2C]'
                 }`}
+                title="معاينة المقال بكامل مساحة الشاشة"
               >
                 <Eye className="w-3.5 h-3.5" />
                 <span>معاينة المقال</span>
+              </button>
+
+              <button
+                type="button"
+                id="tab-btn-seo"
+                onClick={() => setActiveTab('seo')}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  activeTab === 'seo'
+                    ? 'bg-[#4A5D4E] text-[#FDFCF8]'
+                    : 'text-[#6E6A64] hover:text-[#2C2C2C]'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5" />
+                <span>تهيئة السيو (SEO)</span>
               </button>
             </div>
 
@@ -272,16 +353,61 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
             </div>
           )}
 
-          {activeTab === 'preview' ? (
-            /* Live Preview Mode */
-            <div className="space-y-6 p-4 rounded-2xl border border-[#E5E2D9] bg-[#FFFFFF]">
+          {activeTab === 'seo' ? (
+            /* SEO Studio Tab */
+            <div className="space-y-4">
+              <ArticleSeoStudio
+                articleTitle={title}
+                articleSubtitle={subtitle}
+                articleContent={content}
+                articleCategory={category}
+                articleAuthor={author}
+                seo={seo}
+                onChange={setSeo}
+              />
+              <div className="flex justify-end pt-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('editor')}
+                  className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <CornerUpLeft className="w-4 h-4" />
+                  <span>العودة لمساحة الكتابة</span>
+                </button>
+              </div>
+            </div>
+          ) : activeTab === 'preview' ? (
+            /* FULL PREVIEW MODE (Single Expansive Preview Canvas) */
+            <div className="space-y-6 p-4 sm:p-6 rounded-2xl border border-[#E5E2D9] bg-[#FFFFFF]">
+              <div className="flex items-center justify-between pb-3 border-b border-[#E5E2D9]">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-bold text-[#4A5D4E] flex items-center gap-1.5">
+                    <Eye className="w-4 h-4" />
+                    <span>معاينة المقال الكاملة قبل النشر</span>
+                  </span>
+                  {translatedContent && (
+                    <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[11px] font-bold">
+                      يتضمن ترجمة إنجليزية متزامنة
+                    </span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('editor')}
+                  className="px-4 py-2 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold transition-all cursor-pointer shadow-xs flex items-center gap-1.5"
+                >
+                  <CornerUpLeft className="w-3.5 h-3.5" />
+                  <span>العودة لمتابعة الكتابة</span>
+                </button>
+              </div>
+
+              {/* Header Title Section */}
               <div className="text-center pb-6 border-b border-[#E5E2D9]">
                 <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#4A5D4E]/15 text-[#2D4532] text-xs font-bold mb-3">
                   <span>{category}</span>
                   <span>·</span>
-                  <span>
-                    {type === 'study' ? 'دراسة أكاديمية' : type === 'translated_article' ? 'مقال مترجم' : 'مقال فكري'}
-                  </span>
+                  <span>{translatedContent ? 'مقال ثنائي اللغة (مترجم)' : 'مقال فكري'}</span>
                 </div>
                 <h1 className="font-amiri font-bold text-2xl sm:text-3xl text-[#2C2C2C] mb-2">
                   {title || 'عنوان المقال التجريبي'}
@@ -289,8 +415,13 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                 {subtitle && (
                   <p className="text-sm font-amiri text-[#6E6A64] mb-3">{subtitle}</p>
                 )}
+                {translatedTitle && (
+                  <p className="text-sm font-serif text-blue-900 mb-3" dir="ltr">
+                    {translatedTitle}
+                  </p>
+                )}
                 <div className="flex items-center justify-center gap-3 text-xs text-[#6E6A64]">
-                  <span>بقلم: <strong className="text-[#2C2C2C]">{author || 'اسم القارئ الباحث'}</strong></span>
+                  <span>بقلم: <strong className="text-[#2C2C2C]">{author || 'اسم الكاتب'}</strong></span>
                   <span>·</span>
                   <span>{wordCount} كلمة</span>
                   <span>·</span>
@@ -298,16 +429,49 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                 </div>
               </div>
 
-              {abstractAr && (
-                <div className="p-4 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9]">
-                  <h4 className="text-xs font-bold text-[#4A5D4E] mb-1">ملخص المقال:</h4>
-                  <p className="text-xs leading-relaxed text-[#2C2C2C]">{abstractAr}</p>
-                </div>
-              )}
+              {/* If translation exists, show interactive bilingual reader view in preview */}
+              {translatedContent ? (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-blue-900 text-xs font-bold flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-blue-600" />
+                      <span>معاينة القراءة المزدوجة (مرر الفأرة على النص العربي لمشاهدة شريط الترجمة الإنجليزية):</span>
+                    </span>
+                  </div>
 
-              <div className="prose prose-stone max-w-none text-sm leading-relaxed text-[#2C2C2C] whitespace-pre-line font-amiri">
-                {content || 'لا يوجد محتوى مكتوب بعد. اضغط على تبويب "التحرير والكتابة" لإضافة محتوى المقال.'}
-              </div>
+                  <BilingualReaderView
+                    article={{
+                      id: 'preview-article',
+                      title: title || 'المقال',
+                      slug: 'preview',
+                      type: 'translated_article',
+                      author: author || 'المؤلف',
+                      category: category,
+                      tags: [],
+                      readingTimeMinutes,
+                      wordCount,
+                      views: 0,
+                      likes: 0,
+                      publishedAt: new Date().toISOString(),
+                      content: content,
+                      originalContent: translatedContent,
+                      originalLanguage: originalLanguage || 'العربية',
+                      parallelSegments: generateAlignedSegments(),
+                    }}
+                    fontSize={18}
+                    theme="paper"
+                    marginNotes={[]}
+                    onOpenAddMarginModal={() => {}}
+                    onOpenMarginPopover={() => {}}
+                  />
+                </div>
+              ) : (
+                /* Standard Single Canvas Article Content */
+                <div
+                  className="max-w-3xl mx-auto space-y-4 text-justify font-amiri leading-loose text-base sm:text-lg text-[#2C2C2C]"
+                  dangerouslySetInnerHTML={{ __html: content || '<p class="text-stone-400 italic">لا يوجد محتوى مكتوب بعد...</p>' }}
+                />
+              )}
 
               {references.filter(Boolean).length > 0 && (
                 <div className="pt-4 border-t border-[#E5E2D9]">
@@ -321,9 +485,9 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
               )}
             </div>
           ) : (
-            /* Editor Form Mode */
+            /* SINGLE-CANVAS EXPANSIVE WRITING MODE (جهة واحدة كبيرة للكتابة بدون تقسيم الشاشة) */
             <form id="reader-article-form" onSubmit={handleSubmit} className="space-y-6">
-              {/* 1. Core Metadata */}
+              {/* 1. Core Metadata Row */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
@@ -332,7 +496,7 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                   <input
                     type="text"
                     id="new-article-title-input"
-                    placeholder="مثلاً: فلسفة اللغة والرمز عند فلاسفة الأندلس..."
+                    placeholder="مثلاً: فلسفة المعنى وتأويل النص عند فلاسفة الأندلس..."
                     value={title}
                     onChange={e => setTitle(e.target.value)}
                     required
@@ -340,14 +504,14 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                   />
                 </div>
 
-                <div className="sm:col-span-2">
+                <div>
                   <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
                     العنوان الفرعي أو التوضيحي (اختياري)
                   </label>
                   <input
                     type="text"
                     id="new-article-subtitle-input"
-                    placeholder="مثلاً: قراءة تحليلية في المنهج والتأويل"
+                    placeholder="مثلاً: قراءة في البناء المفاهيمي والنقدي"
                     value={subtitle}
                     onChange={e => setSubtitle(e.target.value)}
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
@@ -356,33 +520,17 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
 
                 <div>
                   <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
-                    اسم الكاتب / الباحث القارئ <span className="text-rose-500">*</span>
+                    اسم الكاتب / الباحث <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     id="new-article-author-input"
-                    placeholder="اسمك الكامل أو اسمك المستعار"
+                    placeholder="اسمك الكامل"
                     value={author}
                     onChange={e => setAuthor(e.target.value)}
                     required
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
                   />
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
-                    نوع المحتوى
-                  </label>
-                  <select
-                    id="new-article-type-select"
-                    value={type}
-                    onChange={e => setType(e.target.value as any)}
-                    className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
-                  >
-                    <option value="article">مقال فكري وأدبي</option>
-                    <option value="study">دراسة أكاديمية وبحث</option>
-                    <option value="translated_article">مقال أو نص مترجم</option>
-                  </select>
                 </div>
 
                 <div>
@@ -415,151 +563,117 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                 </div>
               </div>
 
-              {/* Translation Fields if translated_article */}
-              {type === 'translated_article' && (
-                <div className="p-4 rounded-2xl bg-[#F7F5EE] border border-[#E5E2D9] space-y-3">
-                  <h4 className="text-xs font-bold text-[#4A5D4E] flex items-center gap-1.5">
-                    <Languages className="w-4 h-4" />
-                    <span>بيانات الترجمة والمؤلف الأصلي</span>
-                  </h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[11px] font-bold block mb-1">المؤلف الأصلي</label>
-                      <input
-                        type="text"
-                        placeholder="مثال: يورغن هابرماس"
-                        value={originalAuthor}
-                        onChange={e => setOriginalAuthor(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#E5E2D9] bg-[#FFFFFF]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold block mb-1">اسم المترجم</label>
-                      <input
-                        type="text"
-                        placeholder="اسم المترجم"
-                        value={translator}
-                        onChange={e => setTranslator(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#E5E2D9] bg-[#FFFFFF]"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-[11px] font-bold block mb-1">اللغة الأصلية</label>
-                      <input
-                        type="text"
-                        placeholder="الألمانية، الإنجليزية..."
-                        value={originalLanguage}
-                        onChange={e => setOriginalLanguage(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs rounded-lg border border-[#E5E2D9] bg-[#FFFFFF]"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* 2. Multilingual Abstract */}
-              <div className="space-y-3">
+              {/* 2. DEDICATED FULL-WIDTH WRITING CANVAS (جهة واحدة كبيرة لكتابة المقالة) */}
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1.5">
-                    <Languages className="w-4 h-4 text-[#4A5D4E]" />
-                    <span>ملخص المقال / البحث (Multilingual Abstract)</span>
+                    <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
+                    <span>مساحة كتابة المقال (محرر متقدم مدمج يطبق التنسيق في الوقت الفعلي) <span className="text-rose-500">*</span></span>
                   </label>
-                  <span className="text-[11px] text-[#6E6A64]">
-                    يدعم العرض بثلاث لغات لتسهيل الوصول الأكاديمي
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('preview')}
+                    className="text-xs font-bold text-[#4A5D4E] hover:underline flex items-center gap-1 cursor-pointer"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>معاينة المقال كاملاً</span>
+                  </button>
                 </div>
 
-                <div className="space-y-2">
-                  <div>
-                    <span className="text-[11px] font-semibold text-[#4A5D4E] block mb-1">
-                      الملخص باللغة العربية (أساسي):
-                    </span>
-                    <textarea
-                      rows={2}
-                      id="abstract-ar-input"
-                      placeholder="مستخلص مركز في سطرين إلى ثلاثة أسطر يوضح أطروحة المقال وأهم نتائجه..."
-                      value={abstractAr}
-                      onChange={e => setAbstractAr(e.target.value)}
-                      className="w-full p-3 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-                    <div>
-                      <span className="text-[11px] font-semibold text-[#6E6A64] block mb-1">
-                        Abstract in English (Optional):
-                      </span>
-                      <textarea
-                        rows={2}
-                        dir="ltr"
-                        id="abstract-en-input"
-                        placeholder="Brief summary in English..."
-                        value={abstractEn}
-                        onChange={e => setAbstractEn(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 text-[#2C2C2C]"
-                      />
-                    </div>
-                    <div>
-                      <span className="text-[11px] font-semibold text-[#6E6A64] block mb-1">
-                        Résumé en Français (Facultatif):
-                      </span>
-                      <textarea
-                        rows={2}
-                        dir="ltr"
-                        id="abstract-fr-input"
-                        placeholder="Court résumé en français..."
-                        value={abstractFr}
-                        onChange={e => setAbstractFr(e.target.value)}
-                        className="w-full p-2.5 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 text-[#2C2C2C]"
-                      />
-                    </div>
-                  </div>
-                </div>
+                <ScholarlyIntegratedEditor
+                  id="new-article-content-wysiwyg"
+                  value={content}
+                  onChange={setContent}
+                  required
+                  minHeight="380px"
+                  headerColorStrip={headerColorStrip}
+                  onHeaderColorStripChange={setHeaderColorStrip}
+                  placeholder="ابدأ بكتابة نص المقال أو الدراسة هنا مباشرة... التنسيقات والخطوط والشريط الملون تطبق فورياً على النص في الوقت الفعلي."
+                />
               </div>
 
-              {/* 3. Full Content */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1.5">
-                    <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
-                    <span>محتوى المقال الكامل <span className="text-rose-500">*</span></span>
-                  </label>
+              {/* 3. BILINGUAL TRANSLATION SECTION (خامسا: إمكانية إضافة ترجمة للموضوع بالإنجليزية) */}
+              <div className="p-4 sm:p-5 rounded-2xl border border-[#E5E2D9] bg-[#F7F5EE] space-y-4">
+                <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={insertHeadingTag}
-                      className="px-2 py-1 text-[11px] font-bold rounded-lg border border-[#E5E2D9] bg-[#F7F5EE] hover:bg-[#EAE7DD] text-[#4A5D4E] flex items-center gap-1 cursor-pointer"
-                      title="إضافة عنوان قسم فرعي"
-                    >
-                      <Hash className="w-3 h-3" />
-                      <span>عنوان قسم (##)</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => insertCitationTag(footnotes.length || 1)}
-                      className="px-2 py-1 text-[11px] font-bold rounded-lg border border-[#E5E2D9] bg-[#F7F5EE] hover:bg-[#EAE7DD] text-[#C88A3B] flex items-center gap-1 cursor-pointer"
-                      title="إدراج رقم مرجع صغير"
-                    >
-                      <Quote className="w-3 h-3" />
-                      <span>رقم مرجع [1]</span>
-                    </button>
+                    <div className="w-8 h-8 rounded-xl bg-blue-700 text-white flex items-center justify-center">
+                      <Languages className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-[#1E3A8A] flex items-center gap-1.5">
+                        <span>إضافة ترجمة للموضوع باللغة الإنجليزية (English Translation)</span>
+                      </h4>
+                      <p className="text-[11px] text-[#6E6A64]">
+                        تتيح للقراء مطالعة المقال بوضعية القراءة المقارنة المزدوجة مع شريط الترجمة المتزامن
+                      </p>
+                    </div>
                   </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowTranslation(!showTranslation)}
+                    className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                      showTranslation
+                        ? 'bg-blue-700 text-white shadow-xs'
+                        : 'bg-white border border-[#E5E2D9] text-[#1E3A8A] hover:bg-blue-50'
+                    }`}
+                  >
+                    <span>{showTranslation ? 'إخفاء قسم الترجمة' : '+ تفعيل الترجمة الإنجليزية'}</span>
+                    {showTranslation ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
 
-                <textarea
-                  id="new-article-content-textarea"
-                  rows={10}
-                  placeholder="اكتب نص المقال أو الدراسة هنا... يمكنك استخدام ## لإنشاء عناوين فرعية تُدرج تلقائياً في الفهرس، واستخدام [1] للإحالة إلى الهوامش السفلية."
-                  value={content}
-                  onChange={e => setContent(e.target.value)}
-                  required
-                  className="w-full p-4 text-xs sm:text-sm font-amiri leading-relaxed rounded-2xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
-                />
+                {showTranslation && (
+                  <div className="space-y-4 pt-2 border-t border-[#E5E2D9] animate-fadeIn">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[11px] font-bold block mb-1 text-blue-950">
+                          عنوان المقال المترجم (English Title):
+                        </label>
+                        <input
+                          type="text"
+                          dir="ltr"
+                          placeholder="e.g. The Philosophy of Language and Semantics..."
+                          value={translatedTitle}
+                          onChange={e => setTranslatedTitle(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-blue-200 bg-[#FFFFFF] text-left font-serif"
+                        />
+                      </div>
 
-                <div className="flex items-center justify-between text-[11px] text-[#6E6A64] mt-1.5 px-1">
-                  <span>عدد الكلمات: <strong>{wordCount}</strong></span>
-                  <span>وقت القراءة التقديري: <strong>{readingTimeMinutes} دقيقة</strong></span>
-                </div>
+                      <div>
+                        <label className="text-[11px] font-bold block mb-1 text-blue-950">
+                          اسم المترجم (Translator):
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="اسم المترجم"
+                          value={translator}
+                          onChange={e => setTranslator(e.target.value)}
+                          className="w-full px-3 py-2 text-xs rounded-xl border border-blue-200 bg-[#FFFFFF]"
+                        />
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <label className="text-[11px] font-bold text-blue-950">
+                          نص الترجمة الكامل باللغة الإنجليزية (English Content):
+                        </label>
+                        <span className="text-[10px] text-blue-700">
+                          يمكنك كتابة الفقرات الإنجليزية لتتطابق سطرياً مع الفقرات العربية
+                        </span>
+                      </div>
+                      <textarea
+                        dir="ltr"
+                        rows={8}
+                        value={translatedContent}
+                        onChange={e => setTranslatedContent(e.target.value)}
+                        placeholder="Paste or write the English translation here... Paragraphs will automatically align with the Arabic text for interactive side-by-side reading."
+                        className="w-full p-3 text-xs sm:text-sm rounded-xl border border-blue-200 bg-[#FFFFFF] font-serif focus:outline-none focus:ring-2 focus:ring-blue-500/30 text-stone-900 leading-relaxed text-left"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* 4. References & Footnotes */}
@@ -667,7 +781,7 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
               {/* Modal Footer Controls */}
               <div className="pt-4 border-t border-[#E5E2D9] flex flex-wrap items-center justify-between gap-3">
                 <div className="text-[11px] text-[#6E6A64]">
-                  سيتم نشر مقالك في المنصة فوراً مع وسم <strong>مساهمة من القراء</strong>.
+                  سيتم حفظ مقالك ونشره فوراً، مع تفعيل القراءة المزدوجة المتزامنة في حال إضافة الترجمة.
                 </div>
 
                 <div className="flex items-center gap-2">
@@ -677,6 +791,14 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
                     className="px-4 py-2.5 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] text-xs font-bold hover:bg-[#EAE7DD] transition-all cursor-pointer"
                   >
                     إلغاء
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('preview')}
+                    className="px-4 py-2.5 rounded-xl border border-[#4A5D4E] text-[#4A5D4E] text-xs font-bold hover:bg-[#4A5D4E]/10 transition-all cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>معاينة قبل النشر</span>
                   </button>
                   <button
                     type="submit"
