@@ -301,15 +301,25 @@ export async function fetchAllForSitemap(): Promise<{
       client.from('chapters').select('id, novel_id, title, slug, chapter_number, published_at, updated_at').order('chapter_number', { ascending: true }),
     ]);
 
-    const novels = (nRes.data || []).map((n: any) => ({
-      id: n.id,
-      title: n.title || 'مؤلفات أيمن كناني',
-      slug: n.slug || n.id,
-      synopsis: n.synopsis || n.description || '',
-      author: n.author || 'أيمن كناني',
-      coverImage: n.cover_image || '',
-      updatedAt: n.updated_at || n.created_at || new Date().toISOString(),
-    }));
+    const isUnwantedLegacyNovel = (id: string) => {
+      if (id === 'novel-1788556252989') return false;
+      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
+      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
+      if (id && id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
+      return false;
+    };
+
+    const novels = (nRes.data || [])
+      .filter((n: any) => !isUnwantedLegacyNovel(n.id))
+      .map((n: any) => ({
+        id: n.id,
+        title: n.title || 'مؤلفات أيمن كناني',
+        slug: n.slug || n.id,
+        synopsis: n.synopsis || n.description || '',
+        author: n.author || 'أيمن كناني',
+        coverImage: n.cover_image || '',
+        updatedAt: n.updated_at || n.created_at || new Date().toISOString(),
+      }));
 
     const novelMap = new Map(novels.map(n => [n.id, n]));
 
@@ -588,8 +598,16 @@ export async function serverFetchAllNovels(): Promise<Novel[]> {
     const deletedIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
 
+    const isUnwantedLegacyNovel = (id: string) => {
+      if (id === 'novel-1788556252989') return false;
+      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
+      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
+      if (id && id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
+      return false;
+    };
+
     return novelsRes.data
-      .filter((r: any) => !deletedIds.has(r.id))
+      .filter((r: any) => !deletedIds.has(r.id) && !isUnwantedLegacyNovel(r.id))
       .map((r: any) => {
         const base = mapNovelRow(r);
         const extra = metaMap[base.id];

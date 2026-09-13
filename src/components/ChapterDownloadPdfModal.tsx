@@ -11,7 +11,7 @@ import {
   FileText,
   ShieldCheck,
 } from 'lucide-react';
-import type { Chapter, Novel } from '../types';
+import type { Chapter, Novel, ReaderFontFamily } from '../types';
 import {
   printChapterAsPdf,
   printFullBookAsPdf,
@@ -25,7 +25,7 @@ interface ChapterDownloadPdfModalProps {
   novel: Novel;
   allChapters?: Chapter[];
   initialMode?: 'single' | 'full';
-  currentReaderFont?: 'amiri' | 'cairo' | 'tajawal' | 'readex' | 'scheherazade';
+  currentReaderFont?: ReaderFontFamily | string;
 }
 
 export const ChapterDownloadPdfModal: React.FC<ChapterDownloadPdfModalProps> = ({
@@ -41,9 +41,13 @@ export const ChapterDownloadPdfModal: React.FC<ChapterDownloadPdfModalProps> = (
   const [downloadMode, setDownloadMode] = useState<'single' | 'full'>(
     !chapter && canDownloadFullBook ? 'full' : initialMode
   );
+  const validFonts = ['amiri', 'cairo', 'tajawal', 'readex', 'scheherazade'] as const;
+  const initialFont = validFonts.includes(currentReaderFont as any)
+    ? (currentReaderFont as 'amiri' | 'cairo' | 'tajawal' | 'readex' | 'scheherazade')
+    : 'amiri';
   const [selectedFont, setSelectedFont] = useState<
     'amiri' | 'cairo' | 'tajawal' | 'readex' | 'scheherazade'
-  >(currentReaderFont);
+  >(initialFont);
   const [fontSizePt, setFontSizePt] = useState<number>(16);
   const [lineHeight, setLineHeight] = useState<number>(2.1);
   const [includeAuthorNote, setIncludeAuthorNote] = useState<boolean>(true);

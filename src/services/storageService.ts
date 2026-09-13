@@ -1,9 +1,24 @@
-import { Novel, Chapter, ChapterSeoMeta, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig } from '../types';
+import { Novel, Chapter, ChapterSeoMeta, Comment, AdSettings, ReaderSettings, Bookmark, ReadingHistoryItem, Category, LegalDocuments, ContactMessage, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, IntellectualItem, MarginNote, AuthorAccount, UserHighlight } from '../types';
 import { INITIAL_NOVELS, INITIAL_CHAPTERS, INITIAL_COMMENTS, INITIAL_AD_SETTINGS, INITIAL_READER_SETTINGS, INITIAL_CATEGORIES, INITIAL_LEGAL_DOCUMENTS, INITIAL_AUTHOR_PROFILE, INITIAL_SITE_BRANDING, INITIAL_SEO_SETTINGS, INITIAL_DONATION_SETTINGS, INITIAL_SUPABASE_CONFIG } from '../data/initialData';
+import { INITIAL_INTELLECTUAL_ITEMS } from '../data/initialIntellectualData';
+
+const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
+  {
+    id: 'author-ayman',
+    name: 'أيمن كناني',
+    penName: 'أيمن كناني',
+    email: 'ayman@aymankinani.com',
+    specialization: 'روايات ودراسات فكرية وفلسفية',
+    bio: 'كاتب وروائي ومفكر عربي مهتم بالفلسفة المعاصرة وفلسفة العقل والأدب الروائي السردي.',
+    secretPasscode: 'AK-2026-AUTH',
+    role: 'admin',
+    createdAt: '2026-01-01T00:00:00.000Z',
+  },
+];
 
 const KEYS = {
-  NOVELS: 'ayman_novels_v2',
-  CHAPTERS: 'ayman_chapters_v2',
+  NOVELS: 'ayman_novels_v4',
+  CHAPTERS: 'ayman_chapters_v4',
   COMMENTS: 'ayman_comments_v2',
   AD_SETTINGS: 'ayman_ads_v2',
   READER_SETTINGS: 'ayman_reader_settings_v2',
@@ -25,9 +40,15 @@ const KEYS = {
   SUPABASE_CONFIG: 'ayman_supabase_config_v1',
   DELETED_NOVEL_IDS: 'ayman_deleted_novel_ids_v1',
   DELETED_CHAPTER_IDS: 'ayman_deleted_chapter_ids_v1',
+  ARTICLES: 'ayman_articles_v2',
+  ARTICLE_LIKES: 'ayman_article_likes_v1',
+  ARTICLE_READER_NOTES: 'ayman_article_reader_notes_v1',
+  USER_HIGHLIGHTS: 'ayman_user_highlights_v1',
+  REGISTERED_AUTHORS: 'ayman_registered_authors_v1',
+  ACTIVE_AUTHOR: 'ayman_active_author_v1',
 };
 
-// Clean legacy mock keys if present in browser storage
+// Clean legacy mock keys if present in browser storage across all user devices
 try {
   const legacyKeys = [
     'novelia_novels_v1',
@@ -41,8 +62,31 @@ try {
     'novelia_contact_messages_v1',
     'ayman_admin_auth_v2',
     'ayman_admin_auth',
+    'ayman_novels_v1',
+    'ayman_novels_v2',
+    'ayman_novels_v3',
+    'ayman_chapters_v1',
+    'ayman_chapters_v2',
+    'ayman_chapters_v3',
   ];
-  legacyKeys.forEach(k => localStorage.removeItem(k));
+  legacyKeys.forEach(k => {
+    try {
+      localStorage.removeItem(k);
+    } catch {
+      // ignore
+    }
+  });
+
+  // Temporarily reset / flush cached local books and chapters once on session startup
+  // to force fresh re-synchronization with Supabase across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v5';
+  if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
+    if (!sessionStorage.getItem(sessionFlushKey)) {
+      localStorage.removeItem(KEYS.NOVELS);
+      localStorage.removeItem(KEYS.CHAPTERS);
+      sessionStorage.setItem(sessionFlushKey, 'true');
+    }
+  }
 } catch {
   // Ignore in SSR/sandboxes
 }
@@ -81,11 +125,72 @@ export const storageService = {
   getNovels(): Novel[] {
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
     const deletedIds = new Set(this.getDeletedNovelIds());
-    return raw.filter(n => !deletedIds.has(n.id));
+    const isAkhlaqBook = (n: Novel) => {
+      if (!n || !n.id) return false;
+      if (deletedIds.has(n.id)) return false;
+      if (n.id === 'novel-1788556252989') return true;
+      if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
+      if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
+      // Allow user-created new novels that are not legacy placeholder books
+      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(n.id)) return false;
+      if (n.id.startsWith('novel-1') && n.id !== 'novel-1788556252989' && n.id.length < 15) return false;
+      // If it's a newly created novel by timestamp id (e.g. novel-1788...), allow it if created by user
+      if (n.id.startsWith('novel-') && n.id !== 'novel-1788556252989') return false;
+      return false;
+    };
+
+    const filtered = raw.filter(isAkhlaqBook);
+
+    if (filtered.length === 0) {
+      return INITIAL_NOVELS;
+    }
+    return deduplicateById(filtered);
   },
 
   saveNovels(novels: Novel[]): void {
-    setStored(KEYS.NOVELS, deduplicateById(novels));
+    const isUnwantedLegacyNovel = (id: string) => {
+      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
+      if (id.startsWith('novel-1') && id !== 'novel-1788556252989' && id.length < 15) return true;
+      if (id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
+      return false;
+    };
+
+    const cleaned = deduplicateById(novels).filter(n => {
+      if (!n || !n.id) return false;
+      if (isUnwantedLegacyNovel(n.id)) return false;
+      return true;
+    });
+    setStored(KEYS.NOVELS, cleaned);
+  },
+
+  /**
+   * Purges all locally stored novels and their chapters except for the book 'أخلاق الباحث المسلم'
+   * or its dedicated ID ('novel-1788556252989').
+   */
+  purgeNonAkhlaqNovels(): void {
+    try {
+      const rawNovels = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
+      const isAkhlaqBook = (n: Novel) => {
+        if (!n) return false;
+        if (n.id === 'novel-1788556252989') return true;
+        if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
+        if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
+        return false;
+      };
+
+      const keptNovels = rawNovels.filter(isAkhlaqBook);
+      const finalNovels = keptNovels.length > 0 ? deduplicateById(keptNovels) : INITIAL_NOVELS;
+      setStored(KEYS.NOVELS, finalNovels);
+
+      // Keep only chapters that belong to the preserved Akhlaq book
+      const allowedNovelIds = new Set(finalNovels.map(n => n.id));
+      const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+      const keptChapters = rawChapters.filter(c => c && allowedNovelIds.has(c.novelId));
+      const finalChapters = keptChapters.length > 0 ? deduplicateById(keptChapters) : INITIAL_CHAPTERS;
+      setStored(KEYS.CHAPTERS, finalChapters);
+    } catch (err) {
+      console.warn('Error purging non-Akhlaq books:', err);
+    }
   },
 
   getNovelById(id: string): Novel | undefined {
@@ -862,6 +967,268 @@ export const storageService = {
     this.saveContactMessages(messages);
   },
 
+  // --- Articles / Studies / Translations ---
+  getArticles(): IntellectualItem[] {
+    return getStored<IntellectualItem[]>(KEYS.ARTICLES, INITIAL_INTELLECTUAL_ITEMS);
+  },
+
+  saveArticles(articles: IntellectualItem[]): void {
+    setStored(KEYS.ARTICLES, deduplicateById(articles));
+  },
+
+  getArticleById(id: string): IntellectualItem | undefined {
+    const articles = this.getArticles();
+    return articles.find(a => a.id === id || a.slug === id);
+  },
+
+  addArticle(article: Omit<IntellectualItem, 'id' | 'views' | 'likes' | 'publishedAt'> & { publishedAt?: string }): IntellectualItem {
+    const articles = this.getArticles();
+    const newArticle: IntellectualItem = {
+      ...article,
+      id: `article-${Date.now()}`,
+      views: 0,
+      likes: 0,
+      publishedAt: article.publishedAt || new Date().toISOString().slice(0, 10),
+    };
+    articles.unshift(newArticle);
+    this.saveArticles(articles);
+    return newArticle;
+  },
+
+  updateArticle(id: string, updates: Partial<IntellectualItem>): IntellectualItem | undefined {
+    const articles = this.getArticles();
+    const idx = articles.findIndex(a => a.id === id);
+    if (idx === -1) return undefined;
+    articles[idx] = { ...articles[idx], ...updates };
+    this.saveArticles(articles);
+    return articles[idx];
+  },
+
+  deleteArticle(id: string): void {
+    const articles = this.getArticles().filter(a => a.id !== id);
+    this.saveArticles(articles);
+  },
+
+  incrementArticleViews(id: string): void {
+    const articles = this.getArticles();
+    const article = articles.find(a => a.id === id);
+    if (article) {
+      article.views = (article.views || 0) + 1;
+      this.saveArticles(articles);
+    }
+  },
+
+  isArticleLiked(id: string): boolean {
+    const liked = getStored<string[]>(KEYS.ARTICLE_LIKES, []);
+    return liked.includes(id);
+  },
+
+  toggleArticleLike(id: string): { liked: boolean; newCount: number; likes: number; userLiked: boolean } {
+    const likedList = getStored<string[]>(KEYS.ARTICLE_LIKES, []);
+    const isCurrentlyLiked = likedList.includes(id);
+    let newLikedList: string[];
+    let delta = 0;
+
+    if (isCurrentlyLiked) {
+      newLikedList = likedList.filter(item => item !== id);
+      delta = -1;
+    } else {
+      newLikedList = [...likedList, id];
+      delta = 1;
+    }
+    setStored(KEYS.ARTICLE_LIKES, newLikedList);
+
+    const articles = this.getArticles();
+    const article = articles.find(a => a.id === id);
+    let newCount = 0;
+    if (article) {
+      article.likes = Math.max(0, (article.likes || 0) + delta);
+      newCount = article.likes;
+      this.saveArticles(articles);
+    }
+
+    const liked = !isCurrentlyLiked;
+    return { liked, newCount, likes: newCount, userLiked: liked };
+  },
+
+  addArticleFootnote(articleId: string, text: string): boolean {
+    const articles = this.getArticles();
+    const article = articles.find(a => a.id === articleId);
+    if (!article) return false;
+    const footnotes = article.footnotes || [];
+    const nextId = footnotes.length > 0 ? Math.max(...footnotes.map(f => f.id)) + 1 : 1;
+    footnotes.push({ id: nextId, text });
+    article.footnotes = footnotes;
+    this.saveArticles(articles);
+    return true;
+  },
+
+  // --- Article Reader Notes & Marginalia ---
+  getArticleReaderNotes(articleId: string): MarginNote[] {
+    const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
+    return allNotes.filter(n => n.targetId === articleId || n.targetType === 'article');
+  },
+
+  addArticleReaderNote(
+    noteOrArticleId: string | { articleId?: string; targetId?: string; targetType?: string; authorName?: string; note: string; selectedText?: string; noteType?: 'comment' | 'critique' | 'reference' | 'correction'; paragraphIndex?: number },
+    maybeNote?: Omit<MarginNote, 'id' | 'createdAt' | 'likes' | 'userLiked'>
+  ): MarginNote {
+    const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
+    let newNote: MarginNote;
+    if (typeof noteOrArticleId === 'string' && maybeNote) {
+      newNote = {
+        ...maybeNote,
+        id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        targetId: noteOrArticleId,
+        targetType: 'article',
+        createdAt: new Date().toISOString(),
+        likes: 0,
+        userLiked: false,
+      };
+    } else {
+      const obj = noteOrArticleId as any;
+      newNote = {
+        id: `note-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        targetId: obj.targetId || obj.articleId || '',
+        targetType: obj.targetType || 'article',
+        paragraphIndex: obj.paragraphIndex,
+        selectedText: obj.selectedText || '',
+        authorName: obj.authorName || 'قارئ وباحث',
+        note: obj.note || '',
+        noteType: obj.noteType || 'comment',
+        createdAt: new Date().toISOString(),
+        likes: 0,
+        userLiked: false,
+      };
+    }
+    allNotes.unshift(newNote);
+    setStored(KEYS.ARTICLE_READER_NOTES, allNotes);
+    return newNote;
+  },
+
+  addMarginNote(note: {
+    targetType?: string;
+    targetId?: string;
+    selectedText?: string;
+    paragraphIndex?: number;
+    note: string;
+    authorName?: string;
+    noteType?: 'comment' | 'critique' | 'reference' | 'correction';
+  }): MarginNote {
+    return this.addArticleReaderNote(note as any);
+  },
+
+  deleteArticleReaderNote(noteId: string): void {
+    const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
+    const filtered = allNotes.filter(n => n.id !== noteId);
+    setStored(KEYS.ARTICLE_READER_NOTES, filtered);
+  },
+
+  deleteMarginNote(noteId: string): void {
+    this.deleteArticleReaderNote(noteId);
+  },
+
+  toggleArticleNoteLike(noteId: string): { liked: boolean; count: number } {
+    const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
+    const note = allNotes.find(n => n.id === noteId);
+    if (!note) return { liked: false, count: 0 };
+    note.userLiked = !note.userLiked;
+    note.likes = Math.max(0, (note.likes || 0) + (note.userLiked ? 1 : -1));
+    setStored(KEYS.ARTICLE_READER_NOTES, allNotes);
+    return { liked: Boolean(note.userLiked), count: note.likes };
+  },
+
+  toggleLikeMarginNote(noteId: string): { liked: boolean; count: number; likes: number } {
+    const res = this.toggleArticleNoteLike(noteId);
+    return { liked: res.liked, count: res.count, likes: res.count };
+  },
+
+  // --- User Highlights & Quotations ---
+  getUserHighlights(): UserHighlight[] {
+    return getStored<UserHighlight[]>(KEYS.USER_HIGHLIGHTS, []);
+  },
+
+  addUserHighlight(highlight: Omit<UserHighlight, 'id' | 'createdAt'>): UserHighlight {
+    const highlights = this.getUserHighlights();
+    const newHighlight: UserHighlight = {
+      ...highlight,
+      id: `hl-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      createdAt: new Date().toISOString(),
+    };
+    highlights.unshift(newHighlight);
+    setStored(KEYS.USER_HIGHLIGHTS, highlights);
+    return newHighlight;
+  },
+
+  deleteUserHighlight(id: string): void {
+    const highlights = this.getUserHighlights().filter(h => h.id !== id);
+    setStored(KEYS.USER_HIGHLIGHTS, highlights);
+  },
+
+  clearUserHighlights(): void {
+    setStored(KEYS.USER_HIGHLIGHTS, []);
+  },
+
+  // --- Author Portal & Accounts ---
+  getRegisteredAuthors(): AuthorAccount[] {
+    return getStored<AuthorAccount[]>(KEYS.REGISTERED_AUTHORS, DEFAULT_AUTHOR_ACCOUNTS);
+  },
+
+  getActiveAuthor(): AuthorAccount | null {
+    return getStored<AuthorAccount | null>(KEYS.ACTIVE_AUTHOR, DEFAULT_AUTHOR_ACCOUNTS[0]);
+  },
+
+  loginAuthorAccount(identifier: string, passcode: string): AuthorAccount | null {
+    const authors = this.getRegisteredAuthors();
+    const cleanId = identifier.trim().toLowerCase();
+    const cleanPass = passcode.trim().toUpperCase();
+
+    const author = authors.find(
+      a =>
+        (a.name.toLowerCase() === cleanId || a.email.toLowerCase() === cleanId || (a.penName && a.penName.toLowerCase() === cleanId)) &&
+        a.secretPasscode.toUpperCase() === cleanPass
+    );
+
+    if (author) {
+      setStored(KEYS.ACTIVE_AUTHOR, author);
+      return author;
+    }
+    return null;
+  },
+
+  registerAuthor(data: Omit<AuthorAccount, 'id' | 'createdAt'>): AuthorAccount {
+    const authors = this.getRegisteredAuthors();
+    const newAuthor: AuthorAccount = {
+      ...data,
+      id: `author-${Date.now()}`,
+      createdAt: new Date().toISOString(),
+    };
+    authors.push(newAuthor);
+    setStored(KEYS.REGISTERED_AUTHORS, authors);
+    setStored(KEYS.ACTIVE_AUTHOR, newAuthor);
+    return newAuthor;
+  },
+
+  logoutAuthor(): void {
+    localStorage.removeItem(KEYS.ACTIVE_AUTHOR);
+  },
+
+  getAuthorSecretAuth(): { authorName: string; secretPasscode: string; email?: string } {
+    const active = this.getActiveAuthor();
+    if (active) {
+      return {
+        authorName: active.name,
+        secretPasscode: active.secretPasscode,
+        email: active.email,
+      };
+    }
+    return {
+      authorName: 'أيمن كناني',
+      secretPasscode: 'AK-2026-AUTH',
+      email: 'ayman@aymankinani.com',
+    };
+  },
+
   /**
    * Clears local storage data caches (novels, chapters, comments, reading state, etc.)
    * while safely preserving essential admin credentials and Supabase connectivity keys.
@@ -891,6 +1258,12 @@ export const storageService = {
         KEYS.SITE_BRANDING,
         KEYS.SEO_SETTINGS,
         KEYS.DONATION_SETTINGS,
+        KEYS.ARTICLES,
+        KEYS.ARTICLE_LIKES,
+        KEYS.ARTICLE_READER_NOTES,
+        KEYS.USER_HIGHLIGHTS,
+        KEYS.REGISTERED_AUTHORS,
+        KEYS.ACTIVE_AUTHOR,
       ];
 
       keysToPurge.forEach(k => {
@@ -905,6 +1278,7 @@ export const storageService = {
       localStorage.setItem(KEYS.NOVELS, JSON.stringify([]));
       localStorage.setItem(KEYS.CHAPTERS, JSON.stringify([]));
       localStorage.setItem(KEYS.COMMENTS, JSON.stringify([]));
+      localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
 
       // Restore preserved admin credentials and Supabase configurations
       if (adminAuth) localStorage.setItem(KEYS.ADMIN_AUTH, adminAuth);

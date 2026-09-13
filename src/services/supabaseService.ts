@@ -176,14 +176,24 @@ class SupabaseService {
           const syncData = await resp.json();
           if (syncData.success) {
             // Merge with local novels to ensure newly added novels are NEVER dropped
+            const isUnwantedLegacyNovel = (id: string) => {
+              if (id === 'novel-1788556252989') return false;
+              if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
+              if (id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
+              if (id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
+              return false;
+            };
+
             const localNovels = storageService.getNovels();
-            const remoteNovels: Novel[] = Array.isArray(syncData.novels) ? syncData.novels : [];
+            const remoteNovels: Novel[] = (Array.isArray(syncData.novels) ? syncData.novels : []).filter(
+              (rn: Novel) => !isUnwantedLegacyNovel(rn.id)
+            );
             const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
 
             const novelsMap = new Map<string, Novel>();
             const localNovelViewsMap = new Map(localNovels.map(ln => [ln.id, ln.totalViews || 0]));
             remoteNovels.forEach((rn: Novel) => {
-              if (!deletedNovelIds.has(rn.id)) {
+              if (!deletedNovelIds.has(rn.id) && !isUnwantedLegacyNovel(rn.id)) {
                 novelsMap.set(rn.id, {
                   ...rn,
                   totalViews: Math.max(rn.totalViews || 0, localNovelViewsMap.get(rn.id) || 0),
@@ -193,7 +203,7 @@ class SupabaseService {
 
             const unsyncedNovels: Novel[] = [];
             localNovels.forEach(ln => {
-              if (!deletedNovelIds.has(ln.id)) {
+              if (!deletedNovelIds.has(ln.id) && !isUnwantedLegacyNovel(ln.id)) {
                 if (!novelsMap.has(ln.id)) {
                   novelsMap.set(ln.id, ln);
                   unsyncedNovels.push(ln);
@@ -288,30 +298,39 @@ class SupabaseService {
       const existingLocalNovelsForViews = storageService.getNovels();
       const localNovelViewsMap = new Map(existingLocalNovelsForViews.map(ln => [ln.id, ln.totalViews || 0]));
 
-      const novels: Novel[] = (rawNovels || []).map((n: any) => ({
-        id: n.id,
-        title: n.title,
-        slug: n.slug || n.id,
-        author: n.author,
-        authorBio: n.author_bio || '',
-        synopsis: n.synopsis || '',
-        coverImage: n.cover_image || '',
-        bannerImage: n.banner_image || '',
-        genres: Array.isArray(n.genres) ? n.genres : [],
-        tags: Array.isArray(n.tags) ? n.tags : [],
-        status: n.status || 'ONGOING',
-        totalViews: Math.max(Number(n.total_views) || 0, localNovelViewsMap.get(n.id) || 0),
-        totalLikes: Number(n.total_likes) || 0,
-        rating: Number(n.rating) || 5.0,
-        ratingCount: Number(n.rating_count) || 1,
-        createdAt: n.created_at || new Date().toISOString(),
-        updatedAt: n.updated_at || new Date().toISOString(),
-        isFeatured: Boolean(n.is_featured),
-        pdfDownloadUrl: n.pdf_download_url || undefined,
-        pdfFileSize: n.pdf_file_size || undefined,
-        downloadButtonText: n.download_button_text || undefined,
-        tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
-      }));
+      const novels: Novel[] = (rawNovels || [])
+        .filter((n: any) => {
+          if (!n || !n.id) return false;
+          if (n.id === 'novel-1788556252989') return true;
+          if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(n.id)) return false;
+          if (typeof n.id === 'string' && n.id.startsWith('novel-1') && n.id !== 'novel-1788556252989') return false;
+          if (typeof n.id === 'string' && n.id.startsWith('novel-') && n.id !== 'novel-1788556252989') return false;
+          return false;
+        })
+        .map((n: any) => ({
+          id: n.id,
+          title: n.title,
+          slug: n.slug || n.id,
+          author: n.author,
+          authorBio: n.author_bio || '',
+          synopsis: n.synopsis || '',
+          coverImage: n.cover_image || '',
+          bannerImage: n.banner_image || '',
+          genres: Array.isArray(n.genres) ? n.genres : [],
+          tags: Array.isArray(n.tags) ? n.tags : [],
+          status: n.status || 'ONGOING',
+          totalViews: Math.max(Number(n.total_views) || 0, localNovelViewsMap.get(n.id) || 0),
+          totalLikes: Number(n.total_likes) || 0,
+          rating: Number(n.rating) || 5.0,
+          ratingCount: Number(n.rating_count) || 1,
+          createdAt: n.created_at || new Date().toISOString(),
+          updatedAt: n.updated_at || new Date().toISOString(),
+          isFeatured: Boolean(n.is_featured),
+          pdfDownloadUrl: n.pdf_download_url || undefined,
+          pdfFileSize: n.pdf_file_size || undefined,
+          downloadButtonText: n.download_button_text || undefined,
+          tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
+        }));
 
       // 2. Fetch Chapters
       const { data: rawChapters, error: cErr } = await client

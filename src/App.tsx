@@ -55,6 +55,7 @@ export default function App() {
 
   // Global Data State seeded with SSR data if available
   const [novels, setNovels] = useState<Novel[]>(() => {
+    storageService.purgeNonAkhlaqNovels();
     const local = storageService.getNovels();
     if (initialSSR?.novel) {
       const merged = [initialSSR.novel, ...local.filter(n => n.id !== initialSSR.novel.id)];
@@ -65,6 +66,7 @@ export default function App() {
   });
 
   const [chapters, setChapters] = useState<Chapter[]>(() => {
+    storageService.purgeNonAkhlaqNovels();
     const local = storageService.getChapters();
     if (initialSSR?.chapter) {
       const merged = [initialSSR.chapter, ...local.filter(c => c.id !== initialSSR.chapter.id)];
@@ -192,6 +194,9 @@ export default function App() {
   };
 
   useEffect(() => {
+    // Purge any local non-Akhlaq books before initiating refresh and Supabase synchronization
+    storageService.purgeNonAkhlaqNovels();
+
     refreshData();
 
     // Cross-browser cloud synchronization with Supabase
