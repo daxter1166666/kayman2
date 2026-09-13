@@ -1,4 +1,8 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
+import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
+
+export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
+export const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?w=1600&auto=format&fit=crop&q=80';
 
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   name: 'أيمن كناني',
@@ -22,16 +26,17 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
     goodreads: 'https://goodreads.com/aymankinani',
     whatsapp: 'https://wa.me/966500000000',
     email: 'aymankinani.author@gmail.com',
-    website: 'https://aymankinani.com'
+    website: 'https://www.aymankinani.org'
   }
 };
 
 export const INITIAL_SITE_BRANDING: SiteBranding = {
   siteName: 'أيمن كناني | Ayman Kinani',
   siteSubtitle: 'المنصة الرسمية لنشر المؤلفات والكتب والروايات',
-  logoUrl: '',
-  faviconUrl: '',
-  footerText: 'جميع الحقوق الأدبية والفكرية محفوظة للكاتب أيمن كناني © 2026',
+  logoUrl: '/pwa-512.png',
+  faviconUrl: '/favicon.ico',
+  pwaIconUrl: '/pwa-512.png',
+  footerText: 'الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026',
 };
 
 export const INITIAL_SEO_SETTINGS: SeoSettings = {
@@ -39,7 +44,7 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   defaultTitle: 'أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب والروايات',
   defaultDescription: 'المنصة الرسمية المعتمدة لنشر وقراءة وتحميل مؤلفات وكتب وروايات ومقالات الكاتب أيمن كناني مجاناً بصيغة PDF وقراءة تفاعلية مباشرة.',
   keywords: 'أيمن كناني, Ayman Kinani, روايات أيمن كناني, كتب أيمن كناني, تحميل كتب PDF, قراءة روايات اونلاين, روايات عربية, أدب وفلسفة',
-  canonicalBaseUrl: 'https://aymankinani.com',
+  canonicalBaseUrl: 'https://www.aymankinani.org',
   authorName: 'أيمن كناني',
   twitterHandle: '@aymankinani',
   googleVerificationCode: '',
@@ -47,6 +52,7 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
   ogDefaultImage: 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop',
   enableStructuredData: true,
   indexingPolicy: 'all',
+  googleAnalyticsId: '',
 };
 
 export const INITIAL_DONATION_SETTINGS: DonationSettings = {
@@ -104,13 +110,16 @@ export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
   dmcaPolicy: `تحترم المنصة حقوق الملكية الفكرية وتلتزم بقانون الألفية الجديدة لحقوق طبع ونشر المواد الرقمية (DMCA).
 إذا كانت لديك أي استفسارات أو ملاحظات حول الملكية الأدبية، يرجى التواصل مع الكاتب عبر البريد الرسمي aymankinani.author@gmail.com وسيتم الرد فوراً وبشكل حاسم.`,
   licensesPolicy: `عن هذا العمل:
-أضع هذا العمل ابتغاء وجه الله، وأسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
+أسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
 
 الأفكار والرؤية في هذا العمل نابعة مني بالكامل. أستعين بأدوات الذكاء الاصطناعي لتوسيع الأفكار وصياغتها الأولية، مع مراجعتي وإشرافي الكامل على كل نص قبل نشره.
 
 الترخيص:
 هذا العمل مرخّص بموجب رخصة المشاع الإبداعي (نسب المصنف - غير تجاري 4.0 دولي)
 CC BY-NC 4.0
+
+بيان الترخيص وحق المؤلف:
+هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
 
 يعني هذا أنك تستطيع:
 ✅ نسخ العمل وإعادة توزيعه بأي وسيلة
@@ -129,9 +138,9 @@ CC BY-NC 4.0
   lastUpdated: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }),
 };
 
-export const INITIAL_NOVELS: Novel[] = [];
+export const INITIAL_NOVELS: Novel[] = BAKED_NOVELS;
 
-export const INITIAL_CHAPTERS: Chapter[] = [];
+export const INITIAL_CHAPTERS: Chapter[] = BAKED_CHAPTERS;
 
 export const INITIAL_COMMENTS: Comment[] = [];
 
@@ -240,41 +249,4 @@ export const INITIAL_AD_SETTINGS: AdSettings = {
     }
   ]
 };
-
-export const INITIAL_MARGIN_NOTES = [
-  {
-    id: 'margin-1',
-    targetType: 'article' as const,
-    targetId: 'trans-1',
-    selectedText: 'الوعي هو ما يجعل مشكلة الجسد-العقل مستعصية حقاً',
-    paragraphIndex: 1,
-    note: 'إشارة ناغل هنا جوهرية في تفكيك النزعة السلوكية الفيزيائية؛ فالصعوبة ليست نقصاً في البيانات العصبية، بل نابعة من طبيعة الوعي الذاتية التي لا تخضع للقياس الكمي الخارجي.',
-    authorName: 'د. طارق المعمري (أستاذ فلسفة العقل)',
-    createdAt: '2026-03-02T10:15:00.000Z',
-    likes: 14,
-  },
-  {
-    id: 'margin-2',
-    targetType: 'article' as const,
-    targetId: 'trans-1',
-    selectedText: 'تحديد الموقع بالصدى (Echolocation)',
-    paragraphIndex: 3,
-    note: 'اختيار ناغل لحاسة السونار لدى الخفاش نموذج عبقري: فحتى لو فهمنا الخوارزمية الرياضية للصدى، لن ندرك أبداً كيف يبدو الشعور به كخبرة حية من منظور الخفاش نفسه.',
-    authorName: 'سارة الزهراني (باحثة دراسات إدراكية)',
-    createdAt: '2026-03-03T14:20:00.000Z',
-    likes: 9,
-  },
-  {
-    id: 'margin-3',
-    targetType: 'chapter' as const,
-    targetId: 'chap-1',
-    novelId: 'novel-demo-1',
-    selectedText: 'في أعماق واحة صحراوية مهجورة',
-    paragraphIndex: 0,
-    note: 'بداية سردية مشحونة برمزية المكان الصحراوي كفضاء للبحث والتجرد الروحي قبل مواجهة ألغاز المخطوطات القديمة.',
-    authorName: 'مروان الشامي (ناقد روائي)',
-    createdAt: '2026-03-04T09:30:00.000Z',
-    likes: 6,
-  }
-];
 

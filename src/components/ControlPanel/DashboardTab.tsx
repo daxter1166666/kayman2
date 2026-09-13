@@ -10,9 +10,7 @@ import {
   Award,
   PlusCircle,
   ShieldCheck,
-  CheckCircle2,
-  Edit3,
-  Search
+  CheckCircle2
 } from 'lucide-react';
 
 interface DashboardTabProps {
@@ -64,30 +62,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         <div className="flex flex-wrap gap-2.5 shrink-0">
           <button
             type="button"
-            id="dash-quick-rich-editor-btn"
-            onClick={() => onNavigateTab('rich_editor')}
-            className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
-          >
-            <Edit3 className="w-4 h-4" />
-            <span>محرر النصوص المتقدم</span>
-          </button>
-          <button
-            type="button"
             id="dash-quick-publish-btn"
             onClick={() => onNavigateTab('publish')}
-            className="px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
+            className="px-4 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer"
           >
-            <PlusCircle className="w-4 h-4 text-[#4A5D4E]" />
+            <PlusCircle className="w-4 h-4" />
             <span>نشر فصل جديد</span>
-          </button>
-          <button
-            type="button"
-            id="dash-quick-seo-btn"
-            onClick={() => onNavigateTab('seo')}
-            className="px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] font-bold text-xs transition-all flex items-center gap-1.5 cursor-pointer shadow-xs"
-          >
-            <Search className="w-4 h-4 text-[#8C5E45]" />
-            <span>سيو ومحركات البحث</span>
           </button>
           <button
             type="button"

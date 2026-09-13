@@ -20,7 +20,7 @@ import {
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { SiteBranding } from '../../types';
-import { applyBrandingToPWA } from '../../utils/pwaHelper';
+import { ResetDataModal } from './ResetDataModal';
 
 interface SettingsTabProps {
   onRefreshData: () => void;
@@ -34,17 +34,27 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [notification, setNotification] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
   const [isDraggingLogo, setIsDraggingLogo] = useState<boolean>(false);
   const [isDraggingFavicon, setIsDraggingFavicon] = useState<boolean>(false);
   const [isDraggingPwaIcon, setIsDraggingPwaIcon] = useState<boolean>(false);
+  const [isResetModalOpen, setIsResetModalOpen] = useState<boolean>(false);
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const faviconInputRef = useRef<HTMLInputElement>(null);
   const pwaIconInputRef = useRef<HTMLInputElement>(null);
 
+  const adminDirectUrl = `${window.location.origin}/?admin=true`;
+
   const showToast = (msg: string) => {
     setNotification(msg);
     setTimeout(() => setNotification(null), 3500);
+  };
+
+  const handleCopyAdminUrl = () => {
+    navigator.clipboard.writeText(adminDirectUrl);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 3000);
   };
 
   // Image Upload helper from file
@@ -59,17 +69,22 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
       const result = e.target?.result as string;
       if (result) {
         if (type === 'logo') {
-          const updated = { ...branding, logoUrl: result };
-          setBranding(updated);
-          applyBrandingToPWA(updated);
+          setBranding(prev => ({ ...prev, logoUrl: result }));
         } else if (type === 'favicon') {
-          const updated = { ...branding, faviconUrl: result };
-          setBranding(updated);
-          applyBrandingToPWA(updated);
+          setBranding(prev => ({ ...prev, faviconUrl: result }));
+          // Update actual browser favicon dynamically
+          const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
+          link.type = 'image/x-icon';
+          link.rel = 'shortcut icon';
+          link.href = result;
+          document.getElementsByTagName('head')[0].appendChild(link);
         } else if (type === 'pwaIcon') {
-          const updated = { ...branding, pwaIconUrl: result };
-          setBranding(updated);
-          applyBrandingToPWA(updated);
+          setBranding(prev => ({ ...prev, pwaIconUrl: result }));
+          // Update Apple Touch Icon & PWA app icon
+          const appleLink = document.querySelector("link[rel*='apple-touch-icon']") as HTMLLinkElement || document.createElement('link');
+          appleLink.rel = 'apple-touch-icon';
+          appleLink.href = result;
+          document.getElementsByTagName('head')[0].appendChild(appleLink);
         }
       }
     };
@@ -80,8 +95,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
     e.preventDefault();
     storageService.saveSiteBranding(branding);
     supabaseService.saveSiteBrandingToSupabase(branding);
-    applyBrandingToPWA(branding);
-    showToast('تم حفظ وتحديث هوية الموقع وشعار المنصة وأيقونة المتصفح وتطبيق الهاتف (PWA) بنجاح!');
+    showToast('تم حفظ وتحديث هوية الموقع وشعار المنصة وأيقونة المتصفح بنجاح!');
     onRefreshData();
   };
 
@@ -238,7 +252,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {Boolean(branding.logoUrl?.trim()) ? (
+                {branding.logoUrl ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.logoUrl} alt="Logo" className="max-h-12 object-contain" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير اللوغو</span>
@@ -291,7 +305,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {Boolean(branding.faviconUrl?.trim()) ? (
+                {branding.faviconUrl ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.faviconUrl} alt="Favicon" className="w-8 h-8 rounded-md object-contain border border-[#E5E2D9]" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير أيقونة Favicon</span>
@@ -344,7 +358,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
                   }}
                 />
 
-                {Boolean(branding.pwaIconUrl?.trim()) ? (
+                {branding.pwaIconUrl ? (
                   <div className="flex items-center gap-3">
                     <img src={branding.pwaIconUrl} alt="PWA Icon" className="w-10 h-10 rounded-xl object-cover border border-[#E5E2D9] shadow-xs" referrerPolicy="no-referrer" />
                     <span className="text-xs text-[#4A5D4E] font-bold">انقر لتغيير أيقونة التطبيق PWA</span>
@@ -374,7 +388,7 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
               type="text"
               value={branding.footerText}
               onChange={e => setBranding(prev => ({ ...prev, footerText: e.target.value }))}
-              placeholder="جميع الحقوق محفوظة للكاتب أيمن كناني © 2026"
+              placeholder="الأعمال مرخصة بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - الكاتب أيمن كناني © 2026"
               className="w-full px-4 py-2.5 text-xs rounded-xl bg-[#FDFCF8] border border-[#E5E2D9] text-[#2C2C2C] focus:border-[#4A5D4E] focus:outline-none"
             />
           </div>
@@ -389,12 +403,32 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
           </div>
           <div>
             <h3 className="font-amiri font-bold text-xl text-[#2C2C2C]">
-              إعدادات أمان حساب الأدمن / الكاتب
+              إعدادات أمان حساب الأدمن / الكاتب والرابط السري
             </h3>
             <p className="text-xs text-[#6E6A64]">
-              تخصيص اسم المستخدم وكلمة المرور للوحة التحكم
+              تخصيص اسم المستخدم وكلمة المرور والحصول على رابط الدخول السري للوحة التحكم
             </p>
           </div>
+        </div>
+
+        {/* Secret URL Box */}
+        <div className="p-4 bg-[#F7F5EE] border border-[#E5E2D9] rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold text-[#2C2C2C] block">
+              رابط الدخول المباشر والسري للوحة التحكم (خاص بك ككاتب):
+            </span>
+            <span className="text-xs font-mono text-[#4A5D4E] font-bold dir-ltr block mt-0.5">
+              {adminDirectUrl}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCopyAdminUrl}
+            className="px-4 py-2 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shrink-0 shadow-xs"
+          >
+            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+            <span>{copiedLink ? 'تم النسخ!' : 'نسخ الرابط'}</span>
+          </button>
         </div>
 
         {errorMessage && (
@@ -504,24 +538,36 @@ export const SettingsTab: React.FC<SettingsTabProps> = ({ onRefreshData }) => {
 
           <div className="p-4 rounded-2xl bg-rose-50/60 border border-rose-200 flex flex-col justify-between">
             <div>
-              <h4 className="text-xs font-bold text-rose-900 mb-1">
-                إعادة ضبط البيانات الأولية
+              <h4 className="text-xs font-bold text-rose-900 mb-1 flex items-center gap-1.5">
+                <RotateCcw className="w-4 h-4 text-rose-700" />
+                <span>إعادة ضبط البيانات (مسح الكاش وسحب Supabase)</span>
               </h4>
               <p className="text-[11px] text-rose-700 leading-relaxed mb-4">
-                استعادة المؤلفات والفصول التجريبية الأصلية وتفريغ التقييمات.
+                مسح التخزين المحلي (localStorage) للكتب والفصول وإجبار التطبيق على إعادة سحب البيانات المحدثة فقط من سوباباس لحل مشاكل تكرار الكتب.
               </p>
             </div>
             <button
               type="button"
-              onClick={handleResetData}
-              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs"
+              id="settings-reset-data-btn"
+              onClick={() => setIsResetModalOpen(true)}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-2xs transition-all"
             >
               <RotateCcw className="w-4 h-4" />
-              <span>استعادة الحالة الافتراضية</span>
+              <span>إعادة ضبط وسحب البيانات السحابية</span>
             </button>
           </div>
         </div>
       </div>
+
+      {/* Reset Data Confirmation & Execution Modal */}
+      <ResetDataModal
+        isOpen={isResetModalOpen}
+        onClose={() => setIsResetModalOpen(false)}
+        onSuccess={() => {
+          onRefreshData();
+          showToast('تمت إعادة ضبط البيانات بنجاح وسحب النسخة المحدثة من سوباباس!');
+        }}
+      />
     </div>
   );
 };

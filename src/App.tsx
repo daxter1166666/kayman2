@@ -9,8 +9,7 @@ import {
   Category,
   AuthorProfile,
   SiteBranding,
-  DonationSettings,
-  IntellectualItem
+  DonationSettings
 } from './types';
 import { storageService } from './services/storageService';
 import { supabaseService } from './services/supabaseService';
@@ -20,8 +19,6 @@ import { Footer } from './components/Footer';
 import { NovelCard } from './components/NovelCard';
 import { NovelDetailView } from './components/NovelDetailView';
 import { ChapterReader } from './components/ChapterReader';
-import { ArticleReader } from './components/ArticleReader';
-import { SearchKnowledgeEngine } from './components/SearchKnowledgeEngine';
 import { ControlPanel } from './components/ControlPanel/ControlPanel';
 import { LegalPages } from './components/Legal/LegalPages';
 import { AdSlot } from './components/AdSlot';
@@ -29,11 +26,7 @@ import { AdminLoginModal } from './components/AdminLoginModal';
 import { AuthorProfileSection } from './components/AuthorProfileSection';
 import { DonationModal } from './components/DonationModal';
 import { PWAInstallModal } from './components/PWAInstallModal';
-import { CommandPalette } from './components/CommandPalette';
-import { UserHighlightsDrawer } from './components/UserHighlightsDrawer';
-import { AuthorPortalModal } from './components/AuthorPortalModal';
-import { applyBrandingToPWA } from './utils/pwaHelper';
-import { toArabicGenre } from './utils/genreHelper';
+import { MobileBottomNav } from './components/MobileBottomNav';
 import {
   Sparkles,
   BookOpen,
@@ -51,16 +44,38 @@ import {
   Smartphone,
   Check,
   Heart,
-  Lock
+  Lock,
+  User,
+  Download
 } from 'lucide-react';
 
 export default function App() {
-  // Global Data State
-  const [novels, setNovels] = useState<Novel[]>([]);
-  const [chapters, setChapters] = useState<Chapter[]>([]);
+  // Read SSR Initial Payload if delivered by Server-Side Rendering
+  const initialSSR = typeof window !== 'undefined' ? (window as any).__INITIAL_DATA__ : null;
+
+  // Global Data State seeded with SSR data if available
+  const [novels, setNovels] = useState<Novel[]>(() => {
+    const local = storageService.getNovels();
+    if (initialSSR?.novel) {
+      const merged = [initialSSR.novel, ...local.filter(n => n.id !== initialSSR.novel.id)];
+      storageService.saveNovels(merged);
+      return merged;
+    }
+    return local;
+  });
+
+  const [chapters, setChapters] = useState<Chapter[]>(() => {
+    const local = storageService.getChapters();
+    if (initialSSR?.chapter) {
+      const merged = [initialSSR.chapter, ...local.filter(c => c.id !== initialSSR.chapter.id)];
+      storageService.saveChapters(merged);
+      return merged;
+    }
+    return local;
+  });
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [articles, setArticles] = useState<IntellectualItem[]>(() => storageService.getArticles());
   const [adSettings, setAdSettings] = useState<AdSettings>(() => storageService.getAdSettings());
   const [readerSettings, setReaderSettings] = useState<ReaderSettings>(() => storageService.getReaderSettings());
   const [bookmarks, setBookmarks] = useState<Bookmark[]>([]);
@@ -68,12 +83,69 @@ export default function App() {
   const [siteBranding, setSiteBranding] = useState<SiteBranding>(() => storageService.getSiteBranding());
   const [donationSettings, setDonationSettings] = useState<DonationSettings>(() => storageService.getDonationSettings());
 
-  // Navigation View State - default to catalog (home view for all readers)
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'article_reader'>('catalog');
-  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
-  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(null);
-  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(null);
-  const [selectedArticleId, setSelectedArticleId] = useState<string | null>(null);
+  // Navigation View State initialized with SSR state or pathname
+  const initialRoute = useMemo(() => {
+    if (initialSSR?.currentView) {
+      return {
+        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal',
+        novelId: (initialSSR.novel?.id || initialSSR.chapter?.novelId || null) as string | null,
+        chapterId: (initialSSR.chapter?.id || null) as string | null,
+      };
+    }
+    if (typeof window !== 'undefined') {
+      const p = window.location.pathname;
+      const urlParams = new URLSearchParams(window.location.search);
+      const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
+      const allChapters = storageService.getChapters();
+      const allNovels = storageService.getNovels();
+
+      if (chapterMatch) {
+        const chIdent = decodeURIComponent(chapterMatch[1]);
+        const numMatch = chIdent.match(/\d+/);
+        const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+        const ch = allChapters.find(c =>
+          c.slug === chIdent ||
+          c.id === chIdent ||
+          `chapter-${c.chapterNumber}` === chIdent ||
+          String(c.chapterNumber) === chIdent ||
+          (parsedNum !== null && c.chapterNumber === parsedNum)
+        );
+        if (ch) {
+          return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+        }
+        if (allChapters.length > 0) {
+          return { view: 'reader' as const, novelId: allChapters[0].novelId, chapterId: allChapters[0].id };
+        }
+        return { view: 'reader' as const, novelId: null, chapterId: null };
+      }
+
+      const chapterParam = urlParams.get('chapter');
+      if (chapterParam) {
+        const ch = allChapters.find(c => c.id === chapterParam || c.slug === chapterParam);
+        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+      }
+
+      if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        const novIdent = decodeURIComponent(novelMatch[1]);
+        const nov = allNovels.find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null };
+        }
+      }
+
+      const novelParam = urlParams.get('novel');
+      if (novelParam) {
+        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null };
+      }
+    }
+    return { view: 'catalog' as const, novelId: null, chapterId: null };
+  }, [initialSSR]);
+
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(initialRoute.view);
+  const [selectedNovelId, setSelectedNovelId] = useState<string | null>(initialRoute.novelId);
+  const [selectedChapterId, setSelectedChapterId] = useState<string | null>(initialRoute.chapterId);
+
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
   
   // Modals & Drawers
@@ -83,27 +155,28 @@ export default function App() {
   const [showBookmarksDrawer, setShowBookmarksDrawer] = useState<boolean>(false);
   const [showAdminLoginModal, setShowAdminLoginModal] = useState<boolean>(false);
   const [showDonationModal, setShowDonationModal] = useState<boolean>(false);
-  const [showCommandPalette, setShowCommandPalette] = useState<boolean>(false);
-  const [showHighlightsDrawer, setShowHighlightsDrawer] = useState<boolean>(false);
-  const [showAuthorPortal, setShowAuthorPortal] = useState<boolean>(false);
+  const [isAdminLoggedIn, setIsAdminLoggedIn] = useState<boolean>(() => storageService.isAdminLoggedIn());
 
-  // Global Cmd+K / Ctrl+K keyboard shortcut for Command Palette
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setShowCommandPalette(prev => !prev);
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  // PWA Install Prompt State
+  // PWA Install Prompt State & Mobile Standalone Detection
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
   const [canInstallPwa, setCanInstallPwa] = useState<boolean>(false);
   const [showPwaBanner, setShowPwaBanner] = useState<boolean>(true);
   const [showPwaInstallModal, setShowPwaInstallModal] = useState<boolean>(false);
+  const [isStandalone, setIsStandalone] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(display-mode: standalone)').matches ||
+           (window.navigator as any).standalone === true;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mediaQuery = window.matchMedia('(display-mode: standalone)');
+    const handleChange = (e: MediaQueryListEvent) => {
+      setIsStandalone(e.matches);
+    };
+    mediaQuery.addEventListener('change', handleChange);
+    return () => mediaQuery.removeEventListener('change', handleChange);
+  }, []);
 
   // Load initial data
   const refreshData = () => {
@@ -111,7 +184,6 @@ export default function App() {
     setChapters(storageService.getChapters());
     setComments(storageService.getComments());
     setCategories(storageService.getCategories());
-    setArticles(storageService.getArticles());
     setAdSettings(storageService.getAdSettings());
     setBookmarks(storageService.getBookmarks());
     setAuthorProfile(storageService.getAuthorProfile());
@@ -123,7 +195,6 @@ export default function App() {
     refreshData();
 
     // Cross-browser cloud synchronization with Supabase
-    // Fetch latest books, chapters, and tombstones for all readers across phones and browsers
     const doPull = () => {
       supabaseService.pullAllFromSupabase().then(res => {
         if (res) {
@@ -142,19 +213,39 @@ export default function App() {
       }
     };
 
-    const handleStorageChange = (e: StorageEvent) => {
-      if (!e.key || e.key.startsWith('ayman_')) {
-        refreshData();
-      }
-    };
-
     window.addEventListener('visibilitychange', handleVisibility);
     window.addEventListener('focus', doPull);
-    window.addEventListener('pageshow', doPull);
-    window.addEventListener('storage', handleStorageChange);
-    const syncInterval = setInterval(doPull, 8000);
+    const syncInterval = setInterval(doPull, 45000);
 
-    // Check for URL triggers (?admin=true, ?article=xyz, ?novel=xyz)
+    const handleViewIncremented = (e: Event) => {
+      const detail = (e as CustomEvent).detail;
+      if (!detail) return;
+      if (detail.novelId) {
+        setNovels(prev =>
+          prev.map(n => {
+            if (n.id === detail.novelId) {
+              const updatedViews = detail.novelViews !== undefined ? detail.novelViews : (n.totalViews || 0) + 1;
+              return { ...n, totalViews: Math.max(n.totalViews || 0, updatedViews) };
+            }
+            return n;
+          })
+        );
+      }
+      if (detail.chapterId) {
+        setChapters(prev =>
+          prev.map(c => {
+            if (c.id === detail.chapterId) {
+              const updatedViews = detail.chapterViews !== undefined ? detail.chapterViews : (c.views || 0) + 1;
+              return { ...c, views: Math.max(c.views || 0, updatedViews) };
+            }
+            return c;
+          })
+        );
+      }
+    };
+    window.addEventListener('novel-view-incremented', handleViewIncremented);
+
+    // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
     const isPathAdmin = window.location.pathname === '/admin' || window.location.pathname.endsWith('/admin');
     const isHashAdmin = window.location.hash === '#admin';
@@ -165,21 +256,77 @@ export default function App() {
         setIsAdminLoggedIn(true);
         setCurrentView('control_panel');
       } else {
+        setIsAdminLoggedIn(false);
         setShowAdminLoginModal(true);
       }
+    } else if (initialSSR?.currentView === 'reader' && initialSSR.chapter) {
+      setSelectedNovelId(initialSSR.novel?.id || initialSSR.chapter.novelId);
+      setSelectedChapterId(initialSSR.chapter.id);
+      setCurrentView('reader');
+    } else if (initialSSR?.currentView === 'novel_detail' && initialSSR.novel) {
+      setSelectedNovelId(initialSSR.novel.id);
+      setCurrentView('novel_detail');
     } else {
-      const articleParam = urlParams.get('article');
-      if (articleParam) {
-        const found = storageService.getArticleById(articleParam) || storageService.getArticleBySlug(articleParam);
-        if (found) {
-          setSelectedArticleId(found.id);
-          setCurrentView('article_reader');
+      const pathname = window.location.pathname;
+      const chapterMatch = pathname.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || pathname.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = pathname.match(/\/novel\/([^/]+)$/i) || pathname.match(/\/book\/([^/]+)$/i);
+
+      const novelParam = urlParams.get('novel');
+      const chapterParam = urlParams.get('chapter');
+      const legalParam = urlParams.get('legal');
+
+      if (chapterMatch) {
+        const chIdent = decodeURIComponent(chapterMatch[1]);
+        const numMatch = chIdent.match(/\d+/);
+        const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+        const allChapters = storageService.getChapters();
+        const ch = allChapters.find(c =>
+          c.slug === chIdent ||
+          c.id === chIdent ||
+          `chapter-${c.chapterNumber}` === chIdent ||
+          String(c.chapterNumber) === chIdent ||
+          (parsedNum !== null && c.chapterNumber === parsedNum)
+        );
+        if (ch) {
+          setSelectedNovelId(ch.novelId);
+          setSelectedChapterId(ch.id);
+          setCurrentView('reader');
         }
+      } else if (chapterParam) {
+        const chapter = storageService.getChapterById(chapterParam);
+        if (chapter) {
+          setSelectedNovelId(chapter.novelId);
+          setSelectedChapterId(chapterParam);
+          setCurrentView('reader');
+        }
+      } else if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        const novIdent = decodeURIComponent(novelMatch[1]);
+        const nov = storageService.getNovels().find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          setSelectedNovelId(nov.id);
+          setCurrentView('novel_detail');
+        }
+      } else if (novelParam) {
+        setSelectedNovelId(novelParam);
+        setCurrentView('novel_detail');
+      } else if (legalParam && ['terms', 'privacy', 'dmca', 'licenses', 'contact', 'ads_txt'].includes(legalParam)) {
+        setLegalPage(legalParam as any);
+        setCurrentView('legal');
       }
     }
 
-    // Dynamic document title, favicons, Apple touch icons, and Web App Manifest (PWA)
-    applyBrandingToPWA(storageService.getSiteBranding());
+    // Dynamic document title & favicon
+    const currentBranding = storageService.getSiteBranding();
+    if (currentBranding.siteName && !initialSSR) {
+      document.title = `${currentBranding.siteName} - ${currentBranding.siteSubtitle}`;
+    }
+    if (currentBranding.faviconUrl) {
+      const link = document.querySelector("link[rel*='icon']") as HTMLLinkElement || document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'shortcut icon';
+      link.href = currentBranding.faviconUrl;
+      document.getElementsByTagName('head')[0].appendChild(link);
+    }
 
     // PWA Install prompt listener
     const handleBeforeInstallPrompt = (e: Event) => {
@@ -193,10 +340,9 @@ export default function App() {
     return () => {
       window.removeEventListener('visibilitychange', handleVisibility);
       window.removeEventListener('focus', doPull);
-      window.removeEventListener('pageshow', doPull);
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+      window.removeEventListener('novel-view-incremented', handleViewIncremented);
       clearInterval(syncInterval);
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
 
@@ -214,21 +360,7 @@ export default function App() {
     if (currentView === 'novel_detail' && selectedNovelId) {
       const novel = novels.find(n => n.id === selectedNovelId);
       if (novel) {
-        const jsonLd = seoService.buildNovelJsonLd(novel, authorProfile);
-        seoService.updateHead({
-          title: `رواية ${novel.title} - تأليف ${novel.author}`,
-          description: novel.synopsis?.slice(0, 160) || `قراءة وتحميل رواية ${novel.title} للكاتب ${novel.author} أونلاين بصيغة PDF.`,
-          keywords: [...(novel.genres || []), ...(novel.tags || []), 'تحميل رواية PDF', 'قراءة رواية'],
-          ogType: 'book',
-          ogImage: novel.coverImage,
-          url: `/?novel=${novel.id}`,
-          author: novel.author,
-          publishedTime: novel.createdAt,
-          modifiedTime: novel.updatedAt,
-          section: novel.genres?.[0] || 'روايات',
-          tags: novel.tags,
-          structuredData: jsonLd,
-        });
+        seoService.updateHeadForNovel(novel, authorProfile);
         return;
       }
     }
@@ -237,38 +369,7 @@ export default function App() {
       const novel = novels.find(n => n.id === selectedNovelId);
       const chapter = chapters.find(c => c.id === selectedChapterId);
       if (novel && chapter) {
-        const jsonLd = seoService.buildChapterJsonLd(chapter, novel, authorProfile);
-        const excerpt = chapter.content?.slice(0, 160).replace(/\n/g, ' ') || '';
-        seoService.updateHead({
-          title: `${chapter.title} - رواية ${novel.title}`,
-          description: `قراءة ${chapter.title} من رواية ${novel.title} للكاتب ${novel.author}. ${excerpt}`,
-          keywords: [chapter.title, novel.title, novel.author, ...(novel.genres || [])],
-          ogType: 'article',
-          ogImage: novel.bannerImage || novel.coverImage,
-          url: `/?novel=${novel.id}&chapter=${chapter.id}`,
-          author: novel.author,
-          publishedTime: chapter.publishedAt,
-          section: novel.title,
-          structuredData: jsonLd,
-        });
-        return;
-      }
-    }
-
-    if (currentView === 'article_reader' && selectedArticleId) {
-      const art = articles.find(a => a.id === selectedArticleId);
-      if (art) {
-        seoService.updateHead({
-          title: `${art.title} - ${art.author}`,
-          description: art.abstract?.slice(0, 160) || art.content?.slice(0, 160).replace(/\n/g, ' ') || '',
-          keywords: [art.title, art.author, art.category, ...(art.tags || []), 'دراسات', 'مقالات مترجمة', 'فلسفة'],
-          ogType: 'article',
-          ogImage: art.coverImage,
-          url: `/?article=${art.id}`,
-          author: art.author,
-          publishedTime: art.publishedAt,
-          section: art.category,
-        });
+        seoService.updateHeadForChapter(chapter, novel, authorProfile);
         return;
       }
     }
@@ -335,28 +436,19 @@ export default function App() {
     }
   }, [adSettings.adsterra]);
 
-  // Re-apply dynamic branding to Web App Manifest, browser tabs, and Apple Touch Icon
-  useEffect(() => {
-    applyBrandingToPWA(siteBranding);
-  }, [siteBranding]);
-
-  const handleInstallPwa = async () => {
+  const handleNativePromptInstall = async () => {
     if (deferredPrompt) {
-      try {
-        deferredPrompt.prompt();
-        const { outcome } = await deferredPrompt.userChoice;
-        if (outcome === 'accepted') {
-          setCanInstallPwa(false);
-          setShowPwaBanner(false);
-        }
-        setDeferredPrompt(null);
-      } catch (err) {
-        console.warn('Install prompt error:', err);
-        setShowPwaInstallModal(true);
+      deferredPrompt.prompt();
+      const { outcome } = await deferredPrompt.userChoice;
+      if (outcome === 'accepted') {
+        setCanInstallPwa(false);
       }
-    } else {
-      setShowPwaInstallModal(true);
+      setDeferredPrompt(null);
     }
+  };
+
+  const handleInstallPwa = () => {
+    setShowPwaInstallModal(true);
   };
 
   // Update reader settings handler
@@ -367,15 +459,12 @@ export default function App() {
 
   // Admin Control Panel Handlers
   const handleOpenControlPanel = () => {
-    if (currentView === 'control_panel') {
-      handleNavigateHome();
-      return;
-    }
     if (storageService.isAdminLoggedIn()) {
       setIsAdminLoggedIn(true);
       setCurrentView('control_panel');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {
+      setIsAdminLoggedIn(false);
       setShowAdminLoginModal(true);
     }
   };
@@ -400,54 +489,37 @@ export default function App() {
     setCurrentView('catalog');
     setSelectedNovelId(null);
     setSelectedChapterId(null);
-    setSelectedArticleId(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.history.pushState({}, '', '/');
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleSelectNovel = (novelId: string) => {
     setSelectedNovelId(novelId);
     setCurrentView('novel_detail');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleSelectArticle = (articleId: string) => {
-    setSelectedArticleId(articleId);
-    setCurrentView('article_reader');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
-  const handleRandomPick = () => {
-    const allItems: Array<{ type: 'article' | 'book'; id: string }> = [
-      ...articles.map(a => ({ type: 'article' as const, id: a.id })),
-      ...novels.map(n => ({ type: 'book' as const, id: n.id }))
-    ];
-    if (allItems.length === 0) return;
-    const randomItem = allItems[Math.floor(Math.random() * allItems.length)];
-    if (randomItem.type === 'article') {
-      handleSelectArticle(randomItem.id);
-    } else {
-      handleSelectNovel(randomItem.id);
+    const novel = novels.find(n => n.id === novelId) || storageService.getNovelById(novelId);
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/novel/${novel?.slug || novelId}`);
     }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleSelectChapter = (firstArg: string, secondArg?: string) => {
-    const chapterId = secondArg || firstArg;
-    const passedNovelId = secondArg ? firstArg : undefined;
-    const chapter = storageService.getChapterById(chapterId);
+  const handleSelectChapter = (chapterId: string) => {
+    const chapter = chapters.find(c => c.id === chapterId) || storageService.getChapterById(chapterId);
     if (chapter) {
-      setSelectedNovelId(chapter.novelId || passedNovelId || '');
-      setSelectedChapterId(chapter.id);
+      setSelectedNovelId(chapter.novelId);
+      setSelectedChapterId(chapterId);
       setCurrentView('reader');
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else if (passedNovelId) {
-      const chapters = storageService.getChapters(passedNovelId);
-      const targetChap = chapters.find(c => c.id === chapterId) || chapters[0];
-      if (targetChap) {
-        setSelectedNovelId(passedNovelId);
-        setSelectedChapterId(targetChap.id);
-        setCurrentView('reader');
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+      const novel = novels.find(n => n.id === chapter.novelId) || storageService.getNovelById(chapter.novelId);
+      if (typeof window !== 'undefined') {
+        window.history.pushState(
+          {},
+          '',
+          `/novel/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
+        );
       }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   };
 
@@ -466,10 +538,16 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const [showAuthorBioModal, setShowAuthorBioModal] = useState<boolean>(false);
-
   const handleScrollToAuthorBio = () => {
-    setShowAuthorBioModal(true);
+    if (currentView !== 'catalog') {
+      setCurrentView('catalog');
+    }
+    setTimeout(() => {
+      const el = document.getElementById('author-bio-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    }, 100);
   };
 
   // Dynamic category list for filter pills
@@ -499,12 +577,8 @@ export default function App() {
         }
         // Category filter
         if (selectedGenre !== 'All') {
-          const cat = categories.find(c => c.name === selectedGenre || c.arabicName === selectedGenre);
-          const match = novel.genres.some(g => {
-            return g === selectedGenre ||
-                   toArabicGenre(g) === selectedGenre ||
-                   (cat && (g === cat.name || g === cat.arabicName || toArabicGenre(g) === cat.arabicName));
-          });
+          const cat = categories.find(c => c.name === selectedGenre);
+          const match = novel.genres.includes(selectedGenre as any) || (cat && novel.genres.includes(cat.arabicName as any));
           if (!match) return false;
         }
         return true;
@@ -520,88 +594,41 @@ export default function App() {
   // Featured Hero Book
   const featuredNovel = novels.find(n => n.isFeatured) || novels[0];
 
-  // Active novel & chapter & article objects
-  const currentNovel = selectedNovelId ? novels.find(n => n.id === selectedNovelId) : (novels[0] || null);
+  // Active novel & chapter objects
+  const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
-  const currentNovelChapters = selectedNovelId ? chapters.filter(c => c.novelId === selectedNovelId) : [];
-  const currentArticle = useMemo(() => {
-    return articles.find(a => a.id === selectedArticleId) || null;
-  }, [articles, selectedArticleId]);
-
-  // Knowledge search engine state and results
-  const [selectedTypeFilter, setSelectedTypeFilter] = useState<'all' | 'book' | 'study' | 'article' | 'translated_article' | 'chapter' | 'smart_editors'>('all');
-  const [selectedKnowledgeCategory, setSelectedKnowledgeCategory] = useState<string>('all');
-
-  const unifiedSearchResults = useMemo(() => {
-    if (selectedTypeFilter === 'smart_editors') return [];
-    return storageService.searchUnifiedKnowledge(searchQuery, selectedTypeFilter as any, selectedKnowledgeCategory);
-  }, [searchQuery, selectedTypeFilter, selectedKnowledgeCategory, novels, chapters, articles]);
-
-  const knowledgeStats = useMemo(() => {
-    return {
-      booksCount: novels?.length || 0,
-      studiesCount: (articles || []).filter(a => a.type === 'study').length,
-      articlesCount: (articles || []).filter(a => a.type === 'article').length,
-      translationsCount: (articles || []).filter(a => a.type === 'translated_article').length,
-      chaptersCount: chapters?.length || 0,
-    };
-  }, [novels, articles, chapters]);
-
-  const allKnowledgeCategories = useMemo(() => {
-    const cats = new Set<string>();
-    (articles || []).forEach(a => {
-      if (a.category) cats.add(a.category);
-    });
-    (novels || []).forEach(n => {
-      (n.genres || []).forEach(g => cats.add(toArabicGenre(g)));
-    });
-    return Array.from(cats);
-  }, [articles, novels]);
-
-  // Auto-redirect if currently viewed novel was deleted
-  useEffect(() => {
-    if (selectedNovelId && !novels.some(n => n.id === selectedNovelId)) {
-      setSelectedNovelId(null);
-      setSelectedChapterId(null);
-      if (currentView === 'reader' || currentView === 'novel_detail') {
-        setCurrentView('catalog');
-      }
-    }
-  }, [novels, selectedNovelId, currentView]);
+  const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);
 
   return (
-    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C]">
+    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">
       {/* PWA Mobile Installation Prompt Banner */}
-      {showPwaBanner && currentView !== 'catalog' && (
-        <div id="pwa-install-banner" className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
+      {showPwaBanner && !isStandalone && (
+        <div className="bg-[#4A5D4E] text-[#FDFCF8] text-xs font-cairo px-4 py-2 flex items-center justify-between shadow-xs">
           <div className="flex items-center gap-2.5 max-w-2xl">
-            {(siteBranding.pwaIconUrl || siteBranding.faviconUrl || siteBranding.logoUrl) ? (
-              <img
-                src={siteBranding.pwaIconUrl || siteBranding.faviconUrl || siteBranding.logoUrl}
-                alt="App Icon"
-                className="w-5 h-5 rounded-md object-cover shrink-0 border border-white/40 shadow-xs"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <Smartphone className="w-4 h-4 shrink-0 text-amber-200" />
-            )}
+            <img
+              src={siteBranding.pwaIconUrl || '/pwa-192.png'}
+              alt="تطبيق أيمن كناني"
+              className="w-5 h-5 rounded-md object-cover border border-white/40 shrink-0 shadow-2xs"
+              referrerPolicy="no-referrer"
+            />
             <span>
-              <strong>تطبيق {siteBranding.siteName ? siteBranding.siteName.split('|')[0].trim() : 'أيمن كناني'} متاح الآن:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك الرئيسية.
+              <strong>تطبيق أيمن كناني:</strong> يمكنك تثبيت المنصة كتطبيق خفيف وسريع على شاشة هاتفك مع دعم القراءة دون إنترنت.
             </span>
           </div>
           <div className="flex items-center gap-2">
             <button
-              id="pwa-banner-install-btn"
               type="button"
+              id="top-banner-direct-download-btn"
               onClick={handleInstallPwa}
-              className="px-3 py-1 bg-white text-[#4A5D4E] font-bold rounded-lg hover:bg-amber-50 transition-colors text-[11px] cursor-pointer shadow-xs whitespace-nowrap"
+              className="px-3 py-1 bg-white text-[#4A5D4E] font-bold rounded-lg hover:bg-amber-50 transition-colors text-[11px] cursor-pointer shadow-xs whitespace-nowrap active:scale-95 flex items-center gap-1"
             >
-              تثبيت على الهاتف
+              <Download className="w-3 h-3" />
+              <span>تنزيل مباشر</span>
             </button>
             <button
               type="button"
               onClick={() => setShowPwaBanner(false)}
-              className="p-1 hover:bg-[#3C4C3F] rounded text-white/80"
+              className="p-1 hover:bg-[#3C4C3F] rounded text-white/80 cursor-pointer"
               title="إغلاق الإشعار"
             >
               <X className="w-3.5 h-3.5" />
@@ -619,22 +646,23 @@ export default function App() {
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         isControlPanelOpen={currentView === 'control_panel'}
-        isAdminLoggedIn={isAdminLoggedIn}
+        isAdminLoggedIn={isAdminLoggedIn && storageService.isAdminLoggedIn()}
         onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
         onInstallPwa={handleInstallPwa}
         canInstallPwa={canInstallPwa}
+        isStandalone={isStandalone}
         siteBranding={siteBranding}
         onOpenDonationModal={() => setShowDonationModal(true)}
         onScrollToAuthor={handleScrollToAuthorBio}
-        onOpenCommandPalette={() => setShowCommandPalette(true)}
-        hideSearchBar={currentView === 'catalog'}
-        onOpenSmartEditors={() => {
-          setSelectedTypeFilter('smart_editors');
-          if (currentView !== 'catalog') {
-            setCurrentView('catalog');
-          }
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+      />
+
+      {/* PWA Install Guidance & One-Click Modal */}
+      <PWAInstallModal
+        isOpen={showPwaInstallModal}
+        onClose={() => setShowPwaInstallModal(false)}
+        onNativeInstall={handleNativePromptInstall}
+        canNativeInstall={canInstallPwa && !!deferredPrompt}
+        siteBranding={siteBranding}
       />
 
       {/* Admin Login Dialog Modal */}
@@ -649,15 +677,6 @@ export default function App() {
         isOpen={showDonationModal}
         onClose={() => setShowDonationModal(false)}
         donationSettings={donationSettings}
-      />
-
-      {/* PWA Mobile Installation Guide Modal */}
-      <PWAInstallModal
-        isOpen={showPwaInstallModal}
-        onClose={() => setShowPwaInstallModal(false)}
-        onNativeInstall={handleInstallPwa}
-        canNativeInstall={Boolean(deferredPrompt)}
-        siteBranding={siteBranding}
       />
 
       {/* VIEW ROUTER */}
@@ -692,9 +711,9 @@ export default function App() {
           />
         )}
 
-        {/* 3. AUTHOR & ADMIN CONTROL PANEL */}
+        {/* 3. AUTHOR & ADMIN CONTROL PANEL (Strictly Protected) */}
         {currentView === 'control_panel' && (
-          isAdminLoggedIn ? (
+          isAdminLoggedIn && storageService.isAdminLoggedIn() ? (
             <ControlPanel
               novels={novels}
               chapters={chapters}
@@ -704,114 +723,244 @@ export default function App() {
               onExitControlPanel={handleNavigateHome}
               onAdminLogout={handleAdminLogout}
               onOpenLegalPage={handleOpenLegalPage}
-              onOpenArticle={handleSelectArticle}
             />
           ) : (
-            <div className="min-h-[70vh] flex flex-col items-center justify-center p-6 text-center font-cairo bg-[#FDFCF8]">
-              <div className="w-16 h-16 rounded-2xl bg-amber-50 border border-amber-200 text-amber-800 flex items-center justify-center mb-4 shadow-xs">
+            <div className="max-w-md mx-auto px-4 py-20 text-center font-cairo">
+              <div className="w-16 h-16 mx-auto rounded-3xl bg-amber-50 text-amber-700 border border-amber-200 flex items-center justify-center mb-4 shadow-sm">
                 <Lock className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold font-amiri text-[#2C2C2C] mb-2">لوحة التحكم مقفلة</h2>
-              <p className="text-sm text-[#6E6A64] max-w-md mb-6 leading-relaxed">
-                هذه المنطقة مخصصة لإدارة ونشر المؤلفات من قبل الكاتب فقط. يرجى تسجيل الدخول للوصول إليها.
+              <h2 className="font-amiri font-bold text-2xl text-[#2C2C2C] mb-2">
+                منطقة محمية - تسجيل دخول الإدارة مطلوب
+              </h2>
+              <p className="text-xs text-[#6E6A64] mb-6 leading-relaxed">
+                لوحة التحكم الإدارية مخصصة للكاتب والناشر فقط لإدارة الأعمال الأدبية والفصول وإعدادات الموقع.
               </p>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center gap-3">
                 <button
                   type="button"
-                  id="lockscreen-login-btn"
+                  id="protected-admin-login-btn"
                   onClick={() => setShowAdminLoginModal(true)}
-                  className="px-6 py-2.5 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all"
+                  className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white font-bold text-xs shadow-md transition-all cursor-pointer"
                 >
-                  تسجيل دخول الإدارة
+                  تسجيل الدخول كمدير
                 </button>
                 <button
                   type="button"
-                  id="lockscreen-home-btn"
                   onClick={handleNavigateHome}
-                  className="px-6 py-2.5 border border-[#E5E2D9] text-[#2C2C2C] font-bold text-xs rounded-xl hover:bg-[#F7F5EE] cursor-pointer transition-all"
+                  className="px-4 py-2.5 rounded-xl border border-[#E5E2D9] text-[#2C2C2C] font-semibold text-xs hover:bg-[#F7F5EE] transition-all cursor-pointer"
                 >
-                  العودة للموقع
+                  العودة للرئيسية
                 </button>
               </div>
             </div>
           )
         )}
 
-        {/* 4. INTELLECTUAL ARTICLE & STUDY READER VIEW */}
-        {currentView === 'article_reader' && currentArticle && (
-          <ArticleReader
-            article={currentArticle}
-            onBack={handleNavigateHome}
-            onSelectArticle={handleSelectArticle}
-            allArticles={articles}
-          />
-        )}
-
-        {/* 5. LEGAL & COMPLIANCE PAGES */}
+        {/* 4. LEGAL & COMPLIANCE PAGES */}
         {currentView === 'legal' && (
           <LegalPages page={legalPage} onBack={handleNavigateHome} />
         )}
 
-        {/* 6. MAIN RESEARCH BROWSER & KNOWLEDGE SEARCH ENGINE VIEW (GOOGLE STYLE) */}
+        {/* 5. MAIN BROWSE / CATALOG VIEW */}
         {currentView === 'catalog' && (
-          <main className="w-full">
-            <SearchKnowledgeEngine
-              searchQuery={searchQuery}
-              onSearchChange={setSearchQuery}
-              selectedTypeFilter={selectedTypeFilter}
-              onTypeFilterChange={setSelectedTypeFilter}
-              selectedCategory={selectedKnowledgeCategory}
-              onCategoryChange={setSelectedKnowledgeCategory}
-              allCategories={allKnowledgeCategories}
-              categories={allKnowledgeCategories}
-              novels={novels}
-              chapters={chapters}
-              articles={articles}
-              onRefreshData={refreshData}
-              searchResults={unifiedSearchResults}
-              results={unifiedSearchResults}
-              onSelectBook={handleSelectNovel}
-              onSelectChapter={handleSelectChapter}
-              onSelectArticle={handleSelectArticle}
-              onRandomPick={handleRandomPick}
-              stats={knowledgeStats}
-              onOpenSmartEditor={() => {
-                setSelectedTypeFilter('smart_editors');
-              }}
-              onOpenAuthorPortal={() => setShowAuthorPortal(true)}
-            />
+          <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
+            {/* Top Leaderboard Ad */}
+            <AdSlot location="header" adSettings={adSettings} className="mb-8" />
+
+            {/* Author Profile & Biography Hero Section */}
+            {!searchQuery && selectedGenre === 'All' && (
+              <AuthorProfileSection
+                authorProfile={authorProfile}
+                novels={novels}
+                donationSettings={donationSettings}
+                onOpenDonationModal={() => setShowDonationModal(true)}
+                onOpenContactPage={() => handleOpenLegalPage('contact')}
+              />
+            )}
+
+            {/* Featured Book Hero Spotlight (if not searching) */}
+            {!searchQuery && selectedGenre === 'All' && featuredNovel && (
+              <section className="relative rounded-3xl overflow-hidden border border-[#E5E2D9] bg-[#F7F5EE] shadow-xs mb-12">
+                <div className="absolute inset-0 z-0">
+                  <img
+                    src={featuredNovel.bannerImage || featuredNovel.coverImage}
+                    alt={featuredNovel.title}
+                    className="w-full h-full object-cover opacity-10 blur-sm scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-l from-[#F7F5EE] via-[#F7F5EE]/90 to-transparent" />
+                </div>
+
+                <div className="relative z-10 p-6 sm:p-10 flex flex-col md:flex-row items-center gap-8">
+                  <img
+                    src={featuredNovel.coverImage}
+                    alt={featuredNovel.title}
+                    onClick={() => handleSelectNovel(featuredNovel.id)}
+                    className="w-40 sm:w-52 aspect-[2/3] object-cover rounded-2xl shadow-md border-2 border-[#E5E2D9] hover:scale-102 transition-transform cursor-pointer shrink-0"
+                    referrerPolicy="no-referrer"
+                  />
+
+                  <div className="flex-1 text-center md:text-right font-cairo">
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-3">
+                      <span className="px-3 py-0.5 rounded-full text-xs font-bold bg-[#4A5D4E] text-[#FDFCF8]">
+                        إصدار مميز للكاتب
+                      </span>
+                      {featuredNovel.genres.map(g => (
+                        <span
+                          key={g}
+                          className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-[#FFFFFF] text-[#6E6A64] border border-[#E5E2D9]"
+                        >
+                          {g}
+                        </span>
+                      ))}
+                    </div>
+
+                    <h2
+                      onClick={() => handleSelectNovel(featuredNovel.id)}
+                      className="font-amiri font-bold text-2xl sm:text-4xl text-[#2C2C2C] hover:text-[#4A5D4E] transition-colors cursor-pointer mb-2"
+                    >
+                      {featuredNovel.title}
+                    </h2>
+
+                    <p className="text-xs sm:text-sm text-[#4A5D4E] mb-3 font-semibold">
+                      بقلم المؤلف: <strong className="text-[#2C2C2C]">{featuredNovel.author}</strong>
+                    </p>
+
+                    <p className="text-xs sm:text-sm text-[#6E6A64] leading-relaxed line-clamp-3 mb-6 max-w-2xl">
+                      {featuredNovel.synopsis}
+                    </p>
+
+                    <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
+                      <button
+                        type="button"
+                        id="hero-read-first-btn"
+                        onClick={() => handleReadFirstChapter(featuredNovel.id)}
+                        className="px-6 py-3 bg-[#4A5D4E] hover:bg-[#3C4C3F] text-[#FDFCF8] font-bold text-xs sm:text-sm rounded-xl shadow-xs transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                      >
+                        <BookOpen className="w-4 h-4" />
+                        <span>ابدأ قراءة الفصل الأول الآن</span>
+                      </button>
+                      <button
+                        type="button"
+                        id="hero-direct-app-download-btn"
+                        onClick={handleInstallPwa}
+                        className="px-5 py-3 rounded-xl bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs sm:text-sm font-bold transition-all flex items-center gap-2 cursor-pointer shadow-xs active:scale-95"
+                        title="تنزيل مباشر لتطبيق أيمن كناني على جهازك"
+                      >
+                        <Download className="w-4 h-4" />
+                        <span>تنزيل مباشر للتطبيق</span>
+                      </button>
+                      <button
+                        type="button"
+                        id="hero-novel-details-btn"
+                        onClick={() => handleSelectNovel(featuredNovel.id)}
+                        className="px-5 py-3 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] text-[#2C2C2C] text-xs sm:text-sm font-bold transition-all cursor-pointer shadow-xs"
+                      >
+                        عرض الفهرس
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Catalog Filter & Sorting Bar */}
+            {novels.length > 0 && (
+              <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 font-cairo">
+                {/* Dynamic Category / Genre Pills */}
+                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-none">
+                  {filterPills.map(genre => (
+                    <button
+                      key={genre.key}
+                      type="button"
+                      id={`filter-genre-${genre.key.replace(/\s+/g, '-')}`}
+                      onClick={() => setSelectedGenre(genre.key)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer border ${
+                        selectedGenre === genre.key
+                          ? 'bg-[#4A5D4E] text-[#FDFCF8] border-[#4A5D4E] shadow-xs'
+                          : 'bg-[#FFFFFF] text-[#6E6A64] border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:text-[#2C2C2C]'
+                      }`}
+                    >
+                      {genre.label}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Sort By Dropdown */}
+                <div className="flex items-center gap-2 shrink-0 self-end md:self-auto text-xs font-cairo">
+                  <span className="text-[#6E6A64] font-bold">ترتيب حسب:</span>
+                  <select
+                    id="catalog-sort-select"
+                    value={sortBy}
+                    onChange={e => setSortBy(e.target.value as any)}
+                    className="px-3 py-1.5 rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] text-xs focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-bold cursor-pointer"
+                  >
+                    <option value="popular">الأكثر قراءة وشعبية</option>
+                    <option value="rating">الأعلى تقييماً</option>
+                    <option value="latest">أحدث التحديثات</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Books & Literature Grid */}
+            {novels.length > 0 && (
+              <div className="space-y-6">
+                <div className="flex items-center justify-between font-cairo">
+                  <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] flex items-center gap-2">
+                    <Compass className="w-5 h-5 text-[#4A5D4E]" />
+                    <span>
+                      {selectedGenre === 'All' ? `مؤلفات وكتب الكاتب ${authorProfile.name}` : `كتب وتصنيف: ${filterPills.find(p => p.key === selectedGenre)?.label || selectedGenre}`}
+                    </span>
+                    <span className="text-xs text-[#6E6A64] font-normal">
+                      ({filteredNovels.length} {filteredNovels.length === 1 ? 'مؤلَف' : 'مؤلفات'})
+                    </span>
+                  </h3>
+                </div>
+
+                {filteredNovels.length === 0 ? (
+                  <div className="p-12 text-center rounded-3xl bg-[#F7F5EE] border border-[#E5E2D9] font-cairo max-w-2xl mx-auto space-y-4">
+                    <div className="w-14 h-14 mx-auto rounded-2xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center">
+                      <BookOpen className="w-7 h-7" />
+                    </div>
+                    <p className="text-[#6E6A64] text-sm">
+                      لم يتم العثور على كتب أو مؤلفات مطابقة لبحثك "{searchQuery}".
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSearchQuery('');
+                        setSelectedGenre('All');
+                      }}
+                      className="px-4 py-2 bg-[#4A5D4E] text-[#FDFCF8] text-xs font-bold rounded-xl cursor-pointer"
+                    >
+                      إعادة ضبط الفلاتر والبحث
+                    </button>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+                    {filteredNovels.map(novel => {
+                      const count = chapters.filter(c => c.novelId === novel.id).length;
+                      return (
+                        <NovelCard
+                          key={novel.id}
+                          novel={novel}
+                          chapterCount={count}
+                          onSelectNovel={handleSelectNovel}
+                          onReadFirstChapter={handleReadFirstChapter}
+                        />
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Mid-Catalog Corporate Sponsor / Ad Unit */}
+            <AdSlot location="mid_chapter" adSettings={adSettings} className="my-12" />
           </main>
         )}
       </div>
-
-      {/* Author Bio Modal */}
-      {showAuthorBioModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-cairo animate-fadeIn">
-          <div className="bg-[#FFFFFF] rounded-3xl max-w-3xl w-full max-h-[90vh] overflow-y-auto border border-[#E5E2D9] shadow-2xl p-6 sm:p-8 relative">
-            <button
-              type="button"
-              id="close-author-modal-btn"
-              onClick={() => setShowAuthorBioModal(false)}
-              className="absolute top-5 left-5 text-[#8E8A83] hover:text-[#2C2C2C] p-2 rounded-xl hover:bg-[#FAF8F5] cursor-pointer"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <AuthorProfileSection
-              authorProfile={authorProfile}
-              novels={novels}
-              donationSettings={donationSettings}
-              onOpenDonationModal={() => {
-                setShowAuthorBioModal(false);
-                setShowDonationModal(true);
-              }}
-              onOpenContactPage={() => {
-                setShowAuthorBioModal(false);
-                handleOpenLegalPage('contact');
-              }}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Bookmarks Slide-over Drawer */}
       {showBookmarksDrawer && (
@@ -855,7 +1004,7 @@ export default function App() {
                           <div className="flex items-center gap-3 overflow-hidden">
                             {book && (
                               <img
-                                src={book.coverImage || 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop'}
+                                src={book.coverImage}
                                 alt={book.title}
                                 className="w-12 h-16 object-cover rounded-lg shrink-0 border border-[#E5E2D9]"
                                 referrerPolicy="no-referrer"
@@ -906,79 +1055,26 @@ export default function App() {
         </div>
       )}
 
-      {/* Global Command Palette (Cmd+K / Ctrl+K) */}
-      <CommandPalette
-        isOpen={showCommandPalette}
-        onClose={() => setShowCommandPalette(false)}
-        novels={novels}
-        chapters={chapters}
-        articles={articles}
-        categories={categories}
-        onSelectBook={(novelId) => {
-          setSelectedNovelId(novelId);
-          setCurrentView('novel_detail');
-        }}
-        onSelectChapter={(novelId, chapterId) => {
-          setSelectedNovelId(novelId);
-          setSelectedChapterId(chapterId);
-          setCurrentView('reader');
-        }}
-        onSelectArticle={(articleId) => {
-          setSelectedArticleId(articleId);
-          setCurrentView('article_reader');
-        }}
-        onOpenControlPanel={() => {
-          handleOpenControlPanel();
-        }}
-        onOpenHighlightsDrawer={() => {
-          setShowHighlightsDrawer(true);
-        }}
-        onOpenAdminLogin={() => {
-          setShowAdminLoginModal(true);
-        }}
-        onScrollToAuthor={() => {
-          handleScrollToAuthorBio();
-        }}
+      {/* Global Footer with legal links & AdSlot */}
+      <Footer
+        onOpenLegalPage={handleOpenLegalPage}
+        adSettings={adSettings}
+        siteBranding={siteBranding}
+        onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
       />
 
-      {/* Global Researcher Highlights Drawer */}
-      <UserHighlightsDrawer
-        isOpen={showHighlightsDrawer}
-        onClose={() => setShowHighlightsDrawer(false)}
-        onNavigateToItem={(type, id, extraId) => {
-          if (type === 'novel') {
-            setSelectedNovelId(id);
-            setCurrentView('novel_detail');
-          } else if (type === 'chapter') {
-            if (extraId) setSelectedNovelId(extraId);
-            setSelectedChapterId(id);
-            setCurrentView('reader');
-          } else if (type === 'article') {
-            setSelectedArticleId(id);
-            setCurrentView('article_reader');
-          }
-        }}
+      {/* Professional Mobile Bottom Navigation Bar (Dock) */}
+      <MobileBottomNav
+        currentView={currentView}
+        onNavigateHome={handleNavigateHome}
+        onOpenBookmarks={() => setShowBookmarksDrawer(true)}
+        bookmarkCount={bookmarks.length}
+        onScrollToAuthor={handleScrollToAuthorBio}
+        onOpenInstallModal={() => setShowPwaInstallModal(true)}
+        onOpenDonationModal={() => setShowDonationModal(true)}
+        isStandalone={isStandalone}
+        siteBranding={siteBranding}
       />
-
-      {/* Author & Writers Portal Modal */}
-      <AuthorPortalModal
-        isOpen={showAuthorPortal}
-        onClose={() => setShowAuthorPortal(false)}
-        onLoginSuccess={() => {
-          refreshData();
-          setIsAdminLoggedIn(storageService.isAdminLoggedIn());
-        }}
-      />
-
-      {/* Global Footer with legal links & AdSlot (Only on sub-views; Search has its own minimalist footer) */}
-      {currentView !== 'catalog' && (
-        <Footer
-          onOpenLegalPage={handleOpenLegalPage}
-          adSettings={adSettings}
-          siteBranding={siteBranding}
-          onOpenAdminLoginModal={() => setShowAdminLoginModal(true)}
-        />
-      )}
     </div>
   );
 }

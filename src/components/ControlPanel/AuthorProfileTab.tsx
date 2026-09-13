@@ -240,7 +240,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
                 }}
               />
 
-              {Boolean(profile.avatar?.trim()) ? (
+              {profile.avatar ? (
                 <div className="relative group">
                   <img
                     src={profile.avatar}
@@ -326,7 +326,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
                   }
                 }}
               />
-              {Boolean(profile.coverImage?.trim()) ? (
+              {profile.coverImage ? (
                 <img
                   src={profile.coverImage}
                   alt="غلاف الكاتب"
@@ -614,7 +614,7 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
                   type="url"
                   value={profile.socialLinks.website || ''}
                   onChange={(e) => handleSocialChange('website', e.target.value)}
-                  placeholder="https://aymankinani.com"
+                  placeholder="https://www.aymankinani.org"
                   className="w-full px-3.5 py-2 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] text-xs text-[#2C2C2C] focus:outline-none focus:border-[#4A5D4E]"
                 />
               </div>
