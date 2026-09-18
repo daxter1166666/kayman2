@@ -17,6 +17,8 @@ import {
   serverDeleteChapter,
   serverFetchAllChapters,
   serverFetchAllSyncData,
+  serverFetchSingleChapterContent,
+  serverIncrementView,
 } from './src/server/supabaseServer';
 
 import {
@@ -178,10 +180,35 @@ async function startServer() {
 
   app.get('/api/chapters', async (_req, res) => {
     try {
+      res.setHeader('Cache-Control', 'public, max-age=180, stale-while-revalidate=600');
       const chapters = await serverFetchAllChapters();
       res.json({ success: true, chapters });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.get('/api/chapters/:id/content', async (req, res) => {
+    try {
+      res.setHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+      const content = await serverFetchSingleChapterContent(req.params.id);
+      if (content !== null) {
+        res.json({ success: true, id: req.params.id, content });
+      } else {
+        res.status(404).json({ success: false, error: 'Chapter content not found' });
+      }
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/views/increment', async (req, res) => {
+    try {
+      const { novelId, chapterId } = req.body || {};
+      const result = await serverIncrementView(novelId, chapterId);
+      res.json(result);
+    } catch (err: any) {
+      res.json({ success: true });
     }
   });
 

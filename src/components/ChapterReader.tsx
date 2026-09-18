@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Novel, Chapter, Comment, ReaderSettings, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
+import { supabaseService } from '../services/supabaseService';
 import { AdSlot } from './AdSlot';
 import { StarRatingWidget } from './StarRatingWidget';
 import { ChapterRatingWidget } from './ChapterRatingWidget';
@@ -77,6 +78,8 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   const [isPdfModalOpen, setIsPdfModalOpen] = useState<boolean>(false);
   const [chapterRating, setChapterRating] = useState<number>(chapter.rating || 5.0);
   const [chapterRatingCount, setChapterRatingCount] = useState<number>(chapter.ratingCount || 0);
+  const [chapterContent, setChapterContent] = useState<string>(chapter.content || '');
+  const [isLoadingContent, setIsLoadingContent] = useState<boolean>(!chapter.content);
   const contentRef = useRef<HTMLDivElement>(null);
 
   // Initialize chapter state on mount or change
@@ -98,12 +101,33 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     setChapterRating(typeof freshChapter?.rating === 'number' ? freshChapter.rating : (chapter.rating || 5.0));
     setChapterRatingCount(typeof freshChapter?.ratingCount === 'number' ? freshChapter.ratingCount : (chapter.ratingCount || 0));
 
+    // Resolve chapter content: from prop, from local cache, or lazy-fetch from server
+    let effectiveContent = chapter.content;
+    if (!effectiveContent && freshChapter?.content) {
+      effectiveContent = freshChapter.content;
+    }
+
+    if (effectiveContent) {
+      setChapterContent(effectiveContent);
+      setIsLoadingContent(false);
+    } else {
+      setIsLoadingContent(true);
+      supabaseService.fetchChapterContent(chapter.id).then(fetched => {
+        if (fetched) {
+          setChapterContent(fetched);
+        }
+        setIsLoadingContent(false);
+      }).catch(() => {
+        setIsLoadingContent(false);
+      });
+    }
+
     // Load comments
     setComments(storageService.getComments(chapter.id));
 
     // Scroll to top
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [chapter.id, novel.id]);
+  }, [chapter.id, novel.id, chapter.content]);
 
   // Scroll Progress listener
   useEffect(() => {
@@ -297,13 +321,13 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
   }[readerSettings.contentWidth];
 
   // Split chapter content for mid-chapter ad insertion if long
-  const isHtmlContent = /<[a-z][\s\S]*>/i.test(chapter.content);
-  const paragraphs = !isHtmlContent ? chapter.content.split('\n\n').filter(p => p.trim()) : [];
+  const isHtmlContent = /<[a-z][\s\S]*>/i.test(chapterContent);
+  const paragraphs = !isHtmlContent ? chapterContent.split('\n\n').filter(p => p.trim()) : [];
   const midPoint = Math.floor(paragraphs.length / 2);
 
   const htmlParts = useMemo(() => {
-    if (!isHtmlContent) return null;
-    const chunks = chapter.content.split(/(<\/p>)/gi);
+    if (!isHtmlContent || !chapterContent) return null;
+    const chunks = chapterContent.split(/(<\/p>)/gi);
     const pList: string[] = [];
     for (let i = 0; i < chunks.length; i += 2) {
       const chunk = chunks[i];
@@ -313,14 +337,14 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
       }
     }
     if (pList.length <= 2) {
-      return { firstHalf: chapter.content, secondHalf: '' };
+      return { firstHalf: chapterContent, secondHalf: '' };
     }
     const mid = Math.floor(pList.length / 2);
     return {
       firstHalf: pList.slice(0, mid).join(''),
       secondHalf: pList.slice(mid).join(''),
     };
-  }, [chapter.content, isHtmlContent]);
+  }, [chapterContent, isHtmlContent]);
 
   return (
     <div className={`min-h-screen transition-colors duration-300 ${themeStyles.bg} ${themeStyles.text} font-cairo`}>
@@ -851,54 +875,65 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
         )}
 
         {/* Reading Text Body - Copy and Selection Fully Enabled */}
-        <article
-          ref={contentRef}
-          className={`${fontClass} ${lineHeightClass} ${
-            readerSettings.textAlign === 'justify' ? 'text-justify' : 'text-right'
-          } space-y-6 sm:space-y-8 select-text cursor-text selection:bg-[#4A5D4E]/20`}
-          style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
-        >
-          {/* Render content based on whether it is rich HTML or plain text */}
-          {isHtmlContent && htmlParts ? (
-            <>
-              <div
-                className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
-                dangerouslySetInnerHTML={{ __html: htmlParts.firstHalf }}
-              />
-              {htmlParts.secondHalf && (
-                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
-              )}
-              {htmlParts.secondHalf && (
+        {isLoadingContent ? (
+          <div className="space-y-4 py-8 animate-pulse">
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-full"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-11/12"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-full"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-4/5"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-9/12 mt-6"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-full"></div>
+            <div className="h-4 bg-black/10 dark:bg-white/10 rounded-md w-5/6"></div>
+          </div>
+        ) : (
+          <article
+            ref={contentRef}
+            className={`${fontClass} ${lineHeightClass} ${
+              readerSettings.textAlign === 'justify' ? 'text-justify' : 'text-right'
+            } space-y-6 sm:space-y-8 select-text cursor-text selection:bg-[#4A5D4E]/20`}
+            style={{ fontSize: `${readerSettings.fontSize}px`, userSelect: 'text', WebkitUserSelect: 'text' }}
+          >
+            {/* Render content based on whether it is rich HTML or plain text */}
+            {isHtmlContent && htmlParts ? (
+              <>
                 <div
                   className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
-                  dangerouslySetInnerHTML={{ __html: htmlParts.secondHalf }}
+                  dangerouslySetInnerHTML={{ __html: htmlParts.firstHalf }}
                 />
-              )}
-            </>
-          ) : (
-            <>
-              {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
-                <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
-                  {para}
-                </p>
-              ))}
-
-              {/* Mid-Chapter Ad Placement */}
-              {paragraphs.length > 2 && (
-                <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
-              )}
-
-              {/* Render second half */}
-              {paragraphs.length > 2 &&
-                paragraphs.slice(midPoint).map((para, idx) => (
-                  <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
+                {htmlParts.secondHalf && (
+                  <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
+                )}
+                {htmlParts.secondHalf && (
+                  <div
+                    className="book-reader-content space-y-6 leading-relaxed sm:leading-loose"
+                    dangerouslySetInnerHTML={{ __html: htmlParts.secondHalf }}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {paragraphs.slice(0, midPoint > 0 ? midPoint : paragraphs.length).map((para, idx) => (
+                  <p key={`p1-${idx}`} className="leading-relaxed sm:leading-loose">
                     {para}
                   </p>
                 ))}
-            </>
-          )}
 
-          {/* Chapter License Notice */}
+                {/* Mid-Chapter Ad Placement */}
+                {paragraphs.length > 2 && (
+                  <AdSlot location="mid_chapter" adSettings={adSettings} className="my-8" />
+                )}
+
+                {/* Render second half */}
+                {paragraphs.length > 2 &&
+                  paragraphs.slice(midPoint).map((para, idx) => (
+                    <p key={`p2-${idx}`} className="leading-relaxed sm:leading-loose">
+                      {para}
+                    </p>
+                  ))}
+              </>
+            )}
+
+            {/* Chapter License Notice */}
           <div className={`mt-10 p-4 sm:p-5 rounded-2xl border ${themeStyles.border} ${themeStyles.card} shadow-xs text-xs font-cairo`}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
               <div className="flex items-center gap-2.5">
@@ -931,6 +966,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             </p>
           </div>
         </article>
+        )}
 
         {/* Decorative Section Separator */}
         <div className="flex items-center justify-center gap-3 my-12 opacity-40">

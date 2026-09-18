@@ -46,7 +46,9 @@ import {
   Heart,
   Lock,
   User,
-  Download
+  Download,
+  Search,
+  ArrowRight
 } from 'lucide-react';
 
 export default function App() {
@@ -97,6 +99,7 @@ export default function App() {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
+
       const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
       const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
       const allChapters = storageService.getChapters();
@@ -199,7 +202,7 @@ export default function App() {
 
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase
+    // Cross-browser cloud synchronization with Supabase (runs once on load in background)
     const doPull = () => {
       supabaseService.pullAllFromSupabase().then(res => {
         if (res) {
@@ -211,16 +214,6 @@ export default function App() {
     };
 
     doPull();
-
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        doPull();
-      }
-    };
-
-    window.addEventListener('visibilitychange', handleVisibility);
-    window.addEventListener('focus', doPull);
-    const syncInterval = setInterval(doPull, 45000);
 
     const handleViewIncremented = (e: Event) => {
       const detail = (e as CustomEvent).detail;
@@ -343,10 +336,7 @@ export default function App() {
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
     return () => {
-      window.removeEventListener('visibilitychange', handleVisibility);
-      window.removeEventListener('focus', doPull);
       window.removeEventListener('novel-view-incremented', handleViewIncremented);
-      clearInterval(syncInterval);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
@@ -599,7 +589,7 @@ export default function App() {
   // Featured Hero Book
   const featuredNovel = novels.find(n => n.isFeatured) || novels[0];
 
-  // Active novel & chapter objects
+  // Active novel and chapter objects
   const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
   const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);

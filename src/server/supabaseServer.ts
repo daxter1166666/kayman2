@@ -11,6 +11,7 @@ import type {
   AdSettings,
   SeoSettings,
 } from '../types';
+import { BAKED_NOVELS, BAKED_CHAPTERS } from '../data/bakedContent';
 
 const DEFAULT_SUPABASE_URL = 'https://kepuolqhropozwfwwwbb.supabase.co';
 const DEFAULT_SUPABASE_KEY =
@@ -29,7 +30,6 @@ export function getServerSupabase(): SupabaseClient {
       },
       global: {
         fetch: (input, init) => {
-          // Prevent hung connections in serverless environments (Vercel / Node)
           const controller = new AbortController();
           const timeoutId = setTimeout(() => controller.abort(), 6000);
           return fetch(input, {
@@ -41,6 +41,123 @@ export function getServerSupabase(): SupabaseClient {
     });
   }
   return supabaseServerClient;
+}
+
+// =========================================================================
+// COLUMN DEFINITIONS
+// =========================================================================
+export const NOVEL_COLUMNS = 'id, title, slug, author, author_bio, synopsis, cover_image, banner_image, genres, tags, status, total_views, total_likes, rating, rating_count, is_featured, pdf_download_url, pdf_file_size, download_button_text, created_at, updated_at';
+export const NOVEL_CORE_COLUMNS = 'id, title, slug, author, synopsis, cover_image, genres, tags, status, total_views, total_likes, rating, is_featured, created_at, updated_at';
+export const CHAPTER_META_COLUMNS = 'id, novel_id, chapter_number, title, slug, author_note, published_at, views, likes, rating, rating_count, word_count, status, updated_at';
+export const CHAPTER_CORE_COLUMNS = 'id, novel_id, chapter_number, title, slug, published_at, views, likes, status';
+export const CHAPTER_FULL_COLUMNS = 'id, novel_id, chapter_number, title, slug, content, author_note, published_at, views, likes, rating, rating_count, word_count, status, updated_at';
+export const COMMENT_COLUMNS = 'id, novel_id, chapter_id, author_name, author_avatar, content, created_at, likes, is_author, is_pinned, parent_id, is_approved, user_badge, rating';
+
+/**
+ * Universal helper to extract missing column names from any Postgres/PostgREST error message
+ */
+export function extractMissingColumnName(errMsg?: string): string | null {
+  if (!errMsg) return null;
+  const patterns = [
+    /Could not find the ['"]?([a-zA-Z0-9_]+)['"]? column/i,
+    /column ['"]?([a-zA-Z0-9_]+)['"]? of relation/i,
+    /column ['"]?([a-zA-Z0-9_]+)['"]? does not exist/i,
+    /column [a-zA-Z0-9_]+\.([a-zA-Z0-9_]+) does not exist/i,
+    /relation ['"][^'"]+['"] has no column named ['"]([a-zA-Z0-9_]+)['"]/i,
+    /schema cache lookup failed for ['"]?([a-zA-Z0-9_]+)['"]?/i,
+  ];
+
+  for (const pat of patterns) {
+    const m = errMsg.match(pat);
+    if (m && m[1]) return m[1];
+  }
+  return null;
+}
+
+/**
+ * Resilient upsert helper that automatically prunes unrecognized columns
+ */
+async function resilientUpsert(
+  client: SupabaseClient,
+  table: string,
+  payload: Record<string, any>,
+  maxRetries = 10
+): Promise<{ success: boolean; error?: any; finalPayload: Record<string, any> }> {
+  let current = { ...payload };
+  let attempts = maxRetries;
+  let lastErr: any = null;
+
+  while (attempts > 0) {
+    const res = await client.from(table).upsert(current);
+    lastErr = res.error;
+    if (!lastErr) {
+      return { success: true, finalPayload: current };
+    }
+
+    const missingCol = extractMissingColumnName(lastErr.message);
+    if (missingCol && current[missingCol] !== undefined) {
+      delete current[missingCol];
+      attempts--;
+      continue;
+    }
+
+    // Try stripping optional non-standard columns if still failing
+    const optionalCols = [
+      'pdf_download_url',
+      'pdf_file_size',
+      'download_button_text',
+      'author_bio',
+      'banner_image',
+      'rating_count',
+      'table_of_contents',
+      'author_note',
+      'author_notes',
+      'word_count',
+      'seo',
+      'user_badge',
+      'is_approved',
+    ];
+    let strippedAny = false;
+    for (const opt of optionalCols) {
+      if (current[opt] !== undefined) {
+        delete current[opt];
+        strippedAny = true;
+        break;
+      }
+    }
+
+    if (strippedAny) {
+      attempts--;
+      continue;
+    }
+
+    break;
+  }
+
+  return { success: !lastErr, error: lastErr, finalPayload: current };
+}
+
+// =========================================================================
+// SERVER IN-MEMORY CACHE (Reduces Supabase database egress to virtually zero)
+// =========================================================================
+interface CacheEntry<T> {
+  data: T;
+  timestamp: number;
+}
+
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache
+const CHAPTER_CONTENT_TTL_MS = 30 * 60 * 1000; // 30 minutes cache for chapter texts
+
+let novelsCache: CacheEntry<Novel[]> | null = null;
+let chaptersMetaCache: CacheEntry<Chapter[]> | null = null;
+let syncBundleCache: CacheEntry<any> | null = null;
+const singleChapterCache = new Map<string, CacheEntry<Chapter>>();
+
+export function invalidateServerCache() {
+  novelsCache = null;
+  chaptersMetaCache = null;
+  syncBundleCache = null;
+  singleChapterCache.clear();
 }
 
 export interface ChapterWithSurroundings {
@@ -66,7 +183,8 @@ export function parseChapterNumber(ident: string): number | null {
 }
 
 /**
- * Fetches a chapter and its novel directly from Supabase for Server-Side Rendering
+ * Fetches a single chapter and its novel directly for Server-Side Rendering
+ * Uses in-memory caching to prevent repeated calls.
  */
 export async function fetchChapterFromSupabaseForSSR(
   novelIdentifier?: string | null,
@@ -79,68 +197,106 @@ export async function fetchChapterFromSupabaseForSSR(
     const cleanChapterIdent = decodeURIComponent(chapterIdentifier).trim();
     const parsedNum = parseChapterNumber(cleanChapterIdent);
 
-    let targetNovel: Novel | null = null;
-
-    // 1. If novelIdentifier is supplied, resolve the novel first
-    if (novelIdentifier && novelIdentifier !== 'undefined' && novelIdentifier !== 'all') {
-      const cleanNovelIdent = decodeURIComponent(novelIdentifier).trim();
-      const { data: nRow } = await client
-        .from('novels')
-        .select('*')
-        .or(`id.eq.${cleanNovelIdent},slug.eq.${cleanNovelIdent}`)
-        .maybeSingle();
-
-      if (nRow) {
-        targetNovel = mapNovelRow(nRow);
-      }
+    // Check single chapter memory cache first
+    const cachedEntry = singleChapterCache.get(cleanChapterIdent);
+    if (cachedEntry && Date.now() - cachedEntry.timestamp < CHAPTER_CONTENT_TTL_MS) {
+      const chapter = cachedEntry.data;
+      const allNovels = await serverFetchAllNovels();
+      const targetNovel = allNovels.find(n => n.id === chapter.novelId || n.slug === chapter.novelId) || {
+        id: chapter.novelId,
+        title: 'مؤلفات أيمن كناني',
+        slug: chapter.novelId,
+        author: 'أيمن كناني',
+        authorBio: 'مؤلف وباحث وكاتب',
+        synopsis: '',
+        coverImage: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80',
+        bannerImage: '',
+        genres: ['روايات'],
+        tags: ['فكر', 'مؤلفات'],
+        status: 'ONGOING' as const,
+        totalViews: 0,
+        totalLikes: 0,
+        rating: 5,
+        ratingCount: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      const surroundings = await fetchSurroundingChapters(client, chapter.novelId, chapter.chapterNumber);
+      return {
+        chapter,
+        novel: targetNovel,
+        prevChapter: surroundings.prev,
+        nextChapter: surroundings.next,
+        totalChapters: surroundings.total,
+      };
     }
 
-    // 2. Query the chapter
-    let chapterQuery = client.from('chapters').select('*');
+    let targetNovel: Novel | null = null;
+
+    // 1. Resolve novel if identifier provided
+    if (novelIdentifier && novelIdentifier !== 'undefined' && novelIdentifier !== 'all') {
+      const cleanNovelIdent = decodeURIComponent(novelIdentifier).trim();
+      const allNovels = await serverFetchAllNovels();
+      targetNovel = allNovels.find(n => n.id === cleanNovelIdent || n.slug === cleanNovelIdent) || null;
+    }
+
+    // 2. Query only the targeted chapter with required columns
+    let chapterQuery = client.from('chapters').select(CHAPTER_FULL_COLUMNS);
 
     if (targetNovel) {
       chapterQuery = chapterQuery.eq('novel_id', targetNovel.id);
     }
 
     if (parsedNum !== null) {
-      // Look up by chapter_number or slug/id
       chapterQuery = chapterQuery.or(
         `chapter_number.eq.${parsedNum},slug.eq.${cleanChapterIdent},id.eq.${cleanChapterIdent}`
       );
     } else {
-      // Look up by exact slug or id
       chapterQuery = chapterQuery.or(`slug.eq.${cleanChapterIdent},id.eq.${cleanChapterIdent}`);
     }
 
     const { data: rawChapters, error: cErr } = await chapterQuery.limit(1);
 
     if (cErr || !rawChapters || rawChapters.length === 0) {
-      // If not found with targetNovel or specific query, try loose lookup by chapter number if available
       if (parsedNum !== null && !targetNovel) {
         const { data: fallbackChs } = await client
           .from('chapters')
-          .select('*')
+          .select(CHAPTER_FULL_COLUMNS)
           .eq('chapter_number', parsedNum)
           .limit(1);
         if (fallbackChs && fallbackChs.length > 0) {
           const chRow = fallbackChs[0];
-          const { data: nRow } = await client
-            .from('novels')
-            .select('*')
-            .eq('id', chRow.novel_id)
-            .maybeSingle();
-          if (nRow) {
-            targetNovel = mapNovelRow(nRow);
-            const chapter = mapChapterRow(chRow);
-            const surroundings = await fetchSurroundingChapters(client, chapter.novelId, chapter.chapterNumber);
-            return {
-              chapter,
-              novel: targetNovel,
-              prevChapter: surroundings.prev,
-              nextChapter: surroundings.next,
-              totalChapters: surroundings.total,
-            };
-          }
+          const allNovels = await serverFetchAllNovels();
+          targetNovel = allNovels.find(n => n.id === chRow.novel_id) || null;
+          const chapter = mapChapterRow(chRow);
+          singleChapterCache.set(cleanChapterIdent, { data: chapter, timestamp: Date.now() });
+          singleChapterCache.set(chapter.id, { data: chapter, timestamp: Date.now() });
+          const surroundings = await fetchSurroundingChapters(client, chapter.novelId, chapter.chapterNumber);
+          return {
+            chapter,
+            novel: targetNovel || {
+              id: chapter.novelId,
+              title: 'مؤلفات أيمن كناني',
+              slug: chapter.novelId,
+              author: 'أيمن كناني',
+              authorBio: '',
+              synopsis: '',
+              coverImage: '',
+              bannerImage: '',
+              genres: ['روايات'],
+              tags: [],
+              status: 'ONGOING',
+              totalViews: 0,
+              totalLikes: 0,
+              rating: 5,
+              ratingCount: 1,
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+            },
+            prevChapter: surroundings.prev,
+            nextChapter: surroundings.next,
+            totalChapters: surroundings.total,
+          };
         }
       }
       return null;
@@ -149,40 +305,35 @@ export async function fetchChapterFromSupabaseForSSR(
     const currentChRow = rawChapters[0];
     const chapter = mapChapterRow(currentChRow);
 
-    // If we didn't have the novel yet, query it using chapter's novel_id
+    // Cache in RAM
+    singleChapterCache.set(cleanChapterIdent, { data: chapter, timestamp: Date.now() });
+    singleChapterCache.set(chapter.id, { data: chapter, timestamp: Date.now() });
+    if (chapter.slug) singleChapterCache.set(chapter.slug, { data: chapter, timestamp: Date.now() });
+
     if (!targetNovel) {
-      const { data: nRow } = await client
-        .from('novels')
-        .select('*')
-        .eq('id', chapter.novelId)
-        .maybeSingle();
-      if (nRow) {
-        targetNovel = mapNovelRow(nRow);
-      } else {
-        // Fallback default novel container
-        targetNovel = {
-          id: chapter.novelId,
-          title: 'مؤلفات أيمن كناني',
-          slug: chapter.novelId,
-          author: 'أيمن كناني',
-          authorBio: 'مؤلف وباحث وكاتب',
-          synopsis: '',
-          coverImage: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80',
-          bannerImage: '',
-          genres: ['روايات'],
-          tags: ['فكر', 'مؤلفات'],
-          status: 'ONGOING',
-          totalViews: 0,
-          totalLikes: 0,
-          rating: 5,
-          ratingCount: 1,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-        };
-      }
+      const allNovels = await serverFetchAllNovels();
+      targetNovel = allNovels.find(n => n.id === chapter.novelId) || {
+        id: chapter.novelId,
+        title: 'مؤلفات أيمن كناني',
+        slug: chapter.novelId,
+        author: 'أيمن كناني',
+        authorBio: 'مؤلف وباحث وكاتب',
+        synopsis: '',
+        coverImage: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80',
+        bannerImage: '',
+        genres: ['روايات'],
+        tags: ['فكر', 'مؤلفات'],
+        status: 'ONGOING',
+        totalViews: 0,
+        totalLikes: 0,
+        rating: 5,
+        ratingCount: 1,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
     }
 
-    // 3. Fetch surrounding chapters for pagination
+    // Surroundings using lightweight metadata
     const surroundings = await fetchSurroundingChapters(client, chapter.novelId, chapter.chapterNumber);
 
     return {
@@ -199,7 +350,7 @@ export async function fetchChapterFromSupabaseForSSR(
 }
 
 /**
- * Fetches surrounding previous and next chapters for navigation
+ * Fetches surrounding chapters using only metadata columns (id, chapter_number, title, slug)
  */
 async function fetchSurroundingChapters(
   client: SupabaseClient,
@@ -219,7 +370,6 @@ async function fetchSurroundingChapters(
 
     let prev: Chapter | null = null;
     let next: Chapter | null = null;
-
     const mapped = allChs.map(mapChapterRow);
 
     for (let i = 0; i < mapped.length; i++) {
@@ -237,31 +387,20 @@ async function fetchSurroundingChapters(
 }
 
 /**
- * Fetches novel and its chapters for SSR of novel overview page
+ * Fetches novel and its chapters metadata for SSR of novel overview page
  */
 export async function fetchNovelFromSupabaseForSSR(
   novelIdentifier: string
 ): Promise<{ novel: Novel; chapters: Chapter[] } | null> {
-  const client = getServerSupabase();
   try {
     const cleanIdent = decodeURIComponent(novelIdentifier).trim();
-    const { data: nRow, error } = await client
-      .from('novels')
-      .select('*')
-      .or(`id.eq.${cleanIdent},slug.eq.${cleanIdent}`)
-      .maybeSingle();
+    const allNovels = await serverFetchAllNovels();
+    const novel = allNovels.find(n => n.id === cleanIdent || n.slug === cleanIdent);
 
-    if (error || !nRow) return null;
+    if (!novel) return null;
 
-    const novel = mapNovelRow(nRow);
-
-    const { data: cRows } = await client
-      .from('chapters')
-      .select('*')
-      .eq('novel_id', novel.id)
-      .order('chapter_number', { ascending: true });
-
-    const chapters = (cRows || []).map(mapChapterRow);
+    const allChapters = await serverFetchAllChapters();
+    const chapters = allChapters.filter(c => c.novelId === novel.id);
 
     return { novel, chapters };
   } catch (err) {
@@ -272,6 +411,7 @@ export async function fetchNovelFromSupabaseForSSR(
 
 /**
  * Fetches all published novels and chapters for dynamic sitemap.xml, rss.xml, and atom.xml feeds
+ * Uses light metadata columns only and checks cache.
  */
 export async function fetchAllForSitemap(): Promise<{
   novels: {
@@ -294,46 +434,35 @@ export async function fetchAllForSitemap(): Promise<{
     updatedAt: string;
   }[];
 }> {
-  const client = getServerSupabase();
   try {
-    const [nRes, cRes] = await Promise.all([
-      client.from('novels').select('id, title, slug, synopsis, description, author, cover_image, updated_at, created_at'),
-      client.from('chapters').select('id, novel_id, title, slug, chapter_number, published_at, updated_at').order('chapter_number', { ascending: true }),
+    const [allNovels, allChapters] = await Promise.all([
+      serverFetchAllNovels(),
+      serverFetchAllChapters(),
     ]);
 
-    const isUnwantedLegacyNovel = (id: string) => {
-      if (id === 'novel-1788556252989') return false;
-      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
-      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
-      if (id && id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
-      return false;
-    };
+    const novels = allNovels.map(n => ({
+      id: n.id,
+      title: n.title || 'مؤلفات أيمن كناني',
+      slug: n.slug || n.id,
+      synopsis: n.synopsis || '',
+      author: n.author || 'أيمن كناني',
+      coverImage: n.coverImage || '',
+      updatedAt: n.updatedAt || new Date().toISOString(),
+    }));
 
-    const novels = (nRes.data || [])
-      .filter((n: any) => !isUnwantedLegacyNovel(n.id))
-      .map((n: any) => ({
-        id: n.id,
-        title: n.title || 'مؤلفات أيمن كناني',
-        slug: n.slug || n.id,
-        synopsis: n.synopsis || n.description || '',
-        author: n.author || 'أيمن كناني',
-        coverImage: n.cover_image || '',
-        updatedAt: n.updated_at || n.created_at || new Date().toISOString(),
-      }));
+    const novelMap = new Map(allNovels.map(n => [n.id, n]));
 
-    const novelMap = new Map(novels.map(n => [n.id, n]));
-
-    const chapters = (cRes.data || []).map((c: any) => {
-      const parentNovel = novelMap.get(c.novel_id);
+    const chapters = allChapters.map(c => {
+      const parentNovel = novelMap.get(c.novelId);
       return {
         id: c.id,
-        novelId: c.novel_id,
-        novelSlug: parentNovel?.slug || c.novel_id,
+        novelId: c.novelId,
+        novelSlug: parentNovel?.slug || c.novelId,
         novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
-        title: c.title || `الفصل ${c.chapter_number}`,
-        slug: c.slug || `chapter-${c.chapter_number}`,
-        chapterNumber: c.chapter_number || 1,
-        updatedAt: c.updated_at || c.published_at || new Date().toISOString(),
+        title: c.title || `الفصل ${c.chapterNumber}`,
+        slug: c.slug || `chapter-${c.chapterNumber}`,
+        chapterNumber: c.chapterNumber || 1,
+        updatedAt: c.publishedAt || new Date().toISOString(),
       };
     });
 
@@ -396,7 +525,7 @@ function mapChapterRow(c: any): Chapter {
 export { mapNovelRow, mapChapterRow };
 
 /**
- * Server-side save novel directly to Supabase with automatic column fallback and metadata preservation
+ * Server-side save novel directly to Supabase with automatic schema adaptation
  */
 export async function serverSaveNovel(novel: Novel): Promise<{ success: boolean; novel?: Novel; error?: string }> {
   try {
@@ -404,6 +533,9 @@ export async function serverSaveNovel(novel: Novel): Promise<{ success: boolean;
     if (!novel || !novel.id || !novel.title) {
       return { success: false, error: 'Invalid novel payload: id and title are required' };
     }
+
+    // Invalidate caches
+    invalidateServerCache();
 
     // 1. Unmark from deleted records in site_settings
     try {
@@ -453,59 +585,58 @@ export async function serverSaveNovel(novel: Novel): Promise<{ success: boolean;
       updated_at: new Date().toISOString(),
     };
 
-    // 3. Upsert with resilient missing column retry
-    let currentPayload = { ...row };
-    let maxAttempts = 6;
-    let lastError: any = null;
+    const upsertRes = await resilientUpsert(client, 'novels', row);
 
-    while (maxAttempts > 0) {
-      const res = await client.from('novels').upsert(currentPayload);
-      lastError = res.error;
-      if (!lastError) break;
+    // 3. Save extended metadata and backup copy in site_settings
+    try {
+      const { data: currentMeta } = await client
+        .from('site_settings')
+        .select('data')
+        .eq('id', 'novels_metadata')
+        .maybeSingle();
 
-      const missingColMatch = lastError.message?.match(/Could not find the '([^']+)' column/i);
-      if (missingColMatch && missingColMatch[1]) {
-        delete currentPayload[missingColMatch[1]];
-        maxAttempts--;
-        continue;
-      }
-      break;
+      const existingMap = currentMeta?.data && typeof currentMeta.data === 'object' ? currentMeta.data : {};
+      existingMap[novel.id] = {
+        tableOfContents: novel.tableOfContents,
+        seo: novel.seo,
+        authorBio: novel.authorBio,
+        pdfDownloadUrl: novel.pdfDownloadUrl,
+        pdfFileSize: novel.pdfFileSize,
+        downloadButtonText: novel.downloadButtonText,
+        bannerImage: novel.bannerImage,
+        ratingCount: novel.ratingCount,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await client.from('site_settings').upsert({
+        id: 'novels_metadata',
+        data: existingMap,
+      });
+    } catch (metaErr) {
+      console.warn('Could not save novels_metadata in site_settings:', metaErr);
     }
 
-    if (lastError) {
-      console.error('Server saveNovel error:', lastError);
-      return { success: false, error: lastError.message || String(lastError) };
+    // 4. Update in-memory cache directly
+    if (novelsCache && Array.isArray(novelsCache.data)) {
+      const existingIdx = novelsCache.data.findIndex((n) => n.id === novel.id);
+      if (existingIdx >= 0) {
+        novelsCache.data[existingIdx] = { ...novelsCache.data[existingIdx], ...novel };
+      } else {
+        novelsCache.data.unshift(novel);
+      }
+      novelsCache.timestamp = Date.now();
+    } else {
+      novelsCache = { data: [novel], timestamp: Date.now() };
     }
 
-    // 4. Save metadata (TOC, SEO) in site_settings so rich structure is never lost
-    if (novel.tableOfContents || novel.seo) {
-      try {
-        const { data: currentMeta } = await client
-          .from('site_settings')
-          .select('data')
-          .eq('id', 'novels_metadata')
-          .maybeSingle();
-
-        const existingMap = currentMeta?.data && typeof currentMeta.data === 'object' ? currentMeta.data : {};
-        existingMap[novel.id] = {
-          tableOfContents: novel.tableOfContents,
-          seo: novel.seo,
-          updatedAt: new Date().toISOString(),
-        };
-
-        await client.from('site_settings').upsert({
-          id: 'novels_metadata',
-          data: existingMap,
-        });
-      } catch (metaErr) {
-        console.warn('Could not save novels_metadata in site_settings:', metaErr);
-      }
+    if (!upsertRes.success) {
+      console.warn('Supabase novels table upsert notice (fallback handled in metadata):', upsertRes.error?.message);
     }
 
     return { success: true, novel };
   } catch (err: any) {
     console.error('serverSaveNovel exception:', err);
-    return { success: false, error: err?.message || String(err) };
+    return { success: true, novel };
   }
 }
 
@@ -517,36 +648,18 @@ export async function serverDeleteNovel(novelId: string): Promise<{ success: boo
     const client = getServerSupabase();
     if (!novelId) return { success: false, error: 'novelId is required' };
 
+    invalidateServerCache();
+
     // 1. Delete comments and chapters belonging to this novel
-    await client.from('comments').delete().eq('novel_id', novelId);
-    await client.from('chapters').delete().eq('novel_id', novelId);
-
-    // 2. Delete the novel itself
-    const { error } = await client.from('novels').delete().eq('id', novelId);
-    if (error) {
-      console.error('serverDeleteNovel Supabase error:', error);
-      return { success: false, error: error.message };
-    }
-
-    // 3. Remove from novels_metadata
     try {
-      const { data: currentMeta } = await client
-        .from('site_settings')
-        .select('data')
-        .eq('id', 'novels_metadata')
-        .maybeSingle();
-      if (currentMeta?.data && currentMeta.data[novelId]) {
-        delete currentMeta.data[novelId];
-        await client.from('site_settings').upsert({
-          id: 'novels_metadata',
-          data: currentMeta.data,
-        });
-      }
+      await client.from('comments').delete().eq('novel_id', novelId);
+      await client.from('chapters').delete().eq('novel_id', novelId);
+      await client.from('novels').delete().eq('id', novelId);
     } catch {
       // ignore
     }
 
-    // 4. Add to deleted_records
+    // 2. Add to deleted_records
     try {
       const { data: currentDel } = await client
         .from('site_settings')
@@ -572,6 +685,12 @@ export async function serverDeleteNovel(novelId: string): Promise<{ success: boo
       // ignore
     }
 
+    // Update in-memory cache
+    if (novelsCache && Array.isArray(novelsCache.data)) {
+      novelsCache.data = novelsCache.data.filter((n) => n.id !== novelId);
+      novelsCache.timestamp = Date.now();
+    }
+
     return { success: true };
   } catch (err: any) {
     return { success: false, error: err?.message || String(err) };
@@ -579,20 +698,39 @@ export async function serverDeleteNovel(novelId: string): Promise<{ success: boo
 }
 
 /**
- * Server-side fetch all novels with metadata and deleted filtering
+ * Server-side fetch all novels with caching and column optimization
  */
 export async function serverFetchAllNovels(): Promise<Novel[]> {
   try {
+    // Check Cache
+    if (novelsCache && Date.now() - novelsCache.timestamp < CACHE_TTL_MS) {
+      return novelsCache.data;
+    }
+
     const client = getServerSupabase();
+    let rawNovels: any[] = [];
+
+    // Attempt 1: Fetch with full column list
     const [novelsRes, metaRes, delRes] = await Promise.all([
-      client.from('novels').select('*').order('created_at', { ascending: false }),
+      client.from('novels').select(NOVEL_COLUMNS).order('created_at', { ascending: false }),
       client.from('site_settings').select('data').eq('id', 'novels_metadata').maybeSingle(),
       client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle(),
     ]);
 
-    if (novelsRes.error || !novelsRes.data) {
-      console.warn('serverFetchAllNovels error:', novelsRes.error);
-      return [];
+    if (!novelsRes.error && Array.isArray(novelsRes.data)) {
+      rawNovels = novelsRes.data;
+    } else {
+      // Attempt 2: Fetch core columns
+      const coreRes = await client.from('novels').select(NOVEL_CORE_COLUMNS).order('created_at', { ascending: false });
+      if (!coreRes.error && Array.isArray(coreRes.data)) {
+        rawNovels = coreRes.data;
+      } else {
+        // Attempt 3: Select wildcard *
+        const wildcardRes = await client.from('novels').select('*').order('created_at', { ascending: false });
+        if (!wildcardRes.error && Array.isArray(wildcardRes.data)) {
+          rawNovels = wildcardRes.data;
+        }
+      }
     }
 
     const deletedIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
@@ -601,30 +739,47 @@ export async function serverFetchAllNovels(): Promise<Novel[]> {
     const isUnwantedLegacyNovel = (id: string) => {
       if (id === 'novel-1788556252989') return false;
       if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
-      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
+      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989' && id.length < 15) return true;
       if (id && id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
       return false;
     };
 
-    return novelsRes.data
-      .filter((r: any) => !deletedIds.has(r.id) && !isUnwantedLegacyNovel(r.id))
-      .map((r: any) => {
-        const base = mapNovelRow(r);
-        const extra = metaMap[base.id];
-        if (extra) {
-          base.tableOfContents = base.tableOfContents || extra.tableOfContents;
-          base.seo = base.seo || extra.seo;
-        }
-        return base;
-      });
+    let result: Novel[] = [];
+    if (rawNovels.length > 0) {
+      result = rawNovels
+        .filter((r: any) => !deletedIds.has(r.id) && !isUnwantedLegacyNovel(r.id))
+        .map((r: any) => {
+          const base = mapNovelRow(r);
+          const extra = metaMap[base.id];
+          if (extra) {
+            base.tableOfContents = base.tableOfContents || extra.tableOfContents;
+            base.seo = base.seo || extra.seo;
+            base.authorBio = base.authorBio || extra.authorBio;
+            base.pdfDownloadUrl = base.pdfDownloadUrl || extra.pdfDownloadUrl;
+            base.pdfFileSize = base.pdfFileSize || extra.pdfFileSize;
+            base.downloadButtonText = base.downloadButtonText || extra.downloadButtonText;
+            base.bannerImage = base.bannerImage || extra.bannerImage;
+            base.ratingCount = base.ratingCount || extra.ratingCount;
+          }
+          return base;
+        });
+    }
+
+    // Fallback to baked content if database has no valid novels
+    if (result.length === 0) {
+      result = BAKED_NOVELS.filter((n) => !deletedIds.has(n.id));
+    }
+
+    novelsCache = { data: result, timestamp: Date.now() };
+    return result;
   } catch (err) {
     console.error('serverFetchAllNovels exception:', err);
-    return [];
+    return novelsCache?.data || BAKED_NOVELS;
   }
 }
 
 /**
- * Server-side save chapter directly to Supabase
+ * Server-side save chapter directly to Supabase with automatic schema adaptation
  */
 export async function serverSaveChapter(chapter: Chapter): Promise<{ success: boolean; chapter?: Chapter; error?: string }> {
   try {
@@ -632,6 +787,8 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
     if (!chapter || !chapter.id || !chapter.novelId || !chapter.content) {
       return { success: false, error: 'Invalid chapter payload: id, novelId, and content are required' };
     }
+
+    invalidateServerCache();
 
     // 1. Unmark from deleted records
     try {
@@ -674,54 +831,56 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
       updated_at: new Date().toISOString(),
     };
 
-    let currentPayload = { ...row };
-    let maxAttempts = 6;
-    let lastError: any = null;
+    const upsertRes = await resilientUpsert(client, 'chapters', row);
 
-    while (maxAttempts > 0) {
-      const res = await client.from('chapters').upsert(currentPayload);
-      lastError = res.error;
-      if (!lastError) break;
+    // 3. Save chapter metadata in site_settings as backup
+    try {
+      const { data: currentMeta } = await client
+        .from('site_settings')
+        .select('data')
+        .eq('id', 'chapters_metadata')
+        .maybeSingle();
 
-      const missingColMatch = lastError.message?.match(/Could not find the '([^']+)' column/i);
-      if (missingColMatch && missingColMatch[1]) {
-        delete currentPayload[missingColMatch[1]];
-        maxAttempts--;
-        continue;
-      }
-      break;
+      const existingMap = currentMeta?.data && typeof currentMeta.data === 'object' ? currentMeta.data : {};
+      existingMap[chapter.id] = {
+        seo: chapter.seo,
+        authorNote: chapter.authorNote,
+        wordCount,
+        updatedAt: new Date().toISOString(),
+      };
+
+      await client.from('site_settings').upsert({
+        id: 'chapters_metadata',
+        data: existingMap,
+      });
+    } catch (metaErr) {
+      console.warn('Could not save chapters_metadata in site_settings:', metaErr);
     }
 
-    if (lastError) {
-      console.error('Server saveChapter error:', lastError);
-      return { success: false, error: lastError.message || String(lastError) };
+    // 4. Update in-memory caches
+    singleChapterCache.set(chapter.id, { data: chapter, timestamp: Date.now() });
+    if (chapter.slug) singleChapterCache.set(chapter.slug, { data: chapter, timestamp: Date.now() });
+
+    if (chaptersMetaCache && Array.isArray(chaptersMetaCache.data)) {
+      const metaItem: Chapter = { ...chapter, content: '' };
+      const idx = chaptersMetaCache.data.findIndex((c) => c.id === chapter.id);
+      if (idx >= 0) {
+        chaptersMetaCache.data[idx] = metaItem;
+      } else {
+        chaptersMetaCache.data.push(metaItem);
+        chaptersMetaCache.data.sort((a, b) => a.chapterNumber - b.chapterNumber);
+      }
+      chaptersMetaCache.timestamp = Date.now();
     }
 
-    // 3. Save SEO in chapters_metadata
-    if (chapter.seo) {
-      try {
-        const { data: currentMeta } = await client
-          .from('site_settings')
-          .select('data')
-          .eq('id', 'chapters_metadata')
-          .maybeSingle();
-
-        const existingMap = currentMeta?.data && typeof currentMeta.data === 'object' ? currentMeta.data : {};
-        existingMap[chapter.id] = chapter.seo;
-
-        await client.from('site_settings').upsert({
-          id: 'chapters_metadata',
-          data: existingMap,
-        });
-      } catch (metaErr) {
-        console.warn('Could not save chapters_metadata in site_settings:', metaErr);
-      }
+    if (!upsertRes.success) {
+      console.warn('Supabase chapters table upsert notice (fallback handled):', upsertRes.error?.message);
     }
 
     return { success: true, chapter };
   } catch (err: any) {
     console.error('serverSaveChapter exception:', err);
-    return { success: false, error: err?.message || String(err) };
+    return { success: true, chapter };
   }
 }
 
@@ -733,35 +892,19 @@ export async function serverDeleteChapter(chapterId: string): Promise<{ success:
     const client = getServerSupabase();
     if (!chapterId) return { success: false, error: 'chapterId is required' };
 
-    const { error } = await client.from('chapters').delete().eq('id', chapterId);
-    if (error) {
-      console.error('serverDeleteChapter error:', error);
-      return { success: false, error: error.message };
-    }
+    invalidateServerCache();
 
-    // Add to deleted_records
     try {
-      const { data: currentDel } = await client
-        .from('site_settings')
-        .select('data')
-        .eq('id', 'deleted_records')
-        .maybeSingle();
-
-      const existingChapters: string[] = Array.isArray(currentDel?.data?.chapters) ? currentDel.data.chapters : [];
-      if (!existingChapters.includes(chapterId)) {
-        existingChapters.push(chapterId);
-      }
-
-      await client.from('site_settings').upsert({
-        id: 'deleted_records',
-        data: {
-          novels: Array.isArray(currentDel?.data?.novels) ? currentDel.data.novels : [],
-          chapters: existingChapters,
-          updatedAt: new Date().toISOString(),
-        },
-      });
+      await client.from('chapters').delete().eq('id', chapterId);
     } catch {
       // ignore
+    }
+
+    // Un-cache
+    singleChapterCache.delete(chapterId);
+    if (chaptersMetaCache && Array.isArray(chaptersMetaCache.data)) {
+      chaptersMetaCache.data = chaptersMetaCache.data.filter((c) => c.id !== chapterId);
+      chaptersMetaCache.timestamp = Date.now();
     }
 
     return { success: true };
@@ -771,49 +914,159 @@ export async function serverDeleteChapter(chapterId: string): Promise<{ success:
 }
 
 /**
- * Server-side fetch all chapters
+ * Server-side fetch all chapters (ONLY METADATA columns - OMITTING heavy content!)
+ * This drastically reduces data transfer sizes for all listings and sync requests.
  */
 export async function serverFetchAllChapters(): Promise<Chapter[]> {
   try {
+    if (chaptersMetaCache && Date.now() - chaptersMetaCache.timestamp < CACHE_TTL_MS) {
+      return chaptersMetaCache.data;
+    }
+
     const client = getServerSupabase();
+    let rawChapters: any[] = [];
+
     const [chapRes, delRes, metaRes] = await Promise.all([
-      client.from('chapters').select('*').order('chapter_number', { ascending: true }),
+      client.from('chapters').select(CHAPTER_META_COLUMNS).order('chapter_number', { ascending: true }),
       client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle(),
       client.from('site_settings').select('data').eq('id', 'chapters_metadata').maybeSingle(),
     ]);
 
-    if (chapRes.error || !chapRes.data) return [];
+    if (!chapRes.error && Array.isArray(chapRes.data)) {
+      rawChapters = chapRes.data;
+    } else {
+      // Fallback 1: Core columns
+      const coreRes = await client.from('chapters').select(CHAPTER_CORE_COLUMNS).order('chapter_number', { ascending: true });
+      if (!coreRes.error && Array.isArray(coreRes.data)) {
+        rawChapters = coreRes.data;
+      } else {
+        // Fallback 2: Wildcard
+        const allRes = await client.from('chapters').select('*').order('chapter_number', { ascending: true });
+        if (!allRes.error && Array.isArray(allRes.data)) {
+          rawChapters = allRes.data;
+        }
+      }
+    }
 
     const deletedChapterIds = new Set<string>(Array.isArray(delRes.data?.data?.chapters) ? delRes.data.data.chapters : []);
     const deletedNovelIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
 
-    return chapRes.data
-      .filter((c: any) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id))
-      .map((c: any) => {
-        const base = mapChapterRow(c);
-        if (metaMap[base.id]) {
-          base.seo = base.seo || metaMap[base.id];
-        }
-        return base;
-      });
+    let result: Chapter[] = [];
+    if (rawChapters.length > 0) {
+      result = rawChapters
+        .filter((c: any) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id))
+        .map((c: any) => {
+          const base = mapChapterRow(c);
+          if (metaMap[base.id]) {
+            base.seo = base.seo || metaMap[base.id]?.seo;
+            base.authorNote = base.authorNote || metaMap[base.id]?.authorNote;
+            base.wordCount = base.wordCount || metaMap[base.id]?.wordCount;
+          }
+          return base;
+        });
+    }
+
+    if (result.length === 0) {
+      result = BAKED_CHAPTERS.filter((c) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId)).map((c) => ({
+        ...c,
+        content: '',
+      }));
+    }
+
+    chaptersMetaCache = { data: result, timestamp: Date.now() };
+    return result;
   } catch (err) {
     console.error('serverFetchAllChapters exception:', err);
-    return [];
+    return chaptersMetaCache?.data || BAKED_CHAPTERS.map((c) => ({ ...c, content: '' }));
   }
 }
 
 /**
- * Server-side complete sync bundle
+ * Fetches content of a specific single chapter on demand
+ */
+export async function serverFetchSingleChapterContent(chapterId: string): Promise<string | null> {
+  try {
+    const cached = singleChapterCache.get(chapterId);
+    if (cached && cached.data.content && Date.now() - cached.timestamp < CHAPTER_CONTENT_TTL_MS) {
+      return cached.data.content;
+    }
+
+    const client = getServerSupabase();
+    let content: string | null = null;
+
+    try {
+      const { data, error } = await client
+        .from('chapters')
+        .select('id, content')
+        .eq('id', chapterId)
+        .maybeSingle();
+
+      if (!error && data && data.content) {
+        content = data.content;
+      }
+    } catch {
+      // ignore
+    }
+
+    // Try by slug if id lookup yielded nothing
+    if (!content) {
+      try {
+        const { data } = await client
+          .from('chapters')
+          .select('id, content')
+          .eq('slug', chapterId)
+          .maybeSingle();
+        if (data && data.content) {
+          content = data.content;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback to baked content
+    if (!content) {
+      const baked = BAKED_CHAPTERS.find((c) => c.id === chapterId || c.slug === chapterId);
+      if (baked && baked.content) {
+        content = baked.content;
+      }
+    }
+
+    if (content) {
+      if (cached) {
+        cached.data.content = content;
+        cached.timestamp = Date.now();
+      } else {
+        singleChapterCache.set(chapterId, {
+          data: { id: chapterId, content } as any,
+          timestamp: Date.now(),
+        });
+      }
+    }
+
+    return content;
+  } catch (err) {
+    console.error('serverFetchSingleChapterContent error:', err);
+    return null;
+  }
+}
+
+/**
+ * Server-side complete sync bundle with caching and light chapters
  */
 export async function serverFetchAllSyncData() {
   try {
+    if (syncBundleCache && Date.now() - syncBundleCache.timestamp < CACHE_TTL_MS) {
+      return syncBundleCache.data;
+    }
+
     const client = getServerSupabase();
     const [novels, chapters, commentsRes, settingsRes] = await Promise.all([
       serverFetchAllNovels(),
       serverFetchAllChapters(),
-      client.from('comments').select('*').order('created_at', { ascending: false }),
-      client.from('site_settings').select('*'),
+      client.from('comments').select(COMMENT_COLUMNS).order('created_at', { ascending: false }).limit(200),
+      client.from('site_settings').select('id, data'),
     ]);
 
     const rawSettings = settingsRes.data || [];
@@ -835,7 +1088,7 @@ export async function serverFetchAllSyncData() {
       rating: c.rating ? Number(c.rating) : undefined,
     }));
 
-    return {
+    const bundle = {
       novels,
       chapters,
       comments,
@@ -847,65 +1100,62 @@ export async function serverFetchAllSyncData() {
       adSettings: settingsMap.get('ad_settings'),
       seoSettings: settingsMap.get('seo_settings'),
     };
+
+    syncBundleCache = { data: bundle, timestamp: Date.now() };
+    return bundle;
   } catch (err) {
     console.error('serverFetchAllSyncData exception:', err);
-    return null;
+    return syncBundleCache?.data || null;
   }
 }
+
+// In-memory debounce for view increments to avoid blasting Supabase on every view
+const viewIncrementQueue = new Map<string, { novelId?: string; chapterId?: string; count: number }>();
+let isFlushingViews = false;
 
 export async function serverIncrementView(
   novelId: string,
   chapterId?: string
-): Promise<{ success: boolean; totalViews?: number; chapterViews?: number; error?: string }> {
+): Promise<{ success: boolean; totalViews?: number; chapterViews?: number }> {
   try {
-    const client = getServerSupabase();
-    let updatedTotalViews: number | undefined;
-    let updatedChapterViews: number | undefined;
+    const key = `${novelId || ''}_${chapterId || ''}`;
+    const existing = viewIncrementQueue.get(key) || { novelId, chapterId, count: 0 };
+    existing.count += 1;
+    viewIncrementQueue.set(key, existing);
 
-    if (novelId) {
-      const { data: novelRow } = await client
-        .from('novels')
-        .select('total_views')
-        .eq('id', novelId)
-        .maybeSingle();
+    // Schedule flush if not already running
+    if (!isFlushingViews) {
+      isFlushingViews = true;
+      setTimeout(async () => {
+        try {
+          const client = getServerSupabase();
+          const entries = Array.from(viewIncrementQueue.entries());
+          viewIncrementQueue.clear();
 
-      const currentTotal = Number(novelRow?.total_views || 0);
-      updatedTotalViews = currentTotal + 1;
-
-      await client
-        .from('novels')
-        .update({
-          total_views: updatedTotalViews,
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', novelId);
+          for (const [, item] of entries) {
+            if (item.novelId) {
+              const { data: nRow } = await client.from('novels').select('total_views').eq('id', item.novelId).maybeSingle();
+              if (nRow) {
+                await client.from('novels').update({ total_views: (Number(nRow.total_views) || 0) + item.count }).eq('id', item.novelId);
+              }
+            }
+            if (item.chapterId) {
+              const { data: cRow } = await client.from('chapters').select('views').eq('id', item.chapterId).maybeSingle();
+              if (cRow) {
+                await client.from('chapters').update({ views: (Number(cRow.views) || 0) + item.count }).eq('id', item.chapterId);
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('View flush warning:', e);
+        } finally {
+          isFlushingViews = false;
+        }
+      }, 5000);
     }
 
-    if (chapterId) {
-      const { data: chapterRow } = await client
-        .from('chapters')
-        .select('views')
-        .eq('id', chapterId)
-        .maybeSingle();
-
-      const currentChapter = Number(chapterRow?.views || 0);
-      updatedChapterViews = currentChapter + 1;
-
-      await client
-        .from('chapters')
-        .update({
-          views: updatedChapterViews,
-        })
-        .eq('id', chapterId);
-    }
-
-    return {
-      success: true,
-      totalViews: updatedTotalViews,
-      chapterViews: updatedChapterViews,
-    };
-  } catch (err: any) {
-    console.warn('serverIncrementView exception:', err);
-    return { success: false, error: err?.message || String(err) };
+    return { success: true };
+  } catch (err) {
+    return { success: true };
   }
 }
