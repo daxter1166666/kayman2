@@ -178,6 +178,7 @@ export const storageService = {
         if (n.id === 'novel-1788556252989') return true;
         if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
         if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
+        if (n.id && n.id.startsWith('novel-')) return true;
         return false;
       };
 
@@ -185,12 +186,10 @@ export const storageService = {
       const finalNovels = keptNovels.length > 0 ? deduplicateById(keptNovels) : INITIAL_NOVELS;
       setStored(KEYS.NOVELS, finalNovels);
 
-      // Keep only chapters that belong to the preserved Akhlaq book
-      const allowedNovelIds = new Set(finalNovels.map(n => n.id));
+      // Preserve all chapters (initial + user-published chapters) without deletion
       const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-      const keptChapters = rawChapters.filter(c => c && allowedNovelIds.has(c.novelId));
-      const finalChapters = keptChapters.length > 0 ? deduplicateById(keptChapters) : INITIAL_CHAPTERS;
-      setStored(KEYS.CHAPTERS, finalChapters);
+      const combinedChapters = deduplicateById([...INITIAL_CHAPTERS, ...rawChapters]);
+      setStored(KEYS.CHAPTERS, combinedChapters);
     } catch (err) {
       console.warn('Error purging non-Akhlaq books:', err);
     }
