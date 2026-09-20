@@ -18,6 +18,9 @@ interface NavbarProps {
   searchQuery: string;
   onSearchChange: (query: string) => void;
   onNavigateHome: () => void;
+  onNavigateArticles?: () => void;
+  onNavigateTranslations?: () => void;
+  currentView?: string;
   onOpenControlPanel: () => void;
   onOpenBookmarks: () => void;
   bookmarkCount: number;
@@ -36,6 +39,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   searchQuery,
   onSearchChange,
   onNavigateHome,
+  onNavigateArticles,
+  onNavigateTranslations,
+  currentView = 'catalog',
   onOpenControlPanel,
   onOpenBookmarks,
   bookmarkCount,
@@ -112,21 +118,56 @@ export const Navbar: React.FC<NavbarProps> = ({
           </div>
 
           {/* Desktop Navigation Actions */}
-          <div className="hidden lg:flex items-center gap-2 font-cairo">
+          <div className="hidden lg:flex items-center gap-1.5 font-cairo">
             <button
               type="button"
               id="nav-browse-btn"
               onClick={onNavigateHome}
-              className="px-3 py-2 rounded-lg text-xs font-semibold text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE] transition-all cursor-pointer"
+              className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                currentView === 'catalog' || currentView === 'novel_detail' || currentView === 'reader'
+                  ? 'bg-[#4A5D4E] text-white shadow-xs'
+                  : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
+              }`}
             >
-              المؤلفات والكتب
+              <BookOpen className="w-3.5 h-3.5" />
+              <span>الكتاب</span>
             </button>
+
+            {onNavigateArticles && (
+              <button
+                type="button"
+                id="nav-articles-btn"
+                onClick={onNavigateArticles}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  currentView === 'articles' || (currentView === 'article_reader' && !window.location.hash.includes('translation'))
+                    ? 'bg-[#4A5D4E] text-white shadow-xs'
+                    : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
+                }`}
+              >
+                <span>المقالات</span>
+              </button>
+            )}
+
+            {onNavigateTranslations && (
+              <button
+                type="button"
+                id="nav-translations-btn"
+                onClick={onNavigateTranslations}
+                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+                  currentView === 'translations'
+                    ? 'bg-[#C88A3B] text-white shadow-xs'
+                    : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
+                }`}
+              >
+                <span>الترجمات الفكرية</span>
+              </button>
+            )}
 
             {onScrollToAuthor && (
               <button
                 type="button"
                 onClick={onScrollToAuthor}
-                className="px-3 py-2 rounded-lg text-xs font-semibold text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE] transition-all flex items-center gap-1.5 cursor-pointer"
+                className="px-3 py-2 rounded-xl text-xs font-semibold text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE] transition-all flex items-center gap-1.5 cursor-pointer"
               >
                 <User className="w-3.5 h-3.5 text-[#4A5D4E]" />
                 <span>عن الكاتب</span>
@@ -278,11 +319,51 @@ export const Navbar: React.FC<NavbarProps> = ({
                   onNavigateHome();
                   setMobileMenuOpen(false);
                 }}
-                className="p-3 rounded-xl bg-[#FFFFFF] text-[#2C2C2C] text-right font-bold border border-[#E5E2D9] shadow-xs active:bg-[#F7F5EE] flex items-center gap-2"
+                className={`p-3 rounded-xl text-right font-bold border border-[#E5E2D9] shadow-xs active:bg-[#F7F5EE] flex items-center gap-2 ${
+                  currentView === 'catalog' || currentView === 'novel_detail' || currentView === 'reader'
+                    ? 'bg-[#4A5D4E] text-white'
+                    : 'bg-[#FFFFFF] text-[#2C2C2C]'
+                }`}
               >
-                <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
-                <span>المؤلفات والكتب</span>
+                <BookOpen className="w-4 h-4 text-emerald-400" />
+                <span>الكتاب الرئيسي</span>
               </button>
+
+              {onNavigateArticles && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigateArticles();
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`p-3 rounded-xl text-right font-bold border border-[#E5E2D9] shadow-xs active:bg-[#F7F5EE] flex items-center gap-2 ${
+                    currentView === 'articles'
+                      ? 'bg-[#4A5D4E] text-white'
+                      : 'bg-[#FFFFFF] text-[#2C2C2C]'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
+                  <span>المقالات</span>
+                </button>
+              )}
+
+              {onNavigateTranslations && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onNavigateTranslations();
+                    setMobileMenuOpen(false);
+                  }}
+                  className={`p-3 rounded-xl text-right font-bold border border-[#E5E2D9] shadow-xs active:bg-[#F7F5EE] flex items-center gap-2 ${
+                    currentView === 'translations'
+                      ? 'bg-[#C88A3B] text-white'
+                      : 'bg-[#FFFFFF] text-[#2C2C2C]'
+                  }`}
+                >
+                  <BookOpen className="w-4 h-4 text-[#C88A3B]" />
+                  <span>الترجمات الفكرية</span>
+                </button>
+              )}
 
               {onScrollToAuthor && (
                 <button

@@ -221,6 +221,7 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
         legalDocuments: storageService.getLegalDocuments(),
         adSettings: storageService.getAdSettings(),
         seoSettings: storageService.getSeoSettings(),
+        articles: storageService.getArticles(),
       });
 
       setSyncResult(res);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { IntellectualItem } from '../../types';
 import { storageService } from '../../services/storageService';
+import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
 import {
   FileText,
   Plus,
@@ -14,17 +15,20 @@ import {
   X,
   ExternalLink,
   Eye,
-  Heart
+  Heart,
+  Feather
 } from 'lucide-react';
 
 interface IntellectualManagerTabProps {
   onRefreshData?: () => void;
   onPreviewArticle?: (id: string) => void;
+  onNavigateTab?: (tab: string) => void;
 }
 
 export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
   onRefreshData,
   onPreviewArticle,
+  onNavigateTab,
 }) => {
   const [articles, setArticles] = useState<IntellectualItem[]>(() => storageService.getArticles());
   const [filterType, setFilterType] = useState<string>('all');
@@ -207,15 +211,41 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
           </p>
         </div>
 
-        <button
-          type="button"
-          id="add-intellectual-btn"
-          onClick={handleOpenAdd}
-          className="px-4 py-2 rounded-xl bg-[#4A5D4E] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#3d4d40] transition-all cursor-pointer shadow-xs"
-        >
-          <Plus className="w-4 h-4" />
-          <span>إضافة دراسة أو مقال جديد</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onNavigateTab && (
+            <>
+              <button
+                type="button"
+                onClick={() => onNavigateTab('articles_editor')}
+                className="px-3.5 py-2 rounded-xl bg-white border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 hover:bg-[#F7F5EE] transition-all cursor-pointer shadow-2xs"
+                title="فتح استوديو محرر المقالات والدراسات المخصص"
+              >
+                <Feather className="w-3.5 h-3.5" />
+                <span>محرر المقالات (WYSIWYG)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => onNavigateTab('translations_editor')}
+                className="px-3.5 py-2 rounded-xl bg-white border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 hover:bg-[#F7F5EE] transition-all cursor-pointer shadow-2xs"
+                title="فتح استوديو محرر الدراسات المترجمة المخصص"
+              >
+                <Languages className="w-3.5 h-3.5" />
+                <span>محرر الترجمات (WYSIWYG)</span>
+              </button>
+            </>
+          )}
+
+          <button
+            type="button"
+            id="add-intellectual-btn"
+            onClick={handleOpenAdd}
+            className="px-4 py-2 rounded-xl bg-[#4A5D4E] text-white text-xs font-bold flex items-center gap-2 hover:bg-[#3d4d40] transition-all cursor-pointer shadow-xs"
+          >
+            <Plus className="w-4 h-4" />
+            <span>إضافة مادة جديدة</span>
+          </button>
+        </div>
       </div>
 
       {successMsg && (
@@ -437,15 +467,23 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
 
             {/* Full Content */}
             <div>
-              <label className="block font-bold mb-1 text-stone-700">نص المقال / الدراسة الكامل (يدعم عناوين ## وقوائم *):</label>
-              <textarea
-                value={content}
-                onChange={e => setContent(e.target.value)}
-                rows={10}
-                placeholder="اكتب المحتوى الفكري هنا..."
-                className="w-full p-3 rounded-xl border border-stone-300 font-amiri text-base leading-relaxed outline-hidden"
-                required
-              />
+              <label className="block font-bold mb-1.5 text-stone-700 flex items-center justify-between">
+                <span>نص المقال / الدراسة الكامل (المحرر الغني WYSIWYG):</span>
+                <span className="text-xs text-[#4A5D4E] font-normal">
+                  يدعم الخطوط، العناوين، الاقتباسات، والأبيات الشعرية
+                </span>
+              </label>
+              <div className="rounded-xl border border-stone-300 overflow-hidden bg-white">
+                <RichTextEditor
+                  value={content}
+                  onChange={setContent}
+                  placeholder="اكتب المحتوى الفكري بتنسيق غني هنا..."
+                  novelTitle={category}
+                  chapterTitle={title || 'مادة جديدة'}
+                  authorName={author}
+                  minHeight="360px"
+                />
+              </div>
             </div>
 
             {/* References */}

@@ -9,7 +9,8 @@ import {
   Category,
   AuthorProfile,
   SiteBranding,
-  DonationSettings
+  DonationSettings,
+  IntellectualItem
 } from './types';
 import { storageService } from './services/storageService';
 import { supabaseService } from './services/supabaseService';
@@ -19,6 +20,9 @@ import { Footer } from './components/Footer';
 import { NovelCard } from './components/NovelCard';
 import { NovelDetailView } from './components/NovelDetailView';
 import { ChapterReader } from './components/ChapterReader';
+import { ArticlesSection } from './components/ArticlesSection';
+import { TranslationsSection } from './components/TranslationsSection';
+import { ArticleDetailView } from './components/ArticleDetailView';
 import { ControlPanel } from './components/ControlPanel/ControlPanel';
 import { LegalPages } from './components/Legal/LegalPages';
 import { AdSlot } from './components/AdSlot';
@@ -91,14 +95,26 @@ export default function App() {
   const initialRoute = useMemo(() => {
     if (initialSSR?.currentView) {
       return {
-        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal',
+        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader',
         novelId: (initialSSR.novel?.id || initialSSR.chapter?.novelId || null) as string | null,
         chapterId: (initialSSR.chapter?.id || null) as string | null,
+        articleId: null as string | null,
       };
     }
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
+
+      if (p === '/articles' || p === '/articles/') {
+        return { view: 'articles' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/translations' || p === '/translations/') {
+        return { view: 'translations' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      const articleMatch = p.match(/\/article\/([^/]+)/i);
+      if (articleMatch) {
+        return { view: 'article_reader' as const, novelId: null, chapterId: null, articleId: decodeURIComponent(articleMatch[1]) };
+      }
 
       const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
       const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
@@ -117,39 +133,47 @@ export default function App() {
           (parsedNum !== null && c.chapterNumber === parsedNum)
         );
         if (ch) {
-          return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+          return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
         }
         if (allChapters.length > 0) {
-          return { view: 'reader' as const, novelId: allChapters[0].novelId, chapterId: allChapters[0].id };
+          return { view: 'reader' as const, novelId: allChapters[0].novelId, chapterId: allChapters[0].id, articleId: null };
         }
-        return { view: 'reader' as const, novelId: null, chapterId: null };
+        return { view: 'reader' as const, novelId: null, chapterId: null, articleId: null };
       }
 
       const chapterParam = urlParams.get('chapter');
       if (chapterParam) {
         const ch = allChapters.find(c => c.id === chapterParam || c.slug === chapterParam);
-        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id };
+        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
       }
 
       if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
         const novIdent = decodeURIComponent(novelMatch[1]);
         const nov = allNovels.find(n => n.slug === novIdent || n.id === novIdent);
         if (nov) {
-          return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null };
+          return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null, articleId: null };
         }
       }
 
       const novelParam = urlParams.get('novel');
       if (novelParam) {
-        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null };
+        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null, articleId: null };
       }
     }
-    return { view: 'catalog' as const, novelId: null, chapterId: null };
+    return { view: 'catalog' as const, novelId: null, chapterId: null, articleId: null };
   }, [initialSSR]);
 
-  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal'>(initialRoute.view);
+  const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader'>(initialRoute.view);
   const [selectedNovelId, setSelectedNovelId] = useState<string | null>(initialRoute.novelId);
   const [selectedChapterId, setSelectedChapterId] = useState<string | null>(initialRoute.chapterId);
+  const [articles, setArticles] = useState<IntellectualItem[]>(() => storageService.getArticles());
+  const [selectedArticle, setSelectedArticle] = useState<IntellectualItem | null>(() => {
+    if (initialRoute.articleId) {
+      const all = storageService.getArticles();
+      return all.find(a => a.id === initialRoute.articleId || a.slug === initialRoute.articleId) || null;
+    }
+    return null;
+  });
 
   const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
   
@@ -545,6 +569,33 @@ export default function App() {
     }, 100);
   };
 
+  const handleNavigateArticles = () => {
+    setCurrentView('articles');
+    setSelectedArticle(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/articles') {
+      window.history.pushState({}, '', '/articles');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleNavigateTranslations = () => {
+    setCurrentView('translations');
+    setSelectedArticle(null);
+    if (typeof window !== 'undefined' && window.location.pathname !== '/translations') {
+      window.history.pushState({}, '', '/translations');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSelectArticle = (item: IntellectualItem) => {
+    setSelectedArticle(item);
+    setCurrentView('article_reader');
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/article/${item.slug || item.id}`);
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   // Dynamic category list for filter pills
   const filterPills = useMemo(() => {
     const currentCats = storageService.getCategories();
@@ -637,6 +688,9 @@ export default function App() {
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
         onNavigateHome={handleNavigateHome}
+        onNavigateArticles={handleNavigateArticles}
+        onNavigateTranslations={handleNavigateTranslations}
+        currentView={currentView}
         onOpenControlPanel={handleOpenControlPanel}
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
@@ -756,7 +810,39 @@ export default function App() {
           <LegalPages page={legalPage} onBack={handleNavigateHome} />
         )}
 
-        {/* 5. MAIN BROWSE / CATALOG VIEW */}
+        {/* 5. ARTICLES & INTELLECTUAL STUDIES VIEW */}
+        {currentView === 'articles' && (
+          <ArticlesSection
+            articles={articles}
+            onSelectArticle={handleSelectArticle}
+            onNavigateHome={handleNavigateHome}
+          />
+        )}
+
+        {/* 6. TRANSLATIONS & TRANSLATED STUDIES VIEW */}
+        {currentView === 'translations' && (
+          <TranslationsSection
+            articles={articles}
+            onSelectTranslation={handleSelectArticle}
+            onNavigateHome={handleNavigateHome}
+          />
+        )}
+
+        {/* 7. ARTICLE & STUDY DETAIL / READER VIEW */}
+        {currentView === 'article_reader' && selectedArticle && (
+          <ArticleDetailView
+            article={selectedArticle}
+            onBack={() => {
+              if (selectedArticle.type === 'translated_article' || Boolean(selectedArticle.translator)) {
+                handleNavigateTranslations();
+              } else {
+                handleNavigateArticles();
+              }
+            }}
+          />
+        )}
+
+        {/* 8. MAIN BROWSE / CATALOG VIEW (Main Book & Literature) */}
         {currentView === 'catalog' && (
           <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
             {/* Top Leaderboard Ad */}
@@ -1062,6 +1148,8 @@ export default function App() {
       <MobileBottomNav
         currentView={currentView}
         onNavigateHome={handleNavigateHome}
+        onNavigateArticles={handleNavigateArticles}
+        onNavigateTranslations={handleNavigateTranslations}
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         onScrollToAuthor={handleScrollToAuthorBio}

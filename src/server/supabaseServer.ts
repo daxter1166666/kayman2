@@ -13,9 +13,9 @@ import type {
 } from '../types';
 import { BAKED_NOVELS, BAKED_CHAPTERS } from '../data/bakedContent';
 
-const DEFAULT_SUPABASE_URL = 'https://kepuolqhropozwfwwwbb.supabase.co';
+const DEFAULT_SUPABASE_URL = 'https://ddotnksrmwpsfxmgduji.supabase.co';
 const DEFAULT_SUPABASE_KEY =
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw';
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3Rua3NybXdwc2Z4bWdkdWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4ODc0ODAsImV4cCI6MjEwNTQ2MzQ4MH0.AlKIT-493mepn41UF3JpocS5xgDLeqnafxEyLww31JE';
 
 let supabaseServerClient: SupabaseClient | null = null;
 
@@ -1099,6 +1099,7 @@ export async function serverFetchAllSyncData() {
       legalDocuments: settingsMap.get('legal_documents'),
       adSettings: settingsMap.get('ad_settings'),
       seoSettings: settingsMap.get('seo_settings'),
+      articles: settingsMap.get('intellectual_articles'),
     };
 
     syncBundleCache = { data: bundle, timestamp: Date.now() };

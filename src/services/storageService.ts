@@ -845,7 +845,7 @@ export const storageService = {
   // --- Supabase Integration Config ---
   getSupabaseConfig(): SupabaseConfig {
     const config = getStored<SupabaseConfig>(KEYS.SUPABASE_CONFIG, INITIAL_SUPABASE_CONFIG);
-    if (!config || !config.url || !config.anonKey) {
+    if (!config || !config.url || !config.anonKey || config.url.includes('kepuolqhropozwfwwwbb')) {
       return INITIAL_SUPABASE_CONFIG;
     }
     return config;
@@ -969,7 +969,23 @@ export const storageService = {
 
   // --- Articles / Studies / Translations ---
   getArticles(): IntellectualItem[] {
-    return getStored<IntellectualItem[]>(KEYS.ARTICLES, INITIAL_INTELLECTUAL_ITEMS);
+    const stored = getStored<IntellectualItem[]>(KEYS.ARTICLES, INITIAL_INTELLECTUAL_ITEMS);
+    if (!Array.isArray(stored) || stored.length === 0) {
+      return INITIAL_INTELLECTUAL_ITEMS;
+    }
+    const storedIds = new Set(stored.map(a => a.id));
+    let hasNew = false;
+    const merged = [...stored];
+    for (const initItem of INITIAL_INTELLECTUAL_ITEMS) {
+      if (!storedIds.has(initItem.id)) {
+        merged.push(initItem);
+        hasNew = true;
+      }
+    }
+    if (hasNew) {
+      setStored(KEYS.ARTICLES, merged);
+    }
+    return merged;
   },
 
   saveArticles(articles: IntellectualItem[]): void {

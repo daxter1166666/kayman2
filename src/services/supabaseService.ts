@@ -10,7 +10,8 @@ import {
   Category,
   LegalDocuments,
   AdSettings,
-  SeoSettings
+  SeoSettings,
+  IntellectualItem
 } from '../types';
 import { storageService } from './storageService';
 
@@ -165,8 +166,8 @@ class SupabaseService {
     }
     if (this.client) return this.client;
 
-    const defaultUrl = 'https://kepuolqhropozwfwwwbb.supabase.co';
-    const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtlcHVvbHFocm9wb3p3Znd3d2JiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMzcyMDgsImV4cCI6MjEwMzkxMzIwOH0.8JfpG8bw-dxwFn64-pAbeRBAxBR9WiaNKQAcJAVCeJw';
+    const defaultUrl = 'https://ddotnksrmwpsfxmgduji.supabase.co';
+    const defaultKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3Rua3NybXdwc2Z4bWdkdWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4ODc0ODAsImV4cCI6MjEwNTQ2MzQ4MH0.AlKIT-493mepn41UF3JpocS5xgDLeqnafxEyLww31JE';
 
     // 1. Check environment variables from Vercel Integration or Vite
     const detected = this.detectEnvironmentCredentials();
@@ -215,6 +216,7 @@ class SupabaseService {
     legalDocuments?: LegalDocuments;
     adSettings?: AdSettings;
     seoSettings?: SeoSettings;
+    articles?: IntellectualItem[];
   } | null> {
     // Client-side throttling: Skip redundant sync calls within 3 minutes
     const now = Date.now();
@@ -230,6 +232,7 @@ class SupabaseService {
         legalDocuments: storageService.getLegalDocuments(),
         adSettings: storageService.getAdSettings(),
         seoSettings: storageService.getSeoSettings(),
+        articles: storageService.getArticles(),
       };
     }
     this.lastPullTimestamp = now;
@@ -314,6 +317,9 @@ class SupabaseService {
             if (syncData.legalDocuments) storageService.saveLegalDocuments(syncData.legalDocuments);
             if (syncData.adSettings) storageService.saveAdSettings(syncData.adSettings);
             if (syncData.seoSettings) storageService.saveSeoSettings(syncData.seoSettings);
+            if (Array.isArray(syncData.articles) && syncData.articles.length > 0) {
+              storageService.saveArticles(syncData.articles);
+            }
 
             return {
               novels: mergedNovels,
@@ -326,6 +332,7 @@ class SupabaseService {
               legalDocuments: syncData.legalDocuments,
               adSettings: syncData.adSettings,
               seoSettings: syncData.seoSettings,
+              articles: syncData.articles || storageService.getArticles(),
             };
           }
         }
@@ -468,6 +475,10 @@ class SupabaseService {
         if (adRow?.data) adSettings = adRow.data;
         const seoRow = rawSettings.find((r: any) => r.id === 'seo_settings');
         if (seoRow?.data) seoSettings = seoRow.data;
+        const artRow = rawSettings.find((r: any) => r.id === 'intellectual_articles');
+        if (artRow?.data && Array.isArray(artRow.data) && artRow.data.length > 0) {
+          storageService.saveArticles(artRow.data);
+        }
       }
 
       const isDatabaseActive = (rawSettings && rawSettings.length > 0) || !!rawProfile?.data || (rawNovels && rawNovels.length > 0);
@@ -594,6 +605,7 @@ class SupabaseService {
         legalDocuments,
         adSettings,
         seoSettings,
+        articles: storageService.getArticles(),
       };
     } catch (e) {
       console.warn('pullAllFromSupabase failed:', e);
@@ -1348,6 +1360,31 @@ class SupabaseService {
     }
   }
 
+  public async saveArticleToSupabase(article: IntellectualItem): Promise<boolean> {
+    const allArticles = storageService.getArticles();
+    return this.saveArticlesToSupabase(allArticles);
+  }
+
+  public async saveArticlesToSupabase(articles: IntellectualItem[]): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      const { error } = await client.from('site_settings').upsert({
+        id: 'articles',
+        data: articles,
+        updated_at: new Date().toISOString(),
+      });
+      if (error) {
+        console.error('Supabase saveArticlesToSupabase error:', error);
+        return false;
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase saveArticlesToSupabase exception:', e);
+      return false;
+    }
+  }
+
   public async testConnection(url: string, anonKey: string): Promise<{ success: boolean; message: string; cleanedUrl?: string }> {
     try {
       if (!url.trim() || !anonKey.trim()) {
@@ -1427,6 +1464,7 @@ class SupabaseService {
       legalDocuments?: LegalDocuments;
       adSettings?: AdSettings;
       seoSettings?: SeoSettings;
+      articles?: IntellectualItem[];
     }
   ): Promise<{ success: boolean; message: string }> {
     const cleanUrl = this.cleanProjectUrl(config.url);
@@ -1606,6 +1644,20 @@ class SupabaseService {
           });
         } catch (e) {
           console.warn('SEO settings sync optional warning:', e);
+        }
+      }
+
+      // 11. Sync Articles / Studies / Translations
+      if (payload.articles && payload.articles.length > 0) {
+        try {
+          await client.from('site_settings').upsert({
+            id: 'intellectual_articles',
+            data: payload.articles,
+            updated_at: new Date().toISOString(),
+          });
+          syncedSummary.push(`${payload.articles.length} مقال ودراسة`);
+        } catch (e) {
+          console.warn('Articles sync optional warning:', e);
         }
       }
 
