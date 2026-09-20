@@ -1075,7 +1075,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
             </div>
             <div className="flex items-center gap-2 flex-wrap">
               <a
-                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني:\n${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}`}
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(`أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني:\n${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-[#25D366]/15 hover:bg-[#25D366]/25 text-[#128C7E] dark:text-[#25D366] font-bold text-[11px] transition-colors"
@@ -1083,7 +1083,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 واتساب
               </a>
               <a
-                href={`https://t.me/share/url?url=${encodeURIComponent(`${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&text=${encodeURIComponent(`الفصل ${chapter.chapterNumber}: ${chapter.title} | ${novel.title}`)}`}
+                href={`https://t.me/share/url?url=${encodeURIComponent(`${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&text=${encodeURIComponent(`الفصل ${chapter.chapterNumber}: ${chapter.title} | ${novel.title}`)}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-[#0088cc]/15 hover:bg-[#0088cc]/25 text-[#0088cc] font-bold text-[11px] transition-colors"
@@ -1091,7 +1091,7 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
                 تليجرام
               </a>
               <a
-                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}»`)}&url=${encodeURIComponent(`${window.location.origin}/novel/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب')}`}
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(`قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}»`)}&url=${encodeURIComponent(`${window.location.origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب')}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-2.5 py-1 rounded-lg bg-black/10 dark:bg-white/10 hover:bg-black/20 text-[11px] font-bold transition-colors"
