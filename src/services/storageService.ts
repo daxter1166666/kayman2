@@ -80,15 +80,11 @@ try {
 
   // Temporarily reset / flush cached local books and chapters once on session startup
   // to force fresh re-synchronization with Supabase across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v6';
+  const sessionFlushKey = 'ayman_startup_synced_session_v7';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
-      localStorage.removeItem(KEYS.NOVELS);
-      localStorage.removeItem(KEYS.CHAPTERS);
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
-      localStorage.removeItem(KEYS.COMMENTS);
-      localStorage.removeItem(KEYS.USER_LIKED_CHAPTERS);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
