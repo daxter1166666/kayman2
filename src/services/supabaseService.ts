@@ -475,7 +475,7 @@ class SupabaseService {
         if (adRow?.data) adSettings = adRow.data;
         const seoRow = rawSettings.find((r: any) => r.id === 'seo_settings');
         if (seoRow?.data) seoSettings = seoRow.data;
-        const artRow = rawSettings.find((r: any) => r.id === 'intellectual_articles');
+        const artRow = rawSettings.find((r: any) => r.id === 'intellectual_articles' || r.id === 'articles');
         if (artRow?.data && Array.isArray(artRow.data) && artRow.data.length > 0) {
           storageService.saveArticles(artRow.data);
         }
@@ -483,18 +483,21 @@ class SupabaseService {
 
       const isDatabaseActive = (rawSettings && rawSettings.length > 0) || !!rawProfile?.data || (rawNovels && rawNovels.length > 0);
 
-      // Extract deleted records from site_settings (cloud-wide blacklist of deleted books and chapters)
+      // Extract deleted records from site_settings (cloud-wide blacklist of deleted books, chapters, and articles)
       const delRow = rawSettings?.find((r: any) => r.id === 'deleted_records');
       const cloudDeletedNovelIds = new Set<string>(Array.isArray(delRow?.data?.novels) ? delRow.data.novels : []);
       const cloudDeletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
+      const cloudDeletedArticleIds = new Set<string>(Array.isArray(delRow?.data?.articles) ? delRow.data.articles : []);
 
       // Also merge with locally deleted IDs
       storageService.getDeletedNovelIds().forEach(id => cloudDeletedNovelIds.add(id));
       storageService.getDeletedChapterIds().forEach(id => cloudDeletedChapterIds.add(id));
+      storageService.getDeletedArticleIds().forEach(id => cloudDeletedArticleIds.add(id));
 
       // Persist all deleted IDs so local storage never attempts to use or display them
       Array.from(cloudDeletedNovelIds).forEach(id => storageService.markNovelDeleted(id));
       Array.from(cloudDeletedChapterIds).forEach(id => storageService.markChapterDeleted(id));
+      Array.from(cloudDeletedArticleIds).forEach(id => storageService.markArticleDeleted(id));
 
       // Extract extra metadata stored in site_settings
       const metaRow = rawSettings?.find((r: any) => r.id === 'novels_metadata');
@@ -1369,18 +1372,52 @@ class SupabaseService {
     const client = this.getClient();
     if (!client) return false;
     try {
-      const { error } = await client.from('site_settings').upsert({
-        id: 'articles',
-        data: articles,
-        updated_at: new Date().toISOString(),
-      });
-      if (error) {
-        console.error('Supabase saveArticlesToSupabase error:', error);
-        return false;
-      }
+      // Upsert to both keys for backward and forward compatibility
+      await client.from('site_settings').upsert([
+        {
+          id: 'articles',
+          data: articles,
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 'intellectual_articles',
+          data: articles,
+          updated_at: new Date().toISOString(),
+        }
+      ]);
       return true;
     } catch (e) {
       console.warn('Supabase saveArticlesToSupabase exception:', e);
+      return false;
+    }
+  }
+
+  public async deleteArticleFromSupabase(id: string): Promise<boolean> {
+    const client = this.getClient();
+    if (!client) return false;
+    try {
+      // 1. Update articles in site_settings
+      const remainingArticles = storageService.getArticles().filter(a => a.id !== id);
+      await this.saveArticlesToSupabase(remainingArticles);
+
+      // 2. Add to deleted_records blacklist in site_settings
+      const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+      const articlesDel: string[] = currentDel?.data?.articles || [];
+      if (!articlesDel.includes(id)) {
+        articlesDel.push(id);
+        await client.from('site_settings').upsert({
+          id: 'deleted_records',
+          data: {
+            novels: currentDel?.data?.novels || [],
+            chapters: currentDel?.data?.chapters || [],
+            articles: articlesDel,
+          },
+          updated_at: new Date().toISOString(),
+        });
+      }
+      return true;
+    } catch (e) {
+      console.warn('Supabase deleteArticleFromSupabase exception:', e);
       return false;
     }
   }

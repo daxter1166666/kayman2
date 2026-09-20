@@ -48,7 +48,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       dir="rtl"
     >
       <div className="flex items-center justify-around max-w-md mx-auto font-cairo text-[11px]">
-        {/* Home / Book */}
+        {/* Home / Books */}
         <button
           type="button"
           id="mobile-tab-home"
@@ -58,7 +58,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <BookOpen className={`w-5 h-5 mb-0.5 ${isHome ? 'text-[#4A5D4E]' : 'text-[#8E8A83]'}`} />
-          <span>الكتاب</span>
+          <span>الكتب</span>
         </button>
 
         {/* Articles */}

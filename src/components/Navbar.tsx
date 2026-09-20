@@ -10,7 +10,8 @@ import {
   Smartphone,
   Heart,
   User,
-  Download
+  Download,
+  FileText
 } from 'lucide-react';
 import { SiteBranding } from '../types';
 
@@ -128,7 +129,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               }`}
             >
               <BookOpen className="w-3.5 h-3.5" />
-              <span>الكتاب</span>
+              <span>الكتب</span>
             </button>
 
             {onNavigateArticles && (
@@ -142,6 +143,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                     : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
                 }`}
               >
+                <FileText className="w-3.5 h-3.5" />
                 <span>المقالات</span>
               </button>
             )}
@@ -309,7 +311,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 <BookOpen className="w-4 h-4 text-emerald-400" />
-                <span>الكتاب الرئيسي</span>
+                <span>الكتب والمؤلفات</span>
               </button>
 
               {onNavigateArticles && (
@@ -325,7 +327,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                       : 'bg-[#FFFFFF] text-[#2C2C2C]'
                   }`}
                 >
-                  <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
+                  <FileText className="w-4 h-4 text-[#4A5D4E]" />
                   <span>المقالات</span>
                 </button>
               )}

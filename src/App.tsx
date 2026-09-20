@@ -51,7 +51,8 @@ import {
   User,
   Download,
   Search,
-  ArrowRight
+  ArrowRight,
+  FileText
 } from 'lucide-react';
 
 export default function App() {
@@ -112,8 +113,8 @@ export default function App() {
         return { view: 'article_reader' as const, novelId: null, chapterId: null, articleId: decodeURIComponent(articleMatch[1]) };
       }
 
-      const chapterMatch = p.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
-      const novelMatch = p.match(/\/novel\/([^/]+)$/i) || p.match(/\/book\/([^/]+)$/i);
+      const chapterMatch = p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = p.match(/\/(?:novel|book)\/([^/]+)$/i);
       const allChapters = storageService.getChapters();
       const allNovels = storageService.getNovels();
 
@@ -286,8 +287,8 @@ export default function App() {
       setCurrentView('novel_detail');
     } else {
       const pathname = window.location.pathname;
-      const chapterMatch = pathname.match(/\/novel\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || pathname.match(/\/chapter\/([^/]+)/i);
-      const novelMatch = pathname.match(/\/novel\/([^/]+)$/i) || pathname.match(/\/book\/([^/]+)$/i);
+      const chapterMatch = pathname.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || pathname.match(/\/chapter\/([^/]+)/i);
+      const novelMatch = pathname.match(/\/(?:novel|book)\/([^/]+)$/i);
 
       const novelParam = urlParams.get('novel');
       const chapterParam = urlParams.get('chapter');
@@ -515,7 +516,7 @@ export default function App() {
     setCurrentView('novel_detail');
     const novel = novels.find(n => n.id === novelId) || storageService.getNovelById(novelId);
     if (typeof window !== 'undefined') {
-      window.history.pushState({}, '', `/novel/${novel?.slug || novelId}`);
+      window.history.pushState({}, '', `/book/${novel?.slug || novelId}`);
     }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -531,7 +532,7 @@ export default function App() {
         window.history.pushState(
           {},
           '',
-          `/novel/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
+          `/book/${novel?.slug || chapter.novelId}/chapter/${chapter.slug || chapter.chapterNumber}`
         );
       }
       window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -824,9 +825,11 @@ export default function App() {
               <AuthorProfileSection
                 authorProfile={authorProfile}
                 novels={novels}
+                articles={articles}
                 donationSettings={donationSettings}
                 onOpenDonationModal={() => setShowDonationModal(true)}
                 onOpenContactPage={() => handleOpenLegalPage('contact')}
+                onViewArticles={handleNavigateArticles}
               />
             )}
 
@@ -1007,6 +1010,8 @@ export default function App() {
                 )}
               </div>
             )}
+
+
 
             {/* Mid-Catalog Corporate Sponsor / Ad Unit */}
             <AdSlot location="mid_chapter" adSettings={adSettings} className="my-12" />

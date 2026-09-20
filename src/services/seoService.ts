@@ -325,7 +325,7 @@ class SeoService {
    */
   public buildNovelJsonLd(novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
     const rootUrl = (baseUrl || storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
-    const novelUrl = novel.seo?.canonicalUrl || `${rootUrl}/?novel=${novel.id}`;
+    const novelUrl = novel.seo?.canonicalUrl || `${rootUrl}/book/${novel.slug || novel.id}`;
     const bookTitle = novel.seo?.metaTitle || novel.title;
     const bookDesc = novel.seo?.metaDescription || novel.synopsis;
     const shareImage = novel.seo?.ogImage || novel.coverImage;
@@ -408,7 +408,7 @@ class SeoService {
   }
 
   /**
-   * Updates all SEO meta tags specifically for a single Novel, honoring custom novel SEO fields.
+   * Updates all SEO meta tags specifically for a single Novel/Book, honoring custom novel SEO fields.
    */
   public updateHeadForNovel(novel: Novel, authorProfile?: AuthorProfile): void {
     if (typeof document === 'undefined') return;
@@ -421,19 +421,29 @@ class SeoService {
     let pageTitle = novel.seo?.metaTitle?.trim();
     if (!pageTitle) {
       if (seoSettings.siteTitleTemplate && seoSettings.siteTitleTemplate.includes('%title%')) {
-        pageTitle = seoSettings.siteTitleTemplate.replace('%title%', `رواية ${novel.title}`);
+        pageTitle = seoSettings.siteTitleTemplate.replace('%title%', `كتاب ${novel.title}`);
       } else {
-        pageTitle = `رواية ${novel.title} - تأليف ${novel.author} | ${branding.siteName || 'أيمن كناني'}`;
+        pageTitle = `كتاب ${novel.title} - تأليف ${novel.author} | ${branding.siteName || 'أيمن كناني'}`;
       }
     }
 
     // 2. Description Resolution (Custom SEO Meta Description or Synopsis excerpt)
     const pageDescription = novel.seo?.metaDescription?.trim() ||
       novel.synopsis?.slice(0, 160) ||
-      `قراءة وتحميل رواية ${novel.title} للكاتب ${novel.author} أونلاين مجاناً بصيغة PDF.`;
+      `قراءة وتحميل كتاب ${novel.title} للكاتب ${novel.author} أونلاين مجاناً بصيغة PDF.`;
 
     // 3. Keywords Resolution (Custom Focus Keywords + Genres + Tags + Site Keywords)
-    const baseNovelKeywords = [...(novel.genres || []), ...(novel.tags || []), 'تحميل رواية PDF', 'قراءة رواية', novel.title, novel.author];
+    const baseNovelKeywords = [
+      `كتاب ${novel.title}`,
+      `تحميل كتاب ${novel.title} PDF`,
+      `قراءة كتاب ${novel.title}`,
+      'كتب عربية',
+      'تحميل كتب PDF',
+      novel.title,
+      novel.author,
+      ...(novel.genres || []),
+      ...(novel.tags || [])
+    ];
     let finalKeywords = baseNovelKeywords;
     if (novel.seo?.focusKeywords?.trim()) {
       const customKw = novel.seo.focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean);
@@ -444,7 +454,7 @@ class SeoService {
     const shareImage = novel.seo?.ogImage?.trim() || novel.coverImage || seoSettings.ogDefaultImage || '';
 
     // 5. Canonical URL
-    const canonicalUrl = novel.seo?.canonicalUrl?.trim() || `${baseUrl}/?novel=${novel.id}`;
+    const canonicalUrl = novel.seo?.canonicalUrl?.trim() || `${baseUrl}/book/${novel.slug || novel.id}`;
 
     // 6. Robots / Indexing
     const robots = novel.seo?.noIndex ? 'noindex, nofollow' : undefined;
@@ -458,12 +468,12 @@ class SeoService {
       keywords: finalKeywords,
       ogType: 'book',
       ogImage: shareImage,
-      url: `/?novel=${novel.id}`,
+      url: `/book/${novel.slug || novel.id}`,
       canonicalUrl,
       author: novel.seo?.authorName?.trim() || novel.author,
       publishedTime: novel.createdAt,
       modifiedTime: novel.updatedAt,
-      section: novel.genres?.[0] || 'روايات',
+      section: novel.genres?.[0] || 'كتب',
       tags: novel.tags,
       robots,
       structuredData: jsonLd,
@@ -486,15 +496,22 @@ class SeoService {
 
     // 1. Chapter Title Tag (Custom or Template or Fallback)
     const customTitle = chapter.seo?.metaTitle?.trim();
-    const pageTitle = customTitle || `${chapter.title} - رواية ${novel.title} | ${novel.author || 'أيمن كناني'}`;
+    const pageTitle = customTitle || `${chapter.title} - كتاب ${novel.title} | ${novel.author || 'أيمن كناني'}`;
 
     // 2. Chapter Meta Description Tag (Custom with highlights/events, or clean excerpt)
     const customDesc = chapter.seo?.metaDescription?.trim();
     const cleanExcerpt = chapter.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) || '';
-    const pageDescription = customDesc || `قراءة ${chapter.title} من رواية ${novel.title} للكاتب ${novel.author || 'أيمن كناني'}. ${cleanExcerpt}`;
+    const pageDescription = customDesc || `قراءة ${chapter.title} من كتاب ${novel.title} للكاتب ${novel.author || 'أيمن كناني'}. ${cleanExcerpt}`;
 
     // 3. Keywords (Chapter focus keywords + Novel keywords)
-    const baseKeywords = [chapter.title, novel.title, novel.author || 'أيمن كناني', ...(novel.genres || [])];
+    const baseKeywords = [
+      chapter.title,
+      `كتاب ${novel.title}`,
+      `فصل ${chapter.chapterNumber}`,
+      `قراءة ${chapter.title}`,
+      novel.author || 'أيمن كناني',
+      ...(novel.genres || [])
+    ];
     let finalKeywords = baseKeywords;
     if (chapter.seo?.focusKeywords?.trim()) {
       const customKws = chapter.seo.focusKeywords.split(/[,،]/).map(k => k.trim()).filter(Boolean);
@@ -505,7 +522,7 @@ class SeoService {
     const shareImage = chapter.seo?.ogImage?.trim() || novel.bannerImage || novel.coverImage || seoSettings.ogDefaultImage || '';
 
     // 5. Canonical URL
-    const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/?novel=${novel.id}&chapter=${chapter.id}`;
+    const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`;
 
     // 6. Robots / Indexing
     const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
@@ -520,7 +537,7 @@ class SeoService {
       keywords: finalKeywords,
       ogType: 'article',
       ogImage: shareImage,
-      url: `/?novel=${novel.id}&chapter=${chapter.id}`,
+      url: `/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`,
       canonicalUrl,
       author: novel.author || authorProfile?.name || 'أيمن كناني',
       publishedTime: chapter.publishedAt,
@@ -544,7 +561,7 @@ class SeoService {
    */
   public buildChapterJsonLd(chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
     const rootUrl = (baseUrl || storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
-    const chapterUrl = `${rootUrl}/?novel=${novel.id}&chapter=${chapter.id}`;
+    const chapterUrl = `${rootUrl}/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`;
 
     return [
       {
@@ -560,7 +577,7 @@ class SeoService {
         'isPartOf': {
           '@type': 'Book',
           'name': novel.title,
-          'url': `${rootUrl}/?novel=${novel.id}`
+          'url': `${rootUrl}/book/${novel.slug || novel.id}`
         },
         'author': {
           '@type': 'Person',
@@ -582,7 +599,7 @@ class SeoService {
             '@type': 'ListItem',
             'position': 2,
             'name': novel.title,
-            'item': `${rootUrl}/?novel=${novel.id}`
+            'item': `${rootUrl}/book/${novel.slug || novel.id}`
           },
           {
             '@type': 'ListItem',
@@ -609,6 +626,7 @@ class SeoService {
     const staticPages = [
       { loc: `${rootUrl}/`, changefreq: 'daily', priority: '1.0', lastmod: today },
       { loc: `${rootUrl}/?view=novels`, changefreq: 'daily', priority: '0.9', lastmod: today },
+      { loc: `${rootUrl}/articles`, changefreq: 'weekly', priority: '0.8', lastmod: today },
       { loc: `${rootUrl}/?view=about`, changefreq: 'weekly', priority: '0.8', lastmod: today },
       { loc: `${rootUrl}/?view=donate`, changefreq: 'monthly', priority: '0.7', lastmod: today },
       { loc: `${rootUrl}/?view=contact`, changefreq: 'monthly', priority: '0.6', lastmod: today },
@@ -626,10 +644,10 @@ class SeoService {
       xml += `  </url>\n`;
     }
 
-    // 2. Dynamic Novel Pages
+    // 2. Dynamic Novel/Book Pages
     for (const novel of novels) {
       if (novel.seo?.noIndex) continue;
-      const novelLoc = novel.seo?.canonicalUrl || `${rootUrl}/?novel=${novel.id}`;
+      const novelLoc = novel.seo?.canonicalUrl || `${rootUrl}/book/${novel.slug || novel.id}`;
       const novelDate = (novel.updatedAt || novel.createdAt || today).slice(0, 10);
       xml += `  <url>\n`;
       xml += `    <loc>${novelLoc}</loc>\n`;
@@ -640,7 +658,7 @@ class SeoService {
       if (shareImg) {
         xml += `    <image:image>\n`;
         xml += `      <image:loc>${shareImg}</image:loc>\n`;
-        xml += `      <image:title>${(novel.seo?.metaTitle || novel.title).replace(/&/g, '&amp;')}</image:title>\n`;
+        xml += `      <image:title>${(novel.seo?.metaTitle || `كتاب ${novel.title}`).replace(/&/g, '&amp;')}</image:title>\n`;
         xml += `    </image:image>\n`;
       }
       xml += `  </url>\n`;
@@ -652,7 +670,8 @@ class SeoService {
       if (chapter.seo?.noIndex) continue;
       const parentNovel = novels.find(n => n.id === chapter.novelId);
       if (parentNovel?.seo?.noIndex) continue;
-      const chLoc = `${rootUrl}/?novel=${chapter.novelId}&amp;chapter=${chapter.id}`;
+      const novelSlugPart = parentNovel ? (parentNovel.slug || parentNovel.id) : chapter.novelId;
+      const chLoc = chapter.seo?.canonicalUrl || `${rootUrl}/book/${novelSlugPart}/chapter/${chapter.slug || chapter.chapterNumber}`;
       const chDate = (chapter.publishedAt || today).slice(0, 10);
       xml += `  <url>\n`;
       xml += `    <loc>${chLoc}</loc>\n`;

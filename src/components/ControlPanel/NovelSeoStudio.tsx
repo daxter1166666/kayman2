@@ -79,11 +79,11 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
   // Computed displayed title (custom or fallback)
   const displayTitle = useMemo(() => {
     if (metaTitle.trim()) return metaTitle.trim();
-    if (!novelTitle.trim()) return 'عنوان الرواية أو العمل الأدبي';
+    if (!novelTitle.trim()) return 'عنوان الكتاب أو العمل الفكري';
     if (seoSettings.siteTitleTemplate && seoSettings.siteTitleTemplate.includes('%title%')) {
-      return seoSettings.siteTitleTemplate.replace('%title%', `رواية ${novelTitle}`);
+      return seoSettings.siteTitleTemplate.replace('%title%', `كتاب ${novelTitle}`);
     }
-    return `رواية ${novelTitle} - تأليف ${novelAuthor || 'أيمن كناني'} | ${branding.siteName || 'أيمن كناني'}`;
+    return `كتاب ${novelTitle} - تأليف ${novelAuthor || 'أيمن كناني'} | ${branding.siteName || 'أيمن كناني'}`;
   }, [metaTitle, novelTitle, novelAuthor, seoSettings.siteTitleTemplate, branding.siteName]);
 
   // Computed displayed description
@@ -92,14 +92,14 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
     if (novelSynopsis.trim()) {
       return novelSynopsis.trim().slice(0, 155) + (novelSynopsis.length > 155 ? '...' : '');
     }
-    return `قراءة وتحميل رواية ${novelTitle || 'المؤلف'} كاملة للمؤلف ${novelAuthor || 'أيمن كناني'} أونلاين بصيغة PDF مجاناً.`;
+    return `قراءة وتحميل كتاب ${novelTitle || 'المؤلف'} كاملاً للمؤلف ${novelAuthor || 'أيمن كناني'} أونلاين بصيغة PDF مجاناً.`;
   }, [metaDescription, novelSynopsis, novelTitle, novelAuthor]);
 
   // Computed display URL
   const displayUrl = useMemo(() => {
     if (canonicalUrl.trim()) return canonicalUrl.trim();
-    if (novelId) return `${siteDomain}/?novel=${novelId}`;
-    return `${siteDomain}/?novel=example`;
+    if (novelId) return `${siteDomain}/book/${novelId}`;
+    return `${siteDomain}/book/example`;
   }, [canonicalUrl, novelId, siteDomain]);
 
   // Computed display image
@@ -143,7 +143,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
     checks.push({
       title: `الكلمات المفتاحية المستهدفة (${kwList.length} كلمات)`,
       passed: kwGood,
-      tip: kwGood ? 'تم تحديد كلمات دلالية مناسبة' : 'أضف كلمتين مفتاحيتين على الأقل (مثل: رواية خيال، تحميل رواية PDF)',
+      tip: kwGood ? 'تم تحديد كلمات دلالية مناسبة' : 'أضف كلمتين مفتاحيتين على الأقل (مثل: كتاب فكري، تحميل كتاب PDF)',
     });
 
     // Cover Image Check
@@ -152,7 +152,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
     checks.push({
       title: 'صورة الغلاف والمشاركة الاجتماعية (OG Image)',
       passed: hasImage,
-      tip: hasImage ? 'متوفرة وتضمن ظهور غلاف الرواية في Google Discover والمشاركات' : 'أضف غلاف الرواية لظهور بطاقة المشاركة الغنية',
+      tip: hasImage ? 'متوفرة وتضمن ظهور غلاف الكتاب في Google Discover والمشاركات' : 'أضف غلاف الكتاب لظهور بطاقة المشاركة الغنية',
     });
 
     // PDF / Rich Content
@@ -161,7 +161,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
     checks.push({
       title: 'رابط التحميل المباشر PDF (Google Schema workExample)',
       passed: hasPdf,
-      tip: hasPdf ? 'يساعد محركات البحث على تصنيف الرواية ككتاب إلكتروني EBook قابل للتحميل' : 'إضافة رابط PDF يعزز الفهرسة في نتائج تحميل الكتب',
+      tip: hasPdf ? 'يساعد محركات البحث على تصنيف العمل ككتاب إلكتروني EBook قابل للتحميل' : 'إضافة رابط PDF يعزز الفهرسة في نتائج تحميل الكتب',
     });
 
     return { score: Math.min(score, 100), checks };
@@ -170,15 +170,15 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
   // Smart Auto-Generator
   const handleAutoGenerateSeo = () => {
     if (!novelTitle.trim()) {
-      alert('يرجى كتابة عنوان الرواية أولاً لتوليد بيانات السيو');
+      alert('يرجى كتابة عنوان الكتاب أولاً لتوليد بيانات السيو');
       return;
     }
 
     // 1. Generate Title (ideal ~50-60 chars)
     const authorStr = novelAuthor.trim() || 'أيمن كناني';
-    let generatedTitle = `رواية ${novelTitle.trim()} - للكاتب ${authorStr} | قراءة وتحميل`;
+    let generatedTitle = `كتاب ${novelTitle.trim()} - للكاتب ${authorStr} | قراءة وتحميل`;
     if (generatedTitle.length > 60) {
-      generatedTitle = `رواية ${novelTitle.trim()} - ${authorStr}`;
+      generatedTitle = `كتاب ${novelTitle.trim()} - ${authorStr}`;
     }
     setMetaTitle(generatedTitle);
 
@@ -186,23 +186,23 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
     let cleanSyn = (novelSynopsis || '').replace(/\s+/g, ' ').trim();
     let generatedDesc = '';
     if (cleanSyn) {
-      const intro = `قراءة وتحميل رواية "${novelTitle.trim()}" للكاتب ${authorStr}. `;
+      const intro = `قراءة وتحميل كتاب "${novelTitle.trim()}" للكاتب ${authorStr}. `;
       const remaining = 155 - intro.length;
       generatedDesc = intro + (cleanSyn.length > remaining ? cleanSyn.slice(0, remaining - 3) + '...' : cleanSyn);
     } else {
-      generatedDesc = `اقرأ رواية ${novelTitle.trim()} للكاتب والروائي ${authorStr} كاملة أونلاين مجاناً. تصفح الفصول وحمل نسخة PDF بجودة عالية.`;
+      generatedDesc = `اقرأ كتاب ${novelTitle.trim()} للكاتب والمؤلف ${authorStr} كاملاً أونلاين مجاناً. تصفح الفصول وحمل نسخة PDF بجودة عالية.`;
     }
     setMetaDescription(generatedDesc);
 
     // 3. Generate Keywords
     const autoKw = [
-      `رواية ${novelTitle.trim()}`,
-      `تحميل رواية ${novelTitle.trim()} PDF`,
-      `قراءة رواية ${novelTitle.trim()}`,
+      `كتاب ${novelTitle.trim()}`,
+      `تحميل كتاب ${novelTitle.trim()} PDF`,
+      `قراءة كتاب ${novelTitle.trim()}`,
       novelAuthor.trim() || 'أيمن كناني',
       ...(novelGenres || []),
-      'روايات عربية',
-      'كتب أدبية'
+      'كتب عربية',
+      'مؤلفات أدبية وفكرية'
     ].filter(Boolean);
     setFocusKeywords(Array.from(new Set(autoKw)).join('، '));
 
@@ -216,7 +216,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
       setOgImage(novelCoverImage.trim());
     }
 
-    setToastMsg('تم توليد بيانات السيو المثالية بنجاح بناءً على تفاصيل الرواية!');
+    setToastMsg('تم توليد بيانات السيو المثالية بنجاح بناءً على تفاصيل الكتاب!');
     setTimeout(() => setToastMsg(null), 3500);
   };
 
@@ -244,13 +244,13 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
           </div>
           <div>
             <h3 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] flex items-center gap-2">
-              <span>استوديو السيو وفهرسة الرواية (Novel SEO Studio)</span>
+              <span>استوديو السيو وفهرسة الكتاب (Book SEO Studio)</span>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#4A5D4E] text-white font-mono font-bold">
                 مخصص
               </span>
             </h3>
             <p className="text-xs text-[#6E6A64]">
-              خصص وسوم الميتا، كلمات البحث، ومعاينة مظهر الرواية على Google وشبكات التواصل.
+              خصص وسوم الميتا، كلمات البحث، ومعاينة مظهر الكتاب على Google وشبكات التواصل.
             </p>
           </div>
         </div>
@@ -269,7 +269,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
       <div className="p-4 rounded-2xl bg-[#FFFFFF] border border-[#E5E2D9] space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-[#2C2C2C]">مؤشر جودة وقوة السيو للرواية:</span>
+            <span className="text-xs font-bold text-[#2C2C2C]">مؤشر جودة وقوة السيو للكتاب:</span>
             <span className={`text-xs font-mono font-black px-2.5 py-0.5 rounded-full ${
               seoAudit.score >= 80 ? 'bg-emerald-100 text-emerald-800' :
               seoAudit.score >= 50 ? 'bg-amber-100 text-amber-800' :
@@ -322,7 +322,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#E5E2D9] pb-3">
           <div className="flex items-center gap-1.5 text-xs font-bold text-[#2C2C2C]">
             <Globe className="w-4 h-4 text-[#4A5D4E]" />
-            <span>معاينة حية لشكل الرواية في نتائج بحث Google وشبكات التواصل</span>
+            <span>معاينة حية لشكل الكتاب في نتائج بحث Google وشبكات التواصل</span>
           </div>
 
           <div className="flex items-center gap-2">
@@ -471,7 +471,7 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
         <div className="md:col-span-2">
           <div className="flex items-center justify-between mb-1">
             <label className="text-xs font-bold text-[#2C2C2C] flex items-center gap-1">
-              <span>عنوان الميتا المخصص للرواية (SEO Meta Title)</span>
+              <span>عنوان الميتا المخصص للكتاب (SEO Meta Title)</span>
               <span className="text-[10px] font-normal text-[#6E6A64]">(يظهر باللون الأزرق في Google)</span>
             </label>
             <span className={`text-[11px] font-mono font-bold ${
@@ -485,13 +485,13 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
           <input
             type="text"
             id="novel-seo-meta-title"
-            placeholder={`مثال: رواية ${novelTitle || 'البداية'} - ${novelAuthor || 'أيمن كناني'} | قراءة وتحميل PDF`}
+            placeholder={`مثال: كتاب ${novelTitle || 'البداية'} - ${novelAuthor || 'أيمن كناني'} | قراءة وتحميل PDF`}
             value={metaTitle}
             onChange={e => setMetaTitle(e.target.value)}
             className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-medium"
           />
           <p className="text-[11px] text-[#6E6A64] mt-1">
-            إذا تركته فارغاً، سيتم توليده تلقائياً كـ: "رواية {novelTitle || 'اسم الرواية'} - تأليف {novelAuthor || 'أيمن كناني'}".
+            إذا تركته فارغاً، سيتم توليده تلقائياً كـ: "كتاب {novelTitle || 'اسم الكتاب'} - تأليف {novelAuthor || 'أيمن كناني'}".
           </p>
         </div>
 
@@ -513,26 +513,26 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
           <textarea
             id="novel-seo-meta-description"
             rows={3}
-            placeholder={`مثال: اقرأ رواية ${novelTitle || 'اسم الرواية'} للكاتب ${novelAuthor || 'أيمن كناني'} كاملة أونلاين مجاناً. تصفح الفصول أو حمّل نسخة PDF...`}
+            placeholder={`مثال: اقرأ كتاب ${novelTitle || 'اسم الكتاب'} للكاتب ${novelAuthor || 'أيمن كناني'} كاملاً أونلاين مجاناً. تصفح الفصول أو حمّل نسخة PDF...`}
             value={metaDescription}
             onChange={e => setMetaDescription(e.target.value)}
             className="w-full p-3 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] leading-relaxed font-medium"
           />
           <p className="text-[11px] text-[#6E6A64] mt-1">
-            إذا تركته فارغاً، سيستخدم محرك البحث أول 160 حرفاً من نبذة الرواية تلقائياً.
+            إذا تركته فارغاً، سيستخدم محرك البحث أول 160 حرفاً من نبذة الكتاب تلقائياً.
           </p>
         </div>
 
         {/* 3. Focus Keywords */}
         <div className="md:col-span-2">
           <label className="text-xs font-bold text-[#2C2C2C] block mb-1">
-            الكلمات المفتاحية المستهدفة للرواية (Focus Keywords - مفصولة بفواصل)
+            الكلمات المفتاحية المستهدفة للكتاب (Focus Keywords - مفصولة بفواصل)
           </label>
           <div className="relative">
             <input
               type="text"
               id="novel-seo-focus-keywords"
-              placeholder="مثال: رواية خيال علمي، تحميل رواية PDF، أيمن كناني، قراءة أونلاين"
+              placeholder="مثال: كتاب فكري، تحميل كتاب PDF، أيمن كناني، قراءة أونلاين"
               value={focusKeywords}
               onChange={e => setFocusKeywords(e.target.value)}
               className="w-full px-3.5 py-2.5 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E]"
@@ -559,14 +559,14 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
           <input
             type="url"
             id="novel-seo-og-image"
-            placeholder="اتركه فارغاً لاستخدام غلاف الرواية تلقائياً"
+            placeholder="اتركه فارغاً لاستخدام غلاف الكتاب تلقائياً"
             value={ogImage}
             onChange={e => setOgImage(e.target.value)}
             className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
             dir="ltr"
           />
           <p className="text-[11px] text-[#6E6A64] mt-1">
-            تظهر عند إرسال رابط الرواية في واتساب، تيليغرام، فيسبوك، أو تويتر.
+            تظهر عند إرسال رابط الكتاب في واتساب، تيليغرام، فيسبوك، أو تويتر.
           </p>
         </div>
 
@@ -596,14 +596,14 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
           <input
             type="url"
             id="novel-seo-canonical-url"
-            placeholder={`${siteDomain}/?novel=${novelId || 'id'}`}
+            placeholder={`${siteDomain}/book/${novelId || 'id'}`}
             value={canonicalUrl}
             onChange={e => setCanonicalUrl(e.target.value)}
             className="w-full px-3.5 py-2 text-xs rounded-xl bg-[#FFFFFF] border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:ring-1 focus:ring-[#4A5D4E] font-mono"
             dir="ltr"
           />
           <p className="text-[11px] text-[#6E6A64] mt-1">
-            يمنع المحتوى المكرر في Google إذا كان للرواية روابط متعددة أو دومين مخصص.
+            يمنع المحتوى المكرر في Google إذا كان للكتاب روابط متعددة أو دومين مخصص.
           </p>
         </div>
 
@@ -619,10 +619,10 @@ export const NovelSeoStudio: React.FC<NovelSeoStudioProps> = ({
             />
             <div>
               <span className="text-xs font-bold text-amber-950 block">
-                استبعاد هذه الرواية من الفهرسة في محركات البحث (noindex, nofollow)
+                استبعاد هذا الكتاب من الفهرسة في محركات البحث (noindex, nofollow)
               </span>
               <span className="text-[11px] text-amber-800 leading-relaxed block mt-0.5">
-                فعل هذا الخيار فقط إذا كانت الرواية قيد المراجعة أو مسودة خاصة ولا تريد أن تظهر في نتائج Google أو في خريطة الموقع Sitemap.
+                فعل هذا الخيار فقط إذا كان الكتاب قيد المراجعة أو مسودة خاصة ولا تريد أن يظهر في نتائج Google أو في خريطة الموقع Sitemap.
               </span>
             </div>
           </label>

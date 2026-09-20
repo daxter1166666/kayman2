@@ -267,7 +267,7 @@ export const ChapterPublisherTab: React.FC<ChapterPublisherTabProps> = ({
             <div>
               <h4 className="font-bold text-sm">تنبيه: لا توجد كتب أو مؤلفات مسجلة بعد</h4>
               <p className="text-xs text-amber-800/90 mt-0.5">
-                يجب إضافة كتاب أو رواية أولاً في الكتالوج لتتمكن من نشر الفصول والمقالات وربطها به.
+                يجب إضافة كتاب أولاً في الكتالوج لتتمكن من نشر الفصول وربطها به.
               </p>
             </div>
           </div>

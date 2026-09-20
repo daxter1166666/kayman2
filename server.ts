@@ -338,9 +338,9 @@ async function startServer() {
         `  </url>`,
       ];
 
-      // Add novels
+      // Add novels/books
       for (const novel of novels) {
-        const novelUrl = `${domain}/novel/${encodeURIComponent(novel.slug)}`;
+        const novelUrl = `${domain}/book/${encodeURIComponent(novel.slug)}`;
         const hasValidHttpImage = novel.coverImage && novel.coverImage.startsWith('http') && !novel.coverImage.startsWith('data:');
         urlsXml.push(
           `  <url>`,
@@ -351,7 +351,7 @@ async function startServer() {
           ...(hasValidHttpImage ? [
             `    <image:image>`,
             `      <image:loc>${escapeXml(novel.coverImage)}</image:loc>`,
-            `      <image:title>${escapeXml(novel.title)}</image:title>`,
+            `      <image:title>${escapeXml(`كتاب ${novel.title}`)}</image:title>`,
             `    </image:image>`,
           ] : []),
           `  </url>`
@@ -361,7 +361,7 @@ async function startServer() {
       // Add chapters (clean single canonical URL per chapter to avoid duplicates)
       for (const ch of chapters) {
         const novelSlugPart = ch.novelSlug || ch.novelId;
-        const chapterUrl = `${domain}/novel/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
+        const chapterUrl = `${domain}/book/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
         urlsXml.push(
           `  <url>`,
           `    <loc>${chapterUrl}</loc>`,
@@ -392,13 +392,13 @@ ${urlsXml.join('\n')}
 
       const itemsXml: string[] = [];
 
-      // Add novel items
+      // Add book items
       for (const n of novels) {
-        const novelUrl = `${domain}/novel/${encodeURIComponent(n.slug)}`;
+        const bookUrl = `${domain}/book/${encodeURIComponent(n.slug)}`;
         itemsXml.push(`    <item>
-      <title>${escapeXml(n.title)} - بقلم ${escapeXml(n.author || 'أيمن كناني')}</title>
-      <link>${novelUrl}</link>
-      <guid isPermaLink="true">${novelUrl}</guid>
+      <title>كتاب ${escapeXml(n.title)} - بقلم ${escapeXml(n.author || 'أيمن كناني')}</title>
+      <link>${bookUrl}</link>
+      <guid isPermaLink="true">${bookUrl}</guid>
       <pubDate>${new Date(n.updatedAt).toUTCString()}</pubDate>
       <description>${escapeXml(n.synopsis || `كتاب ${n.title} للمؤلف أيمن كناني. قراءة وتحميل مجاني.`)}</description>
     </item>`);
@@ -407,13 +407,13 @@ ${urlsXml.join('\n')}
       // Add recent chapters (sorted latest first)
       const sortedChapters = [...chapters].reverse();
       for (const ch of sortedChapters) {
-        const chUrl = `${domain}/novel/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
+        const chUrl = `${domain}/book/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
         itemsXml.push(`    <item>
-      <title>${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
+      <title>كتاب ${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
       <link>${chUrl}</link>
       <guid isPermaLink="true">${chUrl}</guid>
       <pubDate>${new Date(ch.updatedAt).toUTCString()}</pubDate>
-      <description>${escapeXml(`قراءة ${ch.title} من ${ch.novelTitle} للمؤلف أيمن كناني على المنصة الرسمية.`)}</description>
+      <description>${escapeXml(`قراءة ${ch.title} من كتاب ${ch.novelTitle} للمؤلف أيمن كناني على المنصة الرسمية.`)}</description>
     </item>`);
       }
 
@@ -422,7 +422,7 @@ ${urlsXml.join('\n')}
   <channel>
     <title>أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب</title>
     <link>${domain}/</link>
-    <description>المنصة الرسمية المعتمدة لنشر وقراءة مؤلفات وكتب وروايات الكاتب أيمن كناني مجاناً</description>
+    <description>المنصة الرسمية المعتمدة لنشر وقراءة مؤلفات وكتب الكاتب أيمن كناني مجاناً</description>
     <language>ar</language>
     <atom:link href="${domain}/rss.xml" rel="self" type="application/rss+xml" />
     <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>
@@ -450,11 +450,11 @@ ${itemsXml.join('\n')}
       const entriesXml: string[] = [];
 
       for (const n of novels) {
-        const novelUrl = `${domain}/novel/${encodeURIComponent(n.slug)}`;
+        const bookUrl = `${domain}/book/${encodeURIComponent(n.slug)}`;
         entriesXml.push(`  <entry>
-    <title>${escapeXml(n.title)}</title>
-    <link href="${novelUrl}" />
-    <id>${novelUrl}</id>
+    <title>كتاب ${escapeXml(n.title)}</title>
+    <link href="${bookUrl}" />
+    <id>${bookUrl}</id>
     <updated>${new Date(n.updatedAt).toISOString()}</updated>
     <summary>${escapeXml(n.synopsis || `كتاب ${n.title} للمؤلف أيمن كناني.`)}</summary>
     <author>
@@ -465,13 +465,13 @@ ${itemsXml.join('\n')}
 
       const sortedChapters = [...chapters].reverse();
       for (const ch of sortedChapters) {
-        const chUrl = `${domain}/novel/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
+        const chUrl = `${domain}/book/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
         entriesXml.push(`  <entry>
-    <title>${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
+    <title>كتاب ${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
     <link href="${chUrl}" />
     <id>${chUrl}</id>
     <updated>${new Date(ch.updatedAt).toISOString()}</updated>
-    <summary>${escapeXml(`قراءة ${ch.title} من ${ch.novelTitle} بقلم أيمن كناني.`)}</summary>
+    <summary>${escapeXml(`قراءة ${ch.title} من كتاب ${ch.novelTitle} بقلم أيمن كناني.`)}</summary>
     <author>
       <name>أيمن كناني</name>
     </author>
@@ -667,39 +667,58 @@ ${entriesXml.join('\n')}
 
   // --- Express SSR Route Registrations ---
 
-  // Specific user-requested pattern: /novel/chapter-5 or /novel/chapter-1
-  app.get('/novel/chapter-:num', (req, res) => {
-    const chapterIdent = `chapter-${req.params.num}`;
-    return handleChapterSSR(req, res, null, chapterIdent);
-  });
-
-  // Pattern: /novel/:novelId/chapter/:chapterId
-  app.get('/novel/:novelId/chapter/:chapterId', (req, res) => {
+  // PRIMARY: /book/:novelId/chapter/:chapterId
+  app.get('/book/:novelId/chapter/:chapterId', (req, res) => {
     return handleChapterSSR(req, res, req.params.novelId, req.params.chapterId);
   });
 
-  // Pattern: /novel/:novelId/chapter-:num
-  app.get('/novel/:novelId/chapter-:num', (req, res) => {
+  // PRIMARY: /book/:novelId/chapter-:num
+  app.get('/book/:novelId/chapter-:num', (req, res) => {
     const chapterIdent = `chapter-${req.params.num}`;
     return handleChapterSSR(req, res, req.params.novelId, chapterIdent);
   });
 
-  // Pattern: /chapter/:chapterId
-  app.get('/chapter/:chapterId', (req, res) => {
-    return handleChapterSSR(req, res, null, req.params.chapterId);
+  // PRIMARY: /book/chapter-:num
+  app.get('/book/chapter-:num', (req, res) => {
+    const chapterIdent = `chapter-${req.params.num}`;
+    return handleChapterSSR(req, res, null, chapterIdent);
   });
 
-  // Pattern: /novel/:novelId (Novel overview page)
-  app.get('/novel/:novelId', (req, res) => {
-    // If the novelId itself looks like "chapter-5", route to chapter SSR
+  // PRIMARY: /book/:novelId (Book overview page)
+  app.get('/book/:novelId', (req, res) => {
     if (req.params.novelId.startsWith('chapter-')) {
       return handleChapterSSR(req, res, null, req.params.novelId);
     }
     return handleNovelSSR(req, res, req.params.novelId);
   });
 
-  // Pattern: /book/:novelId
-  app.get('/book/:novelId', (req, res) => {
+  // Backward compatibility: /novel/chapter-:num
+  app.get('/novel/chapter-:num', (req, res) => {
+    const chapterIdent = `chapter-${req.params.num}`;
+    return handleChapterSSR(req, res, null, chapterIdent);
+  });
+
+  // Backward compatibility: /novel/:novelId/chapter/:chapterId
+  app.get('/novel/:novelId/chapter/:chapterId', (req, res) => {
+    return handleChapterSSR(req, res, req.params.novelId, req.params.chapterId);
+  });
+
+  // Backward compatibility: /novel/:novelId/chapter-:num
+  app.get('/novel/:novelId/chapter-:num', (req, res) => {
+    const chapterIdent = `chapter-${req.params.num}`;
+    return handleChapterSSR(req, res, req.params.novelId, chapterIdent);
+  });
+
+  // Backward compatibility: /chapter/:chapterId
+  app.get('/chapter/:chapterId', (req, res) => {
+    return handleChapterSSR(req, res, null, req.params.chapterId);
+  });
+
+  // Backward compatibility: /novel/:novelId
+  app.get('/novel/:novelId', (req, res) => {
+    if (req.params.novelId.startsWith('chapter-')) {
+      return handleChapterSSR(req, res, null, req.params.novelId);
+    }
     return handleNovelSSR(req, res, req.params.novelId);
   });
 

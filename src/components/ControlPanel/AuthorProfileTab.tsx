@@ -347,6 +347,48 @@ export const AuthorProfileTab: React.FC<AuthorProfileTabProps> = ({ onRefreshDat
               className="w-full px-3 py-2 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] text-xs text-[#2C2C2C] focus:outline-none focus:border-[#4A5D4E]"
             />
           </div>
+
+          {/* Author's Published Works Stats Card */}
+          {(() => {
+            const allNovels = storageService.getNovels();
+            const allArticles = storageService.getArticles().filter(a => a && a.type !== 'translated_article');
+            const totalBooks = allNovels.length;
+            const totalArticles = allArticles.length;
+            const totalViews = allNovels.reduce((s, n) => s + (n.totalViews || 0), 0) + allArticles.reduce((s, a) => s + (a.views || 0), 0);
+            const totalLikes = allNovels.reduce((s, n) => s + (n.totalLikes || 0), 0) + allArticles.reduce((s, a) => s + (a.likes || 0), 0);
+
+            return (
+              <div className="bg-[#FFFFFF] border border-[#E5E2D9] rounded-2xl p-5 shadow-xs space-y-3 font-cairo">
+                <div className="flex items-center justify-between border-b border-[#E5E2D9] pb-2.5">
+                  <h4 className="text-xs font-bold text-[#4A5D4E] flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>إحصائيات نتاج الكاتب المنشور</span>
+                  </h4>
+                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">
+                    محدّث تلقائياً
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-center text-xs">
+                  <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9]/70">
+                    <span className="block text-[11px] text-[#6E6A64]">📚 المؤلفات والكتب</span>
+                    <strong className="text-base font-bold text-[#2C2C2C] font-mono">{totalBooks}</strong>
+                  </div>
+                  <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9]/70">
+                    <span className="block text-[11px] text-[#6E6A64]">✍️ المقالات والأبحاث</span>
+                    <strong className="text-base font-bold text-[#4A5D4E] font-mono">{totalArticles}</strong>
+                  </div>
+                  <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9]/70">
+                    <span className="block text-[11px] text-[#6E6A64]">👁️ إجمالي القراءات</span>
+                    <strong className="text-xs font-bold text-[#2C2C2C] font-mono">{totalViews.toLocaleString('ar-EG')}</strong>
+                  </div>
+                  <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9]/70">
+                    <span className="block text-[11px] text-[#6E6A64]">❤️ إجمالي الإعجابات</span>
+                    <strong className="text-xs font-bold text-rose-600 font-mono">{totalLikes.toLocaleString('ar-EG')}</strong>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Right Columns: Main Info & Social Media */}

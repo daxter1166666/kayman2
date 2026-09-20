@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AuthorProfile, Novel, DonationSettings } from '../types';
+import { AuthorProfile, Novel, DonationSettings, IntellectualItem } from '../types';
 import {
   Heart,
   Mail,
@@ -9,30 +9,43 @@ import {
   ExternalLink,
   BookOpen,
   Sparkles,
-  Award
+  Award,
+  FileText
 } from 'lucide-react';
 
 interface AuthorProfileSectionProps {
   authorProfile: AuthorProfile;
   novels: Novel[];
+  articles?: IntellectualItem[];
   donationSettings?: DonationSettings;
   onOpenDonationModal: () => void;
   onOpenContactPage: () => void;
+  onViewArticles?: () => void;
 }
 
 export const AuthorProfileSection: React.FC<AuthorProfileSectionProps> = ({
   authorProfile,
   novels,
+  articles = [],
   donationSettings,
   onOpenDonationModal,
   onOpenContactPage,
+  onViewArticles,
 }) => {
   const [showFullBio, setShowFullBio] = useState<boolean>(false);
 
-  // Statistics
+  // Statistics across books and published articles
   const totalBooks = novels.length;
-  const totalViews = novels.reduce((sum, n) => sum + (n.totalViews || 0), 0);
-  const totalLikes = novels.reduce((sum, n) => sum + (n.totalLikes || 0), 0);
+  const publishedArticles = articles.filter(a => a && a.type !== 'translated_article');
+  const totalArticles = publishedArticles.length;
+  
+  const booksViews = novels.reduce((sum, n) => sum + (n.totalViews || 0), 0);
+  const articlesViews = publishedArticles.reduce((sum, a) => sum + (a.views || 0), 0);
+  const totalViews = booksViews + articlesViews;
+
+  const booksLikes = novels.reduce((sum, n) => sum + (n.totalLikes || 0), 0);
+  const articlesLikes = publishedArticles.reduce((sum, a) => sum + (a.likes || 0), 0);
+  const totalLikes = booksLikes + articlesLikes;
 
   const social = authorProfile.socialLinks || {};
 
@@ -110,8 +123,10 @@ export const AuthorProfileSection: React.FC<AuthorProfileSectionProps> = ({
               </div>
 
               {/* Compact Stats Badges */}
-              <div className="flex items-center gap-2 text-[11px] text-[#6E6A64] font-medium bg-[#F7F5EE] px-3 py-1.5 rounded-xl border border-[#E5E2D9] w-full sm:w-auto justify-between sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 text-[11px] text-[#6E6A64] font-medium bg-[#F7F5EE] px-3.5 py-1.5 rounded-xl border border-[#E5E2D9] w-full sm:w-auto justify-between sm:justify-end">
                 <span>📚 <strong>{totalBooks}</strong> مؤلفات</span>
+                <span className="text-[#E5E2D9]">•</span>
+                <span>✍️ <strong>{totalArticles}</strong> مقالات وأبحاث</span>
                 <span className="text-[#E5E2D9]">•</span>
                 <span>👁️ <strong>{totalViews.toLocaleString('ar-EG')}</strong> قراءة</span>
                 <span className="text-[#E5E2D9]">•</span>

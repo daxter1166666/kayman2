@@ -3,6 +3,7 @@ import { IntellectualItem } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
+import { ChapterSeoStudio } from './ChapterSeoStudio';
 import {
   FileText,
   Save,
@@ -23,7 +24,10 @@ import {
   RotateCcw,
   Check,
   Bookmark,
-  Share2
+  Share2,
+  Search,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 interface ArticlesEditorStudioTabProps {
@@ -64,8 +68,19 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
   const [deweyDecimal, setDeweyDecimal] = useState<string>('');
   const [isFeatured, setIsFeatured] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [showDeleteModal, setShowDeleteModal] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [showPreviewModal, setShowPreviewModal] = useState<boolean>(false);
+
+  // Article-Level SEO State
+  const [seoMetaTitle, setSeoMetaTitle] = useState<string>('');
+  const [seoMetaDescription, setSeoMetaDescription] = useState<string>('');
+  const [seoFocusKeywords, setSeoFocusKeywords] = useState<string>('');
+  const [seoCanonicalUrl, setSeoCanonicalUrl] = useState<string>('');
+  const [seoOgImage, setSeoOgImage] = useState<string>('');
+  const [seoNoIndex, setSeoNoIndex] = useState<boolean>(false);
+  const [isSeoStudioOpen, setIsSeoStudioOpen] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
@@ -97,6 +112,13 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       setReferencesInput('');
       setDeweyDecimal('');
       setIsFeatured(false);
+      setSeoMetaTitle('');
+      setSeoMetaDescription('');
+      setSeoFocusKeywords('');
+      setSeoCanonicalUrl('');
+      setSeoOgImage('');
+      setSeoNoIndex(false);
+      setIsSeoStudioOpen(false);
     } else {
       const item = articles.find(a => a.id === id);
       if (item) {
@@ -122,6 +144,12 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
         setReferencesInput(item.references ? item.references.join('\n') : '');
         setDeweyDecimal(item.deweyDecimal || '');
         setIsFeatured(Boolean(item.isFeatured));
+        setSeoMetaTitle(item.seo?.metaTitle || '');
+        setSeoMetaDescription(item.seo?.metaDescription || '');
+        setSeoFocusKeywords(item.seo?.focusKeywords || '');
+        setSeoCanonicalUrl(item.seo?.canonicalUrl || '');
+        setSeoOgImage(item.seo?.ogImage || '');
+        setSeoNoIndex(Boolean(item.seo?.noIndex));
       }
     }
   };
@@ -156,6 +184,15 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       .map(r => r.trim())
       .filter(Boolean);
 
+    const seoMeta = {
+      metaTitle: seoMetaTitle.trim() || undefined,
+      metaDescription: seoMetaDescription.trim() || undefined,
+      focusKeywords: seoFocusKeywords.trim() || undefined,
+      canonicalUrl: seoCanonicalUrl.trim() || undefined,
+      ogImage: seoOgImage.trim() || undefined,
+      noIndex: seoNoIndex,
+    };
+
     setIsSaving(true);
 
     try {
@@ -175,6 +212,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           references,
           deweyDecimal: deweyDecimal.trim() || undefined,
           isFeatured,
+          seo: seoMeta,
         });
 
         const updated = storageService.getArticleById(selectedArticleId);
@@ -205,6 +243,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           references,
           deweyDecimal: deweyDecimal.trim() || undefined,
           isFeatured,
+          seo: seoMeta,
           publishedAt: new Date().toISOString().split('T')[0],
         });
 
@@ -219,6 +258,29 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       showToast('حدث خطأ أثناء الحفظ. يرجى المحاولة مرة أخرى.');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  // Delete article confirmation & execution
+  const handleConfirmDelete = async () => {
+    if (selectedArticleId === 'new') return;
+    setIsDeleting(true);
+    try {
+      const articleToDeleteId = selectedArticleId;
+      // 1. Delete from local storage & mark blacklisted
+      storageService.deleteArticle(articleToDeleteId);
+      // 2. Delete / blacklist in Supabase
+      await supabaseService.deleteArticleFromSupabase(articleToDeleteId);
+      
+      showToast('تم حذف المقال نهائياً من الموقع وقاعدة البيانات بنجاح!');
+      setShowDeleteModal(false);
+      handleSelectArticle('new');
+      refreshArticleList();
+    } catch (err) {
+      console.error('Error deleting article:', err);
+      showToast('حدث خطأ أثناء حذف المقال. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -281,6 +343,19 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            {selectedArticleId !== 'new' && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(true)}
+                disabled={isSaving || isDeleting}
+                className="px-4 py-2.5 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
+                title="حذف هذا المقال نهائياً من الموقع"
+              >
+                <Trash2 className="w-4 h-4 text-red-600" />
+                <span>حذف المقال</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleLoadSampleTemplate}
@@ -294,7 +369,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
             <button
               type="button"
               onClick={handleSaveArticle}
-              disabled={isSaving}
+              disabled={isSaving || isDeleting}
               className="px-5 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
             >
               <Save className="w-4 h-4" />
@@ -549,6 +624,78 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
         />
       </div>
 
+      {/* Article-Level SEO Studio Section */}
+      <div className="pt-2">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] mb-3">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center shrink-0">
+              <Search className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-bold text-xs sm:text-sm text-[#2C2C2C]">
+                  سيو وأرشفة هذا المقال في Google (Article-Level SEO)
+                </span>
+                {seoNoIndex ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                    مستبعد NoIndex
+                  </span>
+                ) : (seoMetaTitle.trim() || seoMetaDescription.trim()) ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>مخصص ونشط</span>
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-white text-[#6E6A64] border border-[#E5E2D9]">
+                    تلقائي
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-[#6E6A64] mt-0.5">
+                تخصيص عنوان ميتا ووصف مستقل وكلمات مفتاحية لمقالك لتصدر نتائج البحث في محركات البحث
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIsSeoStudioOpen(!isSeoStudioOpen)}
+            className="px-3.5 py-1.5 rounded-xl bg-white hover:bg-[#FDFCF8] text-[#2C2C2C] border border-[#E5E2D9] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer shrink-0"
+          >
+            <Search className="w-3.5 h-3.5 text-[#4A5D4E]" />
+            <span>{isSeoStudioOpen ? 'إخفاء استوديو السيو' : 'تخصيص السيو والمعاينة'}</span>
+            {isSeoStudioOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+
+        {isSeoStudioOpen && (
+          <div className="animate-in fade-in slide-in-from-top-2 duration-200">
+            <ChapterSeoStudio
+              metaTitle={seoMetaTitle}
+              setMetaTitle={setSeoMetaTitle}
+              metaDescription={seoMetaDescription}
+              setMetaDescription={setSeoMetaDescription}
+              focusKeywords={seoFocusKeywords}
+              setFocusKeywords={setSeoFocusKeywords}
+              canonicalUrl={seoCanonicalUrl}
+              setCanonicalUrl={setSeoCanonicalUrl}
+              ogImage={seoOgImage}
+              setOgImage={setSeoOgImage}
+              noIndex={seoNoIndex}
+              setNoIndex={setSeoNoIndex}
+              chapterNumber={1}
+              chapterTitle={title}
+              chapterContent={content || abstract}
+              novelTitle={isCustomCategory ? customCategory : category}
+              novelAuthor={author}
+              novelCoverImage={coverImage}
+              novelId="articles"
+              chapterId={selectedArticleId !== 'new' ? selectedArticleId : undefined}
+            />
+          </div>
+        )}
+      </div>
+
       {/* Footer Bottom Actions */}
       <div className="p-4 bg-white rounded-2xl border border-[#E5E2D9] shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
         <div className="text-xs text-[#8E8A83] flex items-center gap-2">
@@ -563,7 +710,19 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           </span>
         </div>
 
-        <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 w-full sm:w-auto justify-end">
+          {selectedArticleId !== 'new' && (
+            <button
+              type="button"
+              onClick={() => setShowDeleteModal(true)}
+              disabled={isSaving || isDeleting}
+              className="px-4 py-2 rounded-xl border border-red-200 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-red-600" />
+              <span>حذف المقال</span>
+            </button>
+          )}
+
           <button
             type="button"
             onClick={() => handleSelectArticle('new')}
@@ -575,7 +734,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           <button
             type="button"
             onClick={handleSaveArticle}
-            disabled={isSaving}
+            disabled={isSaving || isDeleting}
             className="px-6 py-2.5 rounded-xl bg-[#4A5D4E] hover:bg-[#3C4C3F] text-white text-xs font-bold flex items-center gap-2 transition-all shadow-xs cursor-pointer active:scale-98 disabled:opacity-50"
           >
             <Save className="w-4 h-4" />
@@ -583,6 +742,50 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           </button>
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-cairo">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border border-[#E5E2D9] shadow-2xl space-y-4">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-200">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2C] font-amiri">
+                تأكيد حذف المقال نهائياً
+              </h3>
+              <p className="text-xs text-[#6E6A64] leading-relaxed">
+                هل أنت متأكد تماماً من رغبتك في حذف المقال:
+              </p>
+              <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9] text-xs font-bold text-[#2C2C2C] text-center">
+                "{title || 'المقال المحدد'}"
+              </div>
+              <p className="text-[11px] text-red-600 font-bold">
+                ⚠️ سيتم حذف المقال نهائياً من الموقع ومن التخزين ومن قاعدة بيانات سوباباس ولن يظهر بعد الآن.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4" />
+                <span>{isDeleting ? 'جارٍ الحذف نهائياً...' : 'نعم، احذف المقال نهائياً'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-xl border border-[#E5E2D9] bg-stone-50 hover:bg-stone-100 text-[#2C2C2C] text-xs font-bold transition-all cursor-pointer"
+              >
+                إلغاء التراجع
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

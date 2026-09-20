@@ -40,6 +40,7 @@ const KEYS = {
   SUPABASE_CONFIG: 'ayman_supabase_config_v1',
   DELETED_NOVEL_IDS: 'ayman_deleted_novel_ids_v1',
   DELETED_CHAPTER_IDS: 'ayman_deleted_chapter_ids_v1',
+  DELETED_ARTICLE_IDS: 'ayman_deleted_article_ids_v1',
   ARTICLES: 'ayman_articles_v2',
   ARTICLE_LIKES: 'ayman_article_likes_v1',
   ARTICLE_READER_NOTES: 'ayman_article_reader_notes_v1',
@@ -79,11 +80,16 @@ try {
 
   // Temporarily reset / flush cached local books and chapters once on session startup
   // to force fresh re-synchronization with Supabase across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v5';
+  const sessionFlushKey = 'ayman_startup_synced_session_v6';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.NOVELS);
       localStorage.removeItem(KEYS.CHAPTERS);
+      localStorage.removeItem(KEYS.ARTICLES);
+      localStorage.removeItem(KEYS.ARTICLE_LIKES);
+      localStorage.removeItem(KEYS.COMMENTS);
+      localStorage.removeItem(KEYS.USER_LIKED_CHAPTERS);
+      localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
   }
@@ -123,6 +129,7 @@ function deduplicateById<T extends { id: string }>(items: T[]): T[] {
 export const storageService = {
   // --- Novels ---
   getNovels(): Novel[] {
+    this.purgeNonAkhlaqNovels();
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
     const deletedIds = new Set(this.getDeletedNovelIds());
     const isAkhlaqBook = (n: Novel) => {
@@ -131,18 +138,14 @@ export const storageService = {
       if (n.id === 'novel-1788556252989') return true;
       if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
       if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
-      // Allow user-created new novels that are not legacy placeholder books
-      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(n.id)) return false;
-      if (n.id.startsWith('novel-1') && n.id !== 'novel-1788556252989' && n.id.length < 15) return false;
-      // If it's a newly created novel by timestamp id (e.g. novel-1788...), allow it if created by user
-      if (n.id.startsWith('novel-') && n.id !== 'novel-1788556252989') return false;
       return false;
     };
 
     const filtered = raw.filter(isAkhlaqBook);
 
     if (filtered.length === 0) {
-      return INITIAL_NOVELS;
+      const akhlaq = INITIAL_NOVELS.filter(n => n.id === 'novel-1788556252989' || (n.title && n.title.includes('أخلاق الباحث المسلم')));
+      return akhlaq.length > 0 ? akhlaq : INITIAL_NOVELS.slice(0, 1);
     }
     return deduplicateById(filtered);
   },
@@ -967,29 +970,53 @@ export const storageService = {
     this.saveContactMessages(messages);
   },
 
-  // --- Articles / Studies / Translations ---
+  // --- Articles / Studies ---
+  getDeletedArticleIds(): string[] {
+    return getStored<string[]>(KEYS.DELETED_ARTICLE_IDS, []);
+  },
+
+  markArticleDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedArticleIds());
+    deleted.add(id);
+    setStored(KEYS.DELETED_ARTICLE_IDS, Array.from(deleted));
+  },
+
+  unmarkArticleDeleted(id: string): void {
+    const deleted = new Set(this.getDeletedArticleIds());
+    deleted.delete(id);
+    setStored(KEYS.DELETED_ARTICLE_IDS, Array.from(deleted));
+  },
+
   getArticles(): IntellectualItem[] {
-    const stored = getStored<IntellectualItem[]>(KEYS.ARTICLES, INITIAL_INTELLECTUAL_ITEMS);
-    if (!Array.isArray(stored) || stored.length === 0) {
-      return INITIAL_INTELLECTUAL_ITEMS;
-    }
-    const storedIds = new Set(stored.map(a => a.id));
-    let hasNew = false;
-    const merged = [...stored];
-    for (const initItem of INITIAL_INTELLECTUAL_ITEMS) {
-      if (!storedIds.has(initItem.id)) {
-        merged.push(initItem);
-        hasNew = true;
+    const deletedIds = new Set(this.getDeletedArticleIds());
+    const rawStored = typeof window !== 'undefined' ? localStorage.getItem(KEYS.ARTICLES) : null;
+    let stored: IntellectualItem[];
+
+    if (rawStored === null) {
+      // Empty by default as requested (no dummy/mock articles)
+      stored = [];
+      setStored(KEYS.ARTICLES, stored);
+      return stored;
+    } else {
+      try {
+        const parsed = JSON.parse(rawStored);
+        stored = Array.isArray(parsed) ? parsed : [];
+      } catch {
+        stored = [];
       }
     }
-    if (hasNew) {
-      setStored(KEYS.ARTICLES, merged);
+
+    const cleanStored = stored.filter(a => a && a.id && !deletedIds.has(a.id) && !a.id.startsWith('study-') && !a.id.startsWith('article-demo'));
+    if (cleanStored.length !== stored.length) {
+      setStored(KEYS.ARTICLES, cleanStored);
     }
-    return merged;
+    return cleanStored;
   },
 
   saveArticles(articles: IntellectualItem[]): void {
-    setStored(KEYS.ARTICLES, deduplicateById(articles));
+    const deletedIds = new Set(this.getDeletedArticleIds());
+    const cleaned = deduplicateById(articles).filter(a => a && a.id && !deletedIds.has(a.id) && a.type !== 'translated_article' && !a.id.startsWith('trans-'));
+    setStored(KEYS.ARTICLES, cleaned);
   },
 
   getArticleById(id: string): IntellectualItem | undefined {
@@ -1006,6 +1033,7 @@ export const storageService = {
       likes: 0,
       publishedAt: article.publishedAt || new Date().toISOString().slice(0, 10),
     };
+    this.unmarkArticleDeleted(newArticle.id);
     articles.unshift(newArticle);
     this.saveArticles(articles);
     return newArticle;
@@ -1021,8 +1049,10 @@ export const storageService = {
   },
 
   deleteArticle(id: string): void {
+    this.markArticleDeleted(id);
     const articles = this.getArticles().filter(a => a.id !== id);
     this.saveArticles(articles);
+    this.deleteArticleReaderNotesForArticle(id);
   },
 
   incrementArticleViews(id: string): void {
@@ -1137,6 +1167,12 @@ export const storageService = {
   deleteArticleReaderNote(noteId: string): void {
     const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
     const filtered = allNotes.filter(n => n.id !== noteId);
+    setStored(KEYS.ARTICLE_READER_NOTES, filtered);
+  },
+
+  deleteArticleReaderNotesForArticle(articleId: string): void {
+    const allNotes = getStored<MarginNote[]>(KEYS.ARTICLE_READER_NOTES, []);
+    const filtered = allNotes.filter(n => n.targetId !== articleId);
     setStored(KEYS.ARTICLE_READER_NOTES, filtered);
   },
 

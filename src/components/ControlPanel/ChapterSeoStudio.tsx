@@ -82,7 +82,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
   const displayTitle = useMemo(() => {
     if (metaTitle.trim()) return metaTitle.trim();
     const chLabel = chapterTitle.trim() ? chapterTitle.trim() : `الفصل ${chapterNumber || 1}`;
-    const nLabel = novelTitle.trim() ? `رواية ${novelTitle.trim()}` : 'رواية أدبية';
+    const nLabel = novelTitle.trim() ? `كتاب ${novelTitle.trim()}` : 'كتاب أدبي';
     const author = novelAuthor.trim() || 'أيمن كناني';
     return `${chLabel} - ${nLabel} | ${author}`;
   }, [metaTitle, chapterTitle, chapterNumber, novelTitle, novelAuthor]);
@@ -99,11 +99,11 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
   const displayDescription = useMemo(() => {
     if (metaDescription.trim()) return metaDescription.trim();
     const chLabel = chapterTitle.trim() ? chapterTitle.trim() : `الفصل ${chapterNumber || 1}`;
-    const nLabel = novelTitle.trim() ? `رواية ${novelTitle.trim()}` : 'الرواية';
+    const nLabel = novelTitle.trim() ? `كتاب ${novelTitle.trim()}` : 'الكتاب';
     const author = novelAuthor.trim() || 'أيمن كناني';
     if (cleanExcerpt) {
       const excerptSnippet = cleanExcerpt.slice(0, 110) + (cleanExcerpt.length > 110 ? '...' : '');
-      return `قراءة ${chLabel} من ${nLabel} للكاتب ${author}. ${excerptSnippet} تابع الأحداث كاملة مجاناً.`;
+      return `قراءة ${chLabel} من ${nLabel} للكاتب ${author}. ${excerptSnippet} تابع المحتوى كاملاً مجاناً.`;
     }
     return `قراءة كاملة ومباشرة لـ ${chLabel} من ${nLabel} للكاتب ${author} بجودة عالية وبدون إعلانات مزعجة.`;
   }, [metaDescription, cleanExcerpt, chapterTitle, chapterNumber, novelTitle, novelAuthor]);
@@ -114,7 +114,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
     if (novelId && chapterId) {
       return `${siteDomain}/?novel=${novelId}&chapter=${chapterId}`;
     }
-    return `${siteDomain}/novel/${novelSlug || 'novel'}/chapter-${chapterNumber || 1}`;
+    return `${siteDomain}/book/${novelSlug || 'book'}/chapter-${chapterNumber || 1}`;
   }, [canonicalUrl, siteDomain, novelId, chapterId, novelSlug, chapterNumber]);
 
   // Computed share image
@@ -146,14 +146,14 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
   // Smart Auto-Generator for Chapter SEO
   const handleAutoGenerate = () => {
     const chName = chapterTitle.trim() || `الفصل ${chapterNumber || 1}`;
-    const nName = novelTitle.trim() || 'الرواية';
+    const nName = novelTitle.trim() || 'الكتاب';
     const author = novelAuthor.trim() || 'أيمن كناني';
 
     // 1. Auto Meta Title
-    const generatedTitle = `قراءة ${chName} - رواية ${nName} | ${author}`;
+    const generatedTitle = `قراءة ${chName} - كتاب ${nName} | ${author}`;
     setMetaTitle(generatedTitle.slice(0, 60));
 
-    // 2. Auto Meta Description focused on key plot points/excerpt
+    // 2. Auto Meta Description focused on key content/excerpt
     let dramaticSnippet = '';
     if (cleanExcerpt) {
       // Find a sentence or two
@@ -162,23 +162,23 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
       if (dramaticSnippet.length > 80) dramaticSnippet = dramaticSnippet.slice(0, 80) + '...';
     }
 
-    let generatedDesc = `قراءة الفصل ${chapterNumber || 1}: ${chName} من رواية ${nName} بقلم ${author}.`;
+    let generatedDesc = `قراءة الفصل ${chapterNumber || 1}: ${chName} من كتاب ${nName} بقلم ${author}.`;
     if (dramaticSnippet) {
       generatedDesc += ` ${dramaticSnippet}`;
     }
-    generatedDesc += ' استمتع بقراءة الأحداث كاملة مجاناً.';
+    generatedDesc += ' استمتع بقراءة المحتوى كاملاً مجاناً.';
     setMetaDescription(generatedDesc.slice(0, 160));
 
     // 3. Auto Focus Keywords
     const keywordsArray = [
       `فصل ${chapterNumber || 1}`,
       chName,
-      `أحداث فصل ${chapterNumber || 1}`,
-      `رواية ${nName}`,
-      `قراءة رواية ${nName}`,
+      `محتوى فصل ${chapterNumber || 1}`,
+      `كتاب ${nName}`,
+      `قراءة كتاب ${nName}`,
       author,
       'قراءة أونلاين',
-      'فصول الرواية'
+      'فصول الكتاب'
     ];
     setFocusKeywords(keywordsArray.join('، '));
 
@@ -252,7 +252,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
               type="text"
               value={metaTitle}
               onChange={e => setMetaTitle(e.target.value)}
-              placeholder={`مثال: قراءة الفصل ${chapterNumber || 1}: ${chapterTitle || 'العنوان'} - رواية ${novelTitle || 'الرواية'} | أيمن كناني`}
+              placeholder={`مثال: قراءة الفصل ${chapterNumber || 1}: ${chapterTitle || 'العنوان'} - كتاب ${novelTitle || 'الكتاب'} | أيمن كناني`}
               className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] text-xs focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
             />
             <p className={`text-[11px] ${titleStatus.color}`}>
@@ -296,7 +296,7 @@ export const ChapterSeoStudio: React.FC<ChapterSeoStudioProps> = ({
               type="text"
               value={focusKeywords}
               onChange={e => setFocusKeywords(e.target.value)}
-              placeholder={`مثال: فصل ${chapterNumber || 1}, ${chapterTitle || 'عنوان الفصل'}, أحداث رواية ${novelTitle || 'الرواية'}, قراءة مباشرة`}
+              placeholder={`مثال: فصل ${chapterNumber || 1}, ${chapterTitle || 'عنوان الفصل'}, محتوى كتاب ${novelTitle || 'الكتاب'}, قراءة مباشرة`}
               className="w-full px-3.5 py-2.5 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] text-xs focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] outline-hidden"
             />
             {focusKeywords.trim() && (

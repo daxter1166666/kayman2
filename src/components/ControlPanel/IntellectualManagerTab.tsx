@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { IntellectualItem } from '../../types';
 import { storageService } from '../../services/storageService';
+import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
 import {
   FileText,
@@ -16,7 +17,9 @@ import {
   ExternalLink,
   Eye,
   Heart,
-  Feather
+  Feather,
+  Loader2,
+  CheckCircle2
 } from 'lucide-react';
 
 interface IntellectualManagerTabProps {
@@ -55,6 +58,14 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
   const [referencesInput, setReferencesInput] = useState<string>('');
   const [deweyDecimal, setDeweyDecimal] = useState<string>('');
   const [doi, setDoi] = useState<string>('');
+  const [itemToDelete, setItemToDelete] = useState<{ id: string; title: string } | null>(null);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    setTimeout(() => setToastMessage(null), 3500);
+  };
   const [successMsg, setSuccessMsg] = useState<string>('');
 
   const refreshList = () => {
@@ -109,9 +120,23 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
   };
 
   const handleDelete = (id: string, itemTitle: string) => {
-    if (window.confirm(`هل أنت متأكد من حذف: "${itemTitle}"؟`)) {
-      storageService.deleteArticle(id);
+    setItemToDelete({ id, title: itemTitle });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    setIsDeleting(true);
+    try {
+      storageService.deleteArticle(itemToDelete.id);
+      await supabaseService.deleteArticleFromSupabase(itemToDelete.id);
+      showToast(`تم حذف "${itemToDelete.title}" نهائياً من الموقع وقاعدة البيانات.`);
+      setItemToDelete(null);
       refreshList();
+    } catch (err) {
+      console.error('Error deleting article:', err);
+      showToast('حدث خطأ أثناء الحذف. يرجى المحاولة مرة أخرى.');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -641,6 +666,58 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
           </tbody>
         </table>
       </div>
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className="fixed bottom-6 left-6 z-50 bg-[#4A5D4E] text-white px-5 py-3 rounded-2xl shadow-xl border border-white/20 flex items-center gap-3 animate-in fade-in slide-in-from-bottom-4 duration-300">
+          <CheckCircle2 className="w-5 h-5 text-emerald-300 shrink-0" />
+          <span className="text-xs sm:text-sm font-bold">{toastMessage}</span>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs font-cairo">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full border border-[#E5E2D9] shadow-2xl space-y-4 text-right">
+            <div className="w-14 h-14 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center mx-auto border border-red-200">
+              <Trash2 className="w-7 h-7" />
+            </div>
+            <div className="text-center space-y-2">
+              <h3 className="text-lg sm:text-xl font-bold text-[#2C2C2C] font-amiri">
+                تأكيد حذف المادة نهائياً
+              </h3>
+              <p className="text-xs text-[#6E6A64] leading-relaxed">
+                هل أنت متأكد تماماً من رغبتك في حذف هذا المحتوى:
+              </p>
+              <div className="p-3 bg-[#F7F5EE] rounded-xl border border-[#E5E2D9] text-xs font-bold text-[#2C2C2C] text-center">
+                "{itemToDelete.title}"
+              </div>
+              <p className="text-[11px] text-red-600 font-bold">
+                ⚠️ سيتم حذف المقال نهائياً من الموقع ومن التخزين المحلي وسوباباس ولا يمكن التراجع عن هذه الخطوة.
+              </p>
+            </div>
+            <div className="flex items-center gap-3 pt-2">
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-xl bg-red-600 hover:bg-red-700 text-white text-xs font-bold transition-all shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                <span>{isDeleting ? 'جارٍ الحذف...' : 'نعم، احذف نهائياً'}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setItemToDelete(null)}
+                disabled={isDeleting}
+                className="flex-1 py-3 rounded-xl border border-[#E5E2D9] bg-stone-50 hover:bg-stone-100 text-[#2C2C2C] text-xs font-bold transition-all cursor-pointer"
+              >
+                إلغاء التراجع
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
