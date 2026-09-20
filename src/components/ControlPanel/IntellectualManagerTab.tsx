@@ -204,36 +204,24 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
         <div>
           <h2 className="font-amiri font-bold text-xl sm:text-2xl text-[#2C2C2C] flex items-center gap-2">
             <BookOpen className="w-6 h-6 text-[#4A5D4E]" />
-            <span>إدارة الدراسات والأبحاث والمقالات المعرفية والمترجمة</span>
+            <span>إدارة الدراسات والأبحاث والمقالات المعرفية</span>
           </h2>
           <p className="text-xs sm:text-sm text-[#2C2C2C]/70 mt-1">
-            إضافة وتعديل المواد المعرفية والمقالات المترجمة المفهرسة في محرك البحث الموسوعي
+            إضافة وتعديل المواد المعرفية والمقالات المفهرسة في محرك البحث
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {onNavigateTab && (
-            <>
-              <button
-                type="button"
-                onClick={() => onNavigateTab('articles_editor')}
-                className="px-3.5 py-2 rounded-xl bg-white border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 hover:bg-[#F7F5EE] transition-all cursor-pointer shadow-2xs"
-                title="فتح استوديو محرر المقالات والدراسات المخصص"
-              >
-                <Feather className="w-3.5 h-3.5" />
-                <span>محرر المقالات (WYSIWYG)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => onNavigateTab('translations_editor')}
-                className="px-3.5 py-2 rounded-xl bg-white border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 hover:bg-[#F7F5EE] transition-all cursor-pointer shadow-2xs"
-                title="فتح استوديو محرر الدراسات المترجمة المخصص"
-              >
-                <Languages className="w-3.5 h-3.5" />
-                <span>محرر الترجمات (WYSIWYG)</span>
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={() => onNavigateTab('articles_editor')}
+              className="px-3.5 py-2 rounded-xl bg-white border border-[#4A5D4E]/30 text-[#4A5D4E] text-xs font-bold flex items-center gap-1.5 hover:bg-[#F7F5EE] transition-all cursor-pointer shadow-2xs"
+              title="فتح استوديو محرر المقالات والدراسات المخصص"
+            >
+              <Feather className="w-3.5 h-3.5" />
+              <span>محرر المقالات (WYSIWYG)</span>
+            </button>
           )}
 
           <button

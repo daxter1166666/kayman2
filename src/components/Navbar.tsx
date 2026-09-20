@@ -19,7 +19,6 @@ interface NavbarProps {
   onSearchChange: (query: string) => void;
   onNavigateHome: () => void;
   onNavigateArticles?: () => void;
-  onNavigateTranslations?: () => void;
   currentView?: string;
   onOpenControlPanel: () => void;
   onOpenBookmarks: () => void;
@@ -40,7 +39,6 @@ export const Navbar: React.FC<NavbarProps> = ({
   onSearchChange,
   onNavigateHome,
   onNavigateArticles,
-  onNavigateTranslations,
   currentView = 'catalog',
   onOpenControlPanel,
   onOpenBookmarks,
@@ -139,27 +137,12 @@ export const Navbar: React.FC<NavbarProps> = ({
                 id="nav-articles-btn"
                 onClick={onNavigateArticles}
                 className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  currentView === 'articles' || (currentView === 'article_reader' && !window.location.hash.includes('translation'))
+                  currentView === 'articles' || currentView === 'article_reader'
                     ? 'bg-[#4A5D4E] text-white shadow-xs'
                     : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
                 }`}
               >
                 <span>المقالات</span>
-              </button>
-            )}
-
-            {onNavigateTranslations && (
-              <button
-                type="button"
-                id="nav-translations-btn"
-                onClick={onNavigateTranslations}
-                className={`px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
-                  currentView === 'translations'
-                    ? 'bg-[#C88A3B] text-white shadow-xs'
-                    : 'text-[#6E6A64] hover:text-[#2C2C2C] hover:bg-[#F7F5EE]'
-                }`}
-              >
-                <span>الترجمات الفكرية</span>
               </button>
             )}
 
@@ -344,24 +327,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <BookOpen className="w-4 h-4 text-[#4A5D4E]" />
                   <span>المقالات</span>
-                </button>
-              )}
-
-              {onNavigateTranslations && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    onNavigateTranslations();
-                    setMobileMenuOpen(false);
-                  }}
-                  className={`p-3 rounded-xl text-right font-bold border border-[#E5E2D9] shadow-xs active:bg-[#F7F5EE] flex items-center gap-2 ${
-                    currentView === 'translations'
-                      ? 'bg-[#C88A3B] text-white'
-                      : 'bg-[#FFFFFF] text-[#2C2C2C]'
-                  }`}
-                >
-                  <BookOpen className="w-4 h-4 text-[#C88A3B]" />
-                  <span>الترجمات الفكرية</span>
                 </button>
               )}
 

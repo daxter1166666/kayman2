@@ -15,7 +15,6 @@ import { CommentModeratorTab } from './CommentModeratorTab';
 import { SettingsTab } from './SettingsTab';
 import { SeoTab } from './SeoTab';
 import { ArticlesEditorStudioTab } from './ArticlesEditorStudioTab';
-import { TranslationsEditorStudioTab } from './TranslationsEditorStudioTab';
 import { IntellectualManagerTab } from './IntellectualManagerTab';
 import {
   LayoutDashboard,
@@ -37,7 +36,6 @@ import {
   Search,
   RotateCcw,
   Feather,
-  Languages,
   BookMarked
 } from 'lucide-react';
 import { ResetDataModal } from './ResetDataModal';
@@ -71,8 +69,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     { id: 'novels', label: 'إدارة المؤلفات والكتب', icon: BookOpen },
     { id: 'rich_editor', label: 'محرر الكتب والنصوص (WYSIWYG)', icon: Feather },
     { id: 'articles_editor', label: 'محرر المقالات والدراسات (WYSIWYG)', icon: FileText },
-    { id: 'translations_editor', label: 'محرر الدراسات المترجمة (WYSIWYG)', icon: Languages },
-    { id: 'intellectual_manager', label: 'أرشيف المقالات والترجمات', icon: BookMarked },
+    { id: 'intellectual_manager', label: 'أرشيف المقالات والبحوث', icon: BookMarked },
     { id: 'publish', label: 'نشر وتعديل الفصول', icon: FilePlus },
     { id: 'seo', label: 'سيو ومحركات البحث (SEO)', icon: Search },
     { id: 'dashboard', label: 'لوحة الإحصائيات', icon: LayoutDashboard },
@@ -259,13 +256,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
         {activeTab === 'articles_editor' && (
           <ArticlesEditorStudioTab
-            onRefreshData={onRefreshData}
-            onNavigateTab={tab => setActiveTab(tab)}
-          />
-        )}
-
-        {activeTab === 'translations_editor' && (
-          <TranslationsEditorStudioTab
             onRefreshData={onRefreshData}
             onNavigateTab={tab => setActiveTab(tab)}
           />

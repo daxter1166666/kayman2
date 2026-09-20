@@ -1,12 +1,11 @@
 import React from 'react';
-import { BookOpen, Bookmark, User, Download, Heart, CheckCircle2, FileText, Languages } from 'lucide-react';
+import { BookOpen, Bookmark, User, Download, Heart, CheckCircle2, FileText } from 'lucide-react';
 import { SiteBranding } from '../types';
 
 interface MobileBottomNavProps {
   currentView: string;
   onNavigateHome: () => void;
   onNavigateArticles?: () => void;
-  onNavigateTranslations?: () => void;
   onOpenBookmarks: () => void;
   bookmarkCount: number;
   onScrollToAuthor: () => void;
@@ -20,7 +19,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   currentView,
   onNavigateHome,
   onNavigateArticles,
-  onNavigateTranslations,
   onOpenBookmarks,
   bookmarkCount,
   onScrollToAuthor,
@@ -41,7 +39,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
 
   const isHome = currentView === 'catalog' || currentView === 'home' || currentView === 'novel_detail';
   const isArticles = currentView === 'articles';
-  const isTranslations = currentView === 'translations';
 
   return (
     <nav 
@@ -76,21 +73,6 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           >
             <FileText className={`w-5 h-5 mb-0.5 ${isArticles ? 'text-[#4A5D4E]' : 'text-[#8E8A83]'}`} />
             <span>المقالات</span>
-          </button>
-        )}
-
-        {/* Translations */}
-        {onNavigateTranslations && (
-          <button
-            type="button"
-            id="mobile-tab-translations"
-            onClick={onNavigateTranslations}
-            className={`flex flex-col items-center justify-center py-1 px-2 rounded-xl transition-all cursor-pointer min-w-[50px] ${
-              isTranslations ? 'text-[#C88A3B] font-bold' : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-            }`}
-          >
-            <Languages className={`w-5 h-5 mb-0.5 ${isTranslations ? 'text-[#C88A3B]' : 'text-[#8E8A83]'}`} />
-            <span>الترجمات</span>
           </button>
         )}
 

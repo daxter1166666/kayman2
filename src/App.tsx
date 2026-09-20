@@ -21,7 +21,6 @@ import { NovelCard } from './components/NovelCard';
 import { NovelDetailView } from './components/NovelDetailView';
 import { ChapterReader } from './components/ChapterReader';
 import { ArticlesSection } from './components/ArticlesSection';
-import { TranslationsSection } from './components/TranslationsSection';
 import { ArticleDetailView } from './components/ArticleDetailView';
 import { ControlPanel } from './components/ControlPanel/ControlPanel';
 import { LegalPages } from './components/Legal/LegalPages';
@@ -95,7 +94,7 @@ export default function App() {
   const initialRoute = useMemo(() => {
     if (initialSSR?.currentView) {
       return {
-        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader',
+        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'article_reader',
         novelId: (initialSSR.novel?.id || initialSSR.chapter?.novelId || null) as string | null,
         chapterId: (initialSSR.chapter?.id || null) as string | null,
         articleId: null as string | null,
@@ -105,11 +104,8 @@ export default function App() {
       const p = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
 
-      if (p === '/articles' || p === '/articles/') {
+      if (p === '/articles' || p === '/articles/' || p === '/translations' || p === '/translations/') {
         return { view: 'articles' as const, novelId: null, chapterId: null, articleId: null };
-      }
-      if (p === '/translations' || p === '/translations/') {
-        return { view: 'translations' as const, novelId: null, chapterId: null, articleId: null };
       }
       const articleMatch = p.match(/\/article\/([^/]+)/i);
       if (articleMatch) {
@@ -578,15 +574,6 @@ export default function App() {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const handleNavigateTranslations = () => {
-    setCurrentView('translations');
-    setSelectedArticle(null);
-    if (typeof window !== 'undefined' && window.location.pathname !== '/translations') {
-      window.history.pushState({}, '', '/translations');
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
-
   const handleSelectArticle = (item: IntellectualItem) => {
     setSelectedArticle(item);
     setCurrentView('article_reader');
@@ -689,7 +676,6 @@ export default function App() {
         onSearchChange={setSearchQuery}
         onNavigateHome={handleNavigateHome}
         onNavigateArticles={handleNavigateArticles}
-        onNavigateTranslations={handleNavigateTranslations}
         currentView={currentView}
         onOpenControlPanel={handleOpenControlPanel}
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
@@ -819,26 +805,11 @@ export default function App() {
           />
         )}
 
-        {/* 6. TRANSLATIONS & TRANSLATED STUDIES VIEW */}
-        {currentView === 'translations' && (
-          <TranslationsSection
-            articles={articles}
-            onSelectTranslation={handleSelectArticle}
-            onNavigateHome={handleNavigateHome}
-          />
-        )}
-
-        {/* 7. ARTICLE & STUDY DETAIL / READER VIEW */}
+        {/* 6. ARTICLE & STUDY DETAIL / READER VIEW */}
         {currentView === 'article_reader' && selectedArticle && (
           <ArticleDetailView
             article={selectedArticle}
-            onBack={() => {
-              if (selectedArticle.type === 'translated_article' || Boolean(selectedArticle.translator)) {
-                handleNavigateTranslations();
-              } else {
-                handleNavigateArticles();
-              }
-            }}
+            onBack={handleNavigateArticles}
           />
         )}
 
@@ -1149,7 +1120,6 @@ export default function App() {
         currentView={currentView}
         onNavigateHome={handleNavigateHome}
         onNavigateArticles={handleNavigateArticles}
-        onNavigateTranslations={handleNavigateTranslations}
         onOpenBookmarks={() => setShowBookmarksDrawer(true)}
         bookmarkCount={bookmarks.length}
         onScrollToAuthor={handleScrollToAuthorBio}
