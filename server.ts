@@ -271,20 +271,29 @@ async function startServer() {
 
       if (Array.isArray(novels)) {
         for (const n of novels) {
-          const r = await serverSaveNovel(n);
-          results.novels.push({ id: n.id, success: r.success, error: r.error });
+          try {
+            const r = await serverSaveNovel(n);
+            results.novels.push({ id: n.id, success: r.success, error: r.error });
+          } catch (e: any) {
+            results.novels.push({ id: n.id, success: false, error: e?.message });
+          }
         }
       }
 
       if (Array.isArray(chapters)) {
         for (const c of chapters) {
-          const r = await serverSaveChapter(c);
-          results.chapters.push({ id: c.id, success: r.success, error: r.error });
+          try {
+            const r = await serverSaveChapter(c);
+            results.chapters.push({ id: c.id, success: r.success, error: r.error });
+          } catch (e: any) {
+            results.chapters.push({ id: c.id, success: false, error: e?.message });
+          }
         }
       }
 
       res.json({ success: true, results });
     } catch (err: any) {
+      console.error('/api/sync/push fatal error:', err);
       res.status(500).json({ success: false, error: err?.message || String(err) });
     }
   });
