@@ -223,19 +223,27 @@ export default function App() {
 
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase (runs immediately in background without blocking UI)
+    // Cross-browser cloud synchronization with Supabase (runs quietly in the background without UI lag)
     const doPull = () => {
-      supabaseService.pullAllFromSupabase(true).then(res => {
+      supabaseService.pullAllFromSupabase(false).then(res => {
         if (res && res.chapters && res.chapters.length > 0) {
-          refreshData();
+          // Only refresh if chapters count or data changed
+          const currentCount = storageService.getChapters().length;
+          if (res.chapters.length !== currentCount) {
+            refreshData();
+          }
         }
       }).catch(err => {
         console.warn('Supabase pull note:', err);
       });
     };
 
-    // Run pull in next tick to avoid blocking initial render
-    setTimeout(doPull, 0);
+    // Delay background sync until after browser has finished initial painting and user interaction
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      (window as any).requestIdleCallback(doPull, { timeout: 3000 });
+    } else {
+      setTimeout(doPull, 2000);
+    }
 
     const handleViewIncremented = (e: Event) => {
       const detail = (e as CustomEvent).detail;
