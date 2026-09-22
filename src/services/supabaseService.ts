@@ -1712,6 +1712,30 @@ class SupabaseService {
     }
   }
 
+  public async pushAllToServer(): Promise<{ success: boolean; message: string }> {
+    try {
+      const novels = storageService.getNovels();
+      const chapters = storageService.getChapters();
+      const resp = await fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ novels, chapters }),
+      });
+      if (resp.ok) {
+        const body = await resp.json();
+        if (body.success) {
+          return {
+            success: true,
+            message: `تم رفع ومزامنة جميع الفصول (${chapters.length} فصل) والروايات (${novels.length} كتاب) بنجاح إلى الخادم السحابي! أصبحت ظاهرة الآن لجميع الزوار والمتصفح الخفي.`,
+          };
+        }
+      }
+      return { success: false, message: 'فشل الاتصال بالخادم لرفع البيانات' };
+    } catch (e: any) {
+      return { success: false, message: `خطأ في الاتصال: ${e.message}` };
+    }
+  }
+
   public async checkTablesStatus(): Promise<{
     hasClient: boolean;
     connected: boolean;

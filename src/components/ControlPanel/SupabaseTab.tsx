@@ -116,6 +116,25 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
     }
   };
 
+  const [isPushingServer, setIsPushingServer] = useState<boolean>(false);
+  const [pushServerResult, setPushServerResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const handlePushAllToServer = async () => {
+    setIsPushingServer(true);
+    setPushServerResult(null);
+    try {
+      const res = await supabaseService.pushAllToServer();
+      setPushServerResult(res);
+      if (res.success) {
+        onRefreshData();
+      }
+    } catch (e: any) {
+      setPushServerResult({ success: false, message: `فشل الرفع: ${e.message}` });
+    } finally {
+      setIsPushingServer(false);
+    }
+  };
+
   const handleExportJson = () => {
     const backup = {
       exportedAt: new Date().toISOString(),
@@ -479,6 +498,16 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
 
               <button
                 type="button"
+                onClick={handlePushAllToServer}
+                disabled={isPushingServer}
+                className="px-5 py-2.5 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-xs disabled:opacity-50"
+              >
+                {isPushingServer ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                <span>رفع كل الفصول للخادم (لتظهر بالمتصفح الخفي)</span>
+              </button>
+
+              <button
+                type="button"
                 onClick={handlePullAll}
                 disabled={isPulling}
                 className="px-5 py-2.5 bg-[#F7F5EE] hover:bg-[#E5E2D9] text-[#2C2C2C] border border-[#E5E2D9] rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer disabled:opacity-50"
@@ -512,6 +541,25 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
               <p className="text-xs text-[#6E6A64]">
                 آخر رفع ناجح: <strong>{config.lastSyncTime}</strong>
               </p>
+            )}
+
+            {pushServerResult && (
+              <div
+                className={`p-4 rounded-xl text-xs font-bold flex items-start gap-3 border ${
+                  pushServerResult.success
+                    ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
+                    : 'bg-rose-50 border-rose-200 text-rose-800'
+                }`}
+              >
+                {pushServerResult.success ? (
+                  <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                ) : (
+                  <AlertCircle className="w-5 h-5 text-rose-600 shrink-0" />
+                )}
+                <div>
+                  <p>{pushServerResult.message}</p>
+                </div>
+              </div>
             )}
 
             {pullResult && (
