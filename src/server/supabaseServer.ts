@@ -769,10 +769,7 @@ export async function serverFetchAllNovels(): Promise<Novel[]> {
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
 
     const isUnwantedLegacyNovel = (id: string) => {
-      if (id === 'novel-1788556252989') return false;
       if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
-      if (id && id.startsWith('novel-1') && id !== 'novel-1788556252989' && id.length < 15) return true;
-      if (id && id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
       return false;
     };
 
@@ -816,9 +813,10 @@ export async function serverFetchAllNovels(): Promise<Novel[]> {
 export async function serverSaveChapter(chapter: Chapter): Promise<{ success: boolean; chapter?: Chapter; error?: string }> {
   try {
     const client = getServerSupabase();
-    if (!chapter || !chapter.id || !chapter.novelId || !chapter.content) {
-      return { success: false, error: 'Invalid chapter payload: id, novelId, and content are required' };
+    if (!chapter || !chapter.id || !chapter.novelId) {
+      return { success: false, error: 'Invalid chapter payload: id and novelId are required' };
     }
+    chapter.content = chapter.content || '';
 
     savePublishedChapterToFile(chapter);
     invalidateServerCache();
@@ -944,13 +942,59 @@ export async function serverDeleteChapter(chapterId: string): Promise<{ success:
 
     invalidateServerCache();
 
+    // 1. Delete from chapters table
     try {
       await client.from('chapters').delete().eq('id', chapterId);
     } catch {
       // ignore
     }
 
-    // Un-cache
+    // 2. Record in deleted_records blacklist in site_settings
+    try {
+      const { data: currentDel } = await client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle();
+      const existingChapters = Array.isArray(currentDel?.data?.chapters) ? currentDel.data.chapters : [];
+      if (!existingChapters.includes(chapterId)) {
+        await client.from('site_settings').upsert({
+          id: 'deleted_records',
+          data: {
+            ...currentDel?.data,
+            chapters: [...existingChapters, chapterId],
+            updatedAt: new Date().toISOString(),
+          },
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 3. Remove from published_chapters_store in site_settings
+    try {
+      const { data: currentStore } = await client.from('site_settings').select('data').eq('id', 'published_chapters_store').maybeSingle();
+      if (currentStore?.data && typeof currentStore.data === 'object' && currentStore.data[chapterId]) {
+        delete currentStore.data[chapterId];
+        await client.from('site_settings').upsert({
+          id: 'published_chapters_store',
+          data: currentStore.data,
+        });
+      }
+    } catch {
+      // ignore
+    }
+
+    // 4. Remove from local file store if present
+    try {
+      const filePath = path.resolve(process.cwd(), 'src/data/publishedChapters.json');
+      if (fs.existsSync(filePath)) {
+        const fileContent = fs.readFileSync(filePath, 'utf-8');
+        const list: Chapter[] = JSON.parse(fileContent);
+        const filtered = list.filter((c) => c.id !== chapterId);
+        fs.writeFileSync(filePath, JSON.stringify(filtered, null, 2), 'utf-8');
+      }
+    } catch {
+      // ignore
+    }
+
+    // 5. Un-cache
     singleChapterCache.delete(chapterId);
     if (chaptersMetaCache && Array.isArray(chaptersMetaCache.data)) {
       chaptersMetaCache.data = chaptersMetaCache.data.filter((c) => c.id !== chapterId);

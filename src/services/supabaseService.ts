@@ -245,10 +245,7 @@ class SupabaseService {
           const syncData = await resp.json();
           if (syncData.success) {
             const isUnwantedLegacyNovel = (id: string) => {
-              if (id === 'novel-1788556252989') return false;
               if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
-              if (id.startsWith('novel-1') && id !== 'novel-1788556252989') return true;
-              if (id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
               return false;
             };
 
@@ -362,11 +359,8 @@ class SupabaseService {
       const novels: Novel[] = (rawNovels || [])
         .filter((n: any) => {
           if (!n || !n.id) return false;
-          if (n.id === 'novel-1788556252989') return true;
           if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(n.id)) return false;
-          if (typeof n.id === 'string' && n.id.startsWith('novel-1') && n.id !== 'novel-1788556252989') return false;
-          if (typeof n.id === 'string' && n.id.startsWith('novel-') && n.id !== 'novel-1788556252989') return false;
-          return false;
+          return true;
         })
         .map((n: any) => ({
           id: n.id,

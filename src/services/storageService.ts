@@ -125,38 +125,27 @@ function deduplicateById<T extends { id: string }>(items: T[]): T[] {
 export const storageService = {
   // --- Novels ---
   getNovels(): Novel[] {
-    this.purgeNonAkhlaqNovels();
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
     const deletedIds = new Set(this.getDeletedNovelIds());
-    const isAkhlaqBook = (n: Novel) => {
-      if (!n || !n.id) return false;
-      if (deletedIds.has(n.id)) return false;
-      if (n.id === 'novel-1788556252989') return true;
-      if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
-      if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
-      return false;
+    const isMockDemoNovel = (id: string) => {
+      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);
     };
 
-    const filtered = raw.filter(isAkhlaqBook);
-
-    if (filtered.length === 0) {
-      const akhlaq = INITIAL_NOVELS.filter(n => n.id === 'novel-1788556252989' || (n.title && n.title.includes('أخلاق الباحث المسلم')));
-      return akhlaq.length > 0 ? akhlaq : INITIAL_NOVELS.slice(0, 1);
+    const valid = (raw || []).filter(n => n && n.id && !deletedIds.has(n.id) && !isMockDemoNovel(n.id));
+    if (valid.length === 0) {
+      return INITIAL_NOVELS;
     }
-    return deduplicateById(filtered);
+    return deduplicateById(valid);
   },
 
   saveNovels(novels: Novel[]): void {
-    const isUnwantedLegacyNovel = (id: string) => {
-      if (['novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-demo-1', 'novel-demo-2'].includes(id)) return true;
-      if (id.startsWith('novel-1') && id !== 'novel-1788556252989' && id.length < 15) return true;
-      if (id.startsWith('novel-') && id !== 'novel-1788556252989') return true;
-      return false;
+    const isMockDemoNovel = (id: string) => {
+      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);
     };
 
     const cleaned = deduplicateById(novels).filter(n => {
       if (!n || !n.id) return false;
-      if (isUnwantedLegacyNovel(n.id)) return false;
+      if (isMockDemoNovel(n.id)) return false;
       return true;
     });
     setStored(KEYS.NOVELS, cleaned);
@@ -202,31 +191,21 @@ export const storageService = {
   },
 
   /**
-   * Purges all locally stored novels and their chapters except for the book 'أخلاق الباحث المسلم'
-   * or its dedicated ID ('novel-1788556252989').
+   * Purges old mock demo placeholder novels if present
    */
   purgeNonAkhlaqNovels(): void {
     try {
       const rawNovels = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
-      const isAkhlaqBook = (n: Novel) => {
-        if (!n) return false;
-        if (n.id === 'novel-1788556252989') return true;
-        if (n.title && n.title.includes('أخلاق الباحث المسلم')) return true;
-        if (n.slug && n.slug.includes('أخلاق-الباحث-المسلم')) return true;
-        if (n.id && n.id.startsWith('novel-')) return true;
-        return false;
+      const isMockDemoNovel = (n: Novel) => {
+        if (!n || !n.id) return true;
+        return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(n.id);
       };
 
-      const keptNovels = rawNovels.filter(isAkhlaqBook);
+      const keptNovels = rawNovels.filter(n => !isMockDemoNovel(n));
       const finalNovels = keptNovels.length > 0 ? deduplicateById(keptNovels) : INITIAL_NOVELS;
       setStored(KEYS.NOVELS, finalNovels);
-
-      // Preserve all chapters: prioritize current local stored chapters over initial fallbacks
-      const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-      const combinedChapters = deduplicateById([...rawChapters, ...INITIAL_CHAPTERS]);
-      setStored(KEYS.CHAPTERS, combinedChapters);
     } catch (err) {
-      console.warn('Error purging non-Akhlaq books:', err);
+      console.warn('Error cleaning mock novels:', err);
     }
   },
 
