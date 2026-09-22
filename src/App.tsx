@@ -223,9 +223,9 @@ export default function App() {
 
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase (runs once on load in background)
+    // Cross-browser cloud synchronization with Supabase (force pull on load to unify all browsers)
     const doPull = () => {
-      supabaseService.pullAllFromSupabase().then(res => {
+      supabaseService.pullAllFromSupabase(true).then(res => {
         if (res) {
           refreshData();
         }
