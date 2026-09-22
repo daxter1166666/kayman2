@@ -1,4 +1,6 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import fs from 'fs';
+import path from 'path';
 import type {
   Novel,
   Chapter,
@@ -12,6 +14,36 @@ import type {
   SeoSettings,
 } from '../types';
 import { BAKED_NOVELS, BAKED_CHAPTERS } from '../data/bakedContent';
+
+function getPublishedChaptersFromFile(): Chapter[] {
+  try {
+    const filePath = path.resolve(process.cwd(), 'src/data/publishedChapters.json');
+    if (fs.existsSync(filePath)) {
+      const content = fs.readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(content);
+      return Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (err) {
+    console.error('Error reading publishedChapters.json:', err);
+  }
+  return [];
+}
+
+function savePublishedChapterToFile(chapter: Chapter) {
+  try {
+    const filePath = path.resolve(process.cwd(), 'src/data/publishedChapters.json');
+    let chapters = getPublishedChaptersFromFile();
+    const index = chapters.findIndex(c => c.id === chapter.id || (c.chapterNumber === chapter.chapterNumber && c.novelId === chapter.novelId));
+    if (index >= 0) {
+      chapters[index] = { ...chapters[index], ...chapter };
+    } else {
+      chapters.unshift(chapter);
+    }
+    fs.writeFileSync(filePath, JSON.stringify(chapters, null, 2), 'utf-8');
+  } catch (err) {
+    console.error('Error saving publishedChapter to file:', err);
+  }
+}
 
 const DEFAULT_SUPABASE_URL = 'https://ddotnksrmwpsfxmgduji.supabase.co';
 const DEFAULT_SUPABASE_KEY =
@@ -788,6 +820,7 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
       return { success: false, error: 'Invalid chapter payload: id, novelId, and content are required' };
     }
 
+    savePublishedChapterToFile(chapter);
     invalidateServerCache();
 
     // 1. Unmark from deleted records
@@ -974,11 +1007,31 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
       }));
     }
 
+    // Merge published chapters from file store
+    const publishedFromFile = getPublishedChaptersFromFile();
+    if (publishedFromFile.length > 0) {
+      const existingIds = new Set(result.map(c => c.id));
+      for (const pubCh of publishedFromFile) {
+        if (!deletedChapterIds.has(pubCh.id) && !deletedNovelIds.has(pubCh.novelId)) {
+          if (!existingIds.has(pubCh.id)) {
+            result.push({ ...pubCh, content: '' });
+          } else {
+            const idx = result.findIndex(c => c.id === pubCh.id);
+            if (idx >= 0) {
+              result[idx] = { ...pubCh, content: '' };
+            }
+          }
+        }
+      }
+    }
+
     chaptersMetaCache = { data: result, timestamp: Date.now() };
     return result;
   } catch (err) {
     console.error('serverFetchAllChapters exception:', err);
-    return chaptersMetaCache?.data || BAKED_CHAPTERS.map((c) => ({ ...c, content: '' }));
+    const publishedFromFile = getPublishedChaptersFromFile();
+    const base = chaptersMetaCache?.data || BAKED_CHAPTERS.map((c) => ({ ...c, content: '' }));
+    return [...base, ...publishedFromFile.map(c => ({ ...c, content: '' }))];
   }
 }
 
@@ -1022,6 +1075,15 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
         }
       } catch {
         // ignore
+      }
+    }
+
+    // Fallback to publishedChapters.json file
+    if (!content) {
+      const pubChapters = getPublishedChaptersFromFile();
+      const found = pubChapters.find((c) => c.id === chapterId || c.slug === chapterId);
+      if (found && found.content) {
+        content = found.content;
       }
     }
 
