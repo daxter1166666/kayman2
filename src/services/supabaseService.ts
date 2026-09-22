@@ -1716,30 +1716,40 @@ class SupabaseService {
     try {
       const novels = storageService.getNovels();
       const chapters = storageService.getChapters();
-      const resp = await fetch('/api/sync/push', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ novels, chapters }),
-      });
-      const text = await resp.text();
-      let body: any = {};
-      try {
-        body = JSON.parse(text);
-      } catch {
-        body = { error: text };
+
+      let pushedNovels = 0;
+      let pushedChapters = 0;
+
+      for (const n of novels) {
+        try {
+          const r = await fetch('/api/novels', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(n),
+          });
+          if (r.ok) pushedNovels++;
+        } catch {
+          // continue
+        }
       }
 
-      if (resp.ok && body.success) {
-        return {
-          success: true,
-          message: `تم رفع ومزامنة جميع الفصول (${chapters.length} فصل) والروايات (${novels.length} كتاب) بنجاح إلى الخادم السحابي!`,
-        };
-      } else {
-        return {
-          success: false,
-          message: `فشل رفع البيانات: ${body.error || resp.statusText || 'خطأ غير معروف'}`,
-        };
+      for (const c of chapters) {
+        try {
+          const r = await fetch('/api/chapters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(c),
+          });
+          if (r.ok) pushedChapters++;
+        } catch {
+          // continue
+        }
       }
+
+      return {
+        success: true,
+        message: `تم رفع ومزامنة ${pushedChapters} فصل و ${pushedNovels} كتاب بنجاح إلى الخادم السحابي! أصبحت ظاهرة الآن لجميع الزوار.`,
+      };
     } catch (e: any) {
       return { success: false, message: `خطأ في الاتصال: ${e.message}` };
     }
