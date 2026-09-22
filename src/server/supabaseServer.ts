@@ -846,7 +846,25 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
       // ignore
     }
 
-    // 2. Prepare payload
+    // 2. Save chapter to published_chapters_store in site_settings for 100% cloud reliability across all users & browsers
+    try {
+      const { data: currentStore } = await client
+        .from('site_settings')
+        .select('data')
+        .eq('id', 'published_chapters_store')
+        .maybeSingle();
+
+      const storeMap = currentStore?.data && typeof currentStore.data === 'object' ? currentStore.data : {};
+      storeMap[chapter.id] = chapter;
+      await client.from('site_settings').upsert({
+        id: 'published_chapters_store',
+        data: storeMap,
+      });
+    } catch (storeErr) {
+      console.warn('Could not save published chapter to site_settings store:', storeErr);
+    }
+
+    // 3. Prepare payload
     const wordCount = chapter.wordCount || chapter.content.trim().split(/\s+/).length;
     const row: Record<string, any> = {
       id: chapter.id,
@@ -866,7 +884,7 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
 
     const upsertRes = await resilientUpsert(client, 'chapters', row);
 
-    // 3. Save chapter metadata in site_settings as backup
+    // 4. Save chapter metadata in site_settings as backup
     try {
       const { data: currentMeta } = await client
         .from('site_settings')
@@ -890,7 +908,7 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
       console.warn('Could not save chapters_metadata in site_settings:', metaErr);
     }
 
-    // 4. Update in-memory caches
+    // 5. Update in-memory caches
     singleChapterCache.set(chapter.id, { data: chapter, timestamp: Date.now() });
     if (chapter.slug) singleChapterCache.set(chapter.slug, { data: chapter, timestamp: Date.now() });
 
@@ -959,10 +977,11 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     const client = getServerSupabase();
     let rawChapters: any[] = [];
 
-    const [chapRes, delRes, metaRes] = await Promise.all([
+    const [chapRes, delRes, metaRes, storeRes] = await Promise.all([
       client.from('chapters').select(CHAPTER_META_COLUMNS).order('chapter_number', { ascending: true }),
       client.from('site_settings').select('data').eq('id', 'deleted_records').maybeSingle(),
       client.from('site_settings').select('data').eq('id', 'chapters_metadata').maybeSingle(),
+      client.from('site_settings').select('data').eq('id', 'published_chapters_store').maybeSingle(),
     ]);
 
     if (!chapRes.error && Array.isArray(chapRes.data)) {
@@ -984,6 +1003,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     const deletedChapterIds = new Set<string>(Array.isArray(delRes.data?.data?.chapters) ? delRes.data.data.chapters : []);
     const deletedNovelIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
+    const storeMap = storeRes.data?.data && typeof storeRes.data.data === 'object' ? storeRes.data.data : {};
 
     let result: Chapter[] = [];
     if (rawChapters.length > 0) {
@@ -1005,6 +1025,24 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
         ...c,
         content: '',
       }));
+    }
+
+    // Merge published chapters from site_settings store
+    const storeChapters: Chapter[] = Object.values(storeMap);
+    if (storeChapters.length > 0) {
+      const existingIds = new Set(result.map(c => c.id));
+      for (const stCh of storeChapters) {
+        if (!deletedChapterIds.has(stCh.id) && !deletedNovelIds.has(stCh.novelId)) {
+          if (!existingIds.has(stCh.id)) {
+            result.push({ ...stCh, content: '' });
+          } else {
+            const idx = result.findIndex(c => c.id === stCh.id);
+            if (idx >= 0) {
+              result[idx] = { ...stCh, content: '' };
+            }
+          }
+        }
+      }
     }
 
     // Merge published chapters from file store
@@ -1072,6 +1110,24 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
           .maybeSingle();
         if (data && data.content) {
           content = data.content;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback to site_settings published_chapters_store
+    if (!content) {
+      try {
+        const { data } = await client
+          .from('site_settings')
+          .select('data')
+          .eq('id', 'published_chapters_store')
+          .maybeSingle();
+        const storeMap = data?.data && typeof data.data === 'object' ? data.data : {};
+        const foundStoreCh = Object.values(storeMap).find((c: any) => c.id === chapterId || c.slug === chapterId);
+        if (foundStoreCh && (foundStoreCh as any).content) {
+          content = (foundStoreCh as any).content;
         }
       } catch {
         // ignore
