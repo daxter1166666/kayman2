@@ -1714,44 +1714,88 @@ class SupabaseService {
 
   public async pushAllToServer(): Promise<{ success: boolean; message: string }> {
     try {
+      const config = storageService.getSupabaseConfig();
+      const cleanUrl = this.cleanProjectUrl(config.url);
+      const cleanKey = config.anonKey?.trim() || '';
+
+      if (!cleanUrl || !cleanKey) {
+        return { success: false, message: 'يرجى إدخال رابط المشروع (Project URL) والمفتاح العام (anon key) في تبويب سوباباس أولاً.' };
+      }
+
+      const client = createClient(cleanUrl, cleanKey);
       const novels = storageService.getNovels();
       const chapters = storageService.getChapters();
 
       let pushedNovels = 0;
       let pushedChapters = 0;
 
+      // Push novels
       for (const n of novels) {
         try {
-          const r = await fetch('/api/novels', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(n),
-          });
-          if (r.ok) pushedNovels++;
+          const row = {
+            id: n.id,
+            title: n.title,
+            slug: n.slug || n.id,
+            author: n.author || 'أيمن كناني',
+            synopsis: n.synopsis || '',
+            cover_image: n.coverImage || '',
+            status: n.status || 'ONGOING',
+            total_views: n.totalViews || 0,
+            total_likes: n.totalLikes || 0,
+            rating: n.rating || 5.0,
+            updated_at: new Date().toISOString(),
+          };
+          const { error } = await client.from('novels').upsert(row);
+          if (!error) pushedNovels++;
         } catch {
           // continue
         }
       }
 
+      // Push chapters
+      const storeMap: Record<string, any> = {};
       for (const c of chapters) {
+        storeMap[c.id] = c;
         try {
-          const r = await fetch('/api/chapters', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(c),
-          });
-          if (r.ok) pushedChapters++;
+          const row = {
+            id: c.id,
+            novel_id: c.novelId,
+            chapter_number: c.chapterNumber || 1,
+            title: c.title,
+            slug: c.slug || c.id,
+            content: c.content,
+            author_note: c.authorNote || '',
+            published_at: c.publishedAt || new Date().toISOString(),
+            views: c.views || 0,
+            likes: c.likes || 0,
+            word_count: c.wordCount || c.content.trim().split(/\s+/).length,
+            status: c.status || 'PUBLISHED',
+            updated_at: new Date().toISOString(),
+          };
+          const { error } = await client.from('chapters').upsert(row);
+          if (!error) pushedChapters++;
         } catch {
           // continue
         }
+      }
+
+      // Also save published_chapters_store in site_settings
+      try {
+        await client.from('site_settings').upsert({
+          id: 'published_chapters_store',
+          data: storeMap,
+          updated_at: new Date().toISOString(),
+        });
+      } catch {
+        // ignore
       }
 
       return {
         success: true,
-        message: `تم رفع ومزامنة ${pushedChapters} فصل و ${pushedNovels} كتاب بنجاح إلى الخادم السحابي! أصبحت ظاهرة الآن لجميع الزوار.`,
+        message: `تم بنجاح رفع ومزامنة ${pushedChapters} فصل و ${pushedNovels} رواية مباشرة إلى سوباباس! أصبحت ظاهرة الآن لجميع الزوار والمتصفح الخفي.`,
       };
     } catch (e: any) {
-      return { success: false, message: `خطأ في الاتصال: ${e.message}` };
+      return { success: false, message: `خطأ أثناء الرفع المباشر: ${e.message}` };
     }
   }
 
