@@ -223,10 +223,10 @@ export default function App() {
 
     refreshData();
 
-    // Cross-browser cloud synchronization with Supabase (force pull on load to unify all browsers)
+    // Cross-browser cloud synchronization with Supabase (runs immediately in background without blocking UI)
     const doPull = () => {
       supabaseService.pullAllFromSupabase(true).then(res => {
-        if (res) {
+        if (res && res.chapters && res.chapters.length > 0) {
           refreshData();
         }
       }).catch(err => {
@@ -234,7 +234,8 @@ export default function App() {
       });
     };
 
-    doPull();
+    // Run pull in next tick to avoid blocking initial render
+    setTimeout(doPull, 0);
 
     const handleViewIncremented = (e: Event) => {
       const detail = (e as CustomEvent).detail;
