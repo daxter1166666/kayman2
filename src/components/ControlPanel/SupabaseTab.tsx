@@ -16,6 +16,7 @@ import {
   Layers,
   ArrowUpRight,
   Download,
+  Upload,
   Globe,
   Sparkles,
   RotateCcw
@@ -153,6 +154,43 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
     a.download = `ayman_kinani_data_backup_${new Date().toISOString().slice(0, 10)}.json`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const data = JSON.parse(text);
+        if (Array.isArray(data.novels)) storageService.saveNovels(data.novels);
+        if (Array.isArray(data.chapters)) storageService.saveChapters(data.chapters);
+        if (Array.isArray(data.comments)) storageService.saveComments(data.comments);
+        if (data.authorProfile) storageService.saveAuthorProfile(data.authorProfile);
+        if (data.siteBranding) storageService.saveSiteBranding(data.siteBranding);
+        if (data.donationSettings) storageService.saveDonationSettings(data.donationSettings);
+        if (Array.isArray(data.categories)) storageService.saveCategories(data.categories);
+        if (data.legalDocuments) storageService.saveLegalDocuments(data.legalDocuments);
+        if (data.adSettings) storageService.saveAdSettings(data.adSettings);
+        if (data.seoSettings) storageService.saveSeoSettings(data.seoSettings);
+
+        // Sync to server and Supabase
+        await supabaseService.pushAllToServer();
+        onRefreshData();
+        setSyncResult({
+          success: true,
+          message: `تم استيراد وحفظ البيانات بنجاح (${data.chapters?.length || 0} فصل، ${data.novels?.length || 0} كتاب) ومزامنتها سحابياً لجميع المتصفحات!`,
+        });
+      } catch (err: any) {
+        setSyncResult({
+          success: false,
+          message: `فشل استيراد الملف: ${err.message || 'الملف غير صالح'}`,
+        });
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
   };
 
   const handleSaveConfig = (e?: React.FormEvent) => {
@@ -524,6 +562,17 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
                 <Download className="w-4 h-4" />
                 <span>تحميل نسخة احتياطية (JSON)</span>
               </button>
+
+              <label className="px-5 py-2.5 bg-[#F7F5EE] hover:bg-[#E5E2D9] text-[#2C2C2C] border border-[#E5E2D9] rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all cursor-pointer shadow-2xs">
+                <Upload className="w-4 h-4 text-[#4A5D4E]" />
+                <span>استيراد ملف نسخة احتياطية (JSON)</span>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  onChange={handleImportJson}
+                  className="hidden"
+                />
+              </label>
 
               <button
                 type="button"

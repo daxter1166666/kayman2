@@ -160,6 +160,45 @@ export const storageService = {
       return true;
     });
     setStored(KEYS.NOVELS, cleaned);
+    this.syncNovelsToServer(cleaned);
+    this.autoSyncAllToServer();
+  },
+
+  syncNovelsToServer(novels: Novel[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+      fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ novels }),
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  },
+
+  syncChaptersToServer(chapters: Chapter[]): void {
+    if (typeof window === 'undefined') return;
+    try {
+      fetch('/api/sync/push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chapters }),
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+  },
+
+  autoSyncAllToServer(): void {
+    if (typeof window === 'undefined') return;
+    try {
+      import('./supabaseService').then(({ supabaseService }) => {
+        supabaseService.pushAllToServer().catch(() => {});
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
   },
 
   /**
@@ -182,9 +221,9 @@ export const storageService = {
       const finalNovels = keptNovels.length > 0 ? deduplicateById(keptNovels) : INITIAL_NOVELS;
       setStored(KEYS.NOVELS, finalNovels);
 
-      // Preserve all chapters (initial + user-published chapters) without deletion
+      // Preserve all chapters: prioritize current local stored chapters over initial fallbacks
       const rawChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-      const combinedChapters = deduplicateById([...INITIAL_CHAPTERS, ...rawChapters]);
+      const combinedChapters = deduplicateById([...rawChapters, ...INITIAL_CHAPTERS]);
       setStored(KEYS.CHAPTERS, combinedChapters);
     } catch (err) {
       console.warn('Error purging non-Akhlaq books:', err);
@@ -233,6 +272,11 @@ export const storageService = {
     this.saveChapters(chapters);
     const comments = this.getComments().filter(c => c.novelId !== id);
     this.saveComments(comments);
+    if (typeof window !== 'undefined') {
+      try {
+        fetch(`/api/novels/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+      } catch {}
+    }
   },
 
   getDeletedNovelIds(): string[] {
@@ -267,6 +311,8 @@ export const storageService = {
 
   saveChapters(chapters: Chapter[]): void {
     setStored(KEYS.CHAPTERS, deduplicateById(chapters));
+    this.syncChaptersToServer(chapters);
+    this.autoSyncAllToServer();
   },
 
   getChapterById(id: string): Chapter | undefined {
@@ -335,6 +381,11 @@ export const storageService = {
     const chapters = this.getChapters().filter(c => c.id !== id);
     this.saveChapters(chapters);
     this.markChapterDeleted(id);
+    if (typeof window !== 'undefined') {
+      try {
+        fetch(`/api/chapters/${encodeURIComponent(id)}`, { method: 'DELETE' }).catch(() => {});
+      } catch {}
+    }
   },
 
   getDeletedChapterIds(): string[] {
@@ -793,6 +844,7 @@ export const storageService = {
     const current = this.getAuthorProfile();
     const updated = { ...current, ...profile };
     setStored(KEYS.AUTHOR_PROFILE, updated);
+    this.autoSyncAllToServer();
     return updated;
   },
 
@@ -805,6 +857,7 @@ export const storageService = {
     const current = this.getSiteBranding();
     const updated = { ...current, ...branding };
     setStored(KEYS.SITE_BRANDING, updated);
+    this.autoSyncAllToServer();
     return updated;
   },
 
@@ -825,6 +878,7 @@ export const storageService = {
     const current = this.getSeoSettings();
     const updated: SeoSettings = { ...current, ...settings };
     setStored(KEYS.SEO_SETTINGS, updated);
+    this.autoSyncAllToServer();
     return updated;
   },
 
@@ -837,6 +891,7 @@ export const storageService = {
     const current = this.getDonationSettings();
     const updated = { ...current, ...settings };
     setStored(KEYS.DONATION_SETTINGS, updated);
+    this.autoSyncAllToServer();
     return updated;
   },
 
@@ -863,6 +918,7 @@ export const storageService = {
 
   saveCategories(categories: Category[]): void {
     setStored(KEYS.CATEGORIES, categories);
+    this.autoSyncAllToServer();
   },
 
   addCategory(category: Omit<Category, 'id'>): Category {

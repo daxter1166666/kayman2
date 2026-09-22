@@ -269,6 +269,13 @@ export default function App() {
     };
     window.addEventListener('novel-view-incremented', handleViewIncremented);
 
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key && (e.key.includes('ayman_chapters') || e.key.includes('ayman_novels') || e.key.includes('ayman_author') || e.key.includes('ayman_site'))) {
+        refreshData();
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     // Check for admin URL triggers (?admin=true, /admin, #admin)
     const urlParams = new URLSearchParams(window.location.search);
     const isPathAdmin = window.location.pathname === '/admin' || window.location.pathname.endsWith('/admin');

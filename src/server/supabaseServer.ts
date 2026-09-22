@@ -879,7 +879,6 @@ export async function serverSaveChapter(chapter: Chapter): Promise<{ success: bo
       likes: chapter.likes || 0,
       word_count: wordCount,
       status: chapter.status || 'PUBLISHED',
-      updated_at: new Date().toISOString(),
     };
 
     const upsertRes = await resilientUpsert(client, 'chapters', row);
