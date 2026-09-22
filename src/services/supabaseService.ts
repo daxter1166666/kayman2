@@ -1721,16 +1721,25 @@ class SupabaseService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ novels, chapters }),
       });
-      if (resp.ok) {
-        const body = await resp.json();
-        if (body.success) {
-          return {
-            success: true,
-            message: `تم رفع ومزامنة جميع الفصول (${chapters.length} فصل) والروايات (${novels.length} كتاب) بنجاح إلى الخادم السحابي! أصبحت ظاهرة الآن لجميع الزوار والمتصفح الخفي.`,
-          };
-        }
+      const text = await resp.text();
+      let body: any = {};
+      try {
+        body = JSON.parse(text);
+      } catch {
+        body = { error: text };
       }
-      return { success: false, message: 'فشل الاتصال بالخادم لرفع البيانات' };
+
+      if (resp.ok && body.success) {
+        return {
+          success: true,
+          message: `تم رفع ومزامنة جميع الفصول (${chapters.length} فصل) والروايات (${novels.length} كتاب) بنجاح إلى الخادم السحابي!`,
+        };
+      } else {
+        return {
+          success: false,
+          message: `فشل رفع البيانات: ${body.error || resp.statusText || 'خطأ غير معروف'}`,
+        };
+      }
     } catch (e: any) {
       return { success: false, message: `خطأ في الاتصال: ${e.message}` };
     }
