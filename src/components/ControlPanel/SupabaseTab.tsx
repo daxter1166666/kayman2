@@ -97,7 +97,7 @@ export const SupabaseTab: React.FC<SupabaseTabProps> = ({
     setIsPulling(true);
     setPullResult(null);
     try {
-      const data = await supabaseService.pullAllFromSupabase();
+      const data = await supabaseService.pullAllFromSupabase(true);
       if (data) {
         onRefreshData();
         setPullResult({

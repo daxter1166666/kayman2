@@ -236,11 +236,6 @@ export default function App() {
 
     doPull();
 
-    // Automatically push local chapters and novels to server cloud store so they appear for all users & devices instantly
-    supabaseService.pushAllToServer().catch(err => {
-      console.warn('Auto push note:', err);
-    });
-
     const handleViewIncremented = (e: Event) => {
       const detail = (e as CustomEvent).detail;
       if (!detail) return;

@@ -138,6 +138,18 @@ export const storageService = {
     return deduplicateById(valid);
   },
 
+  setRawNovels(novels: Novel[]): void {
+    const isMockDemoNovel = (id: string) => {
+      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);
+    };
+    const cleaned = deduplicateById(novels).filter(n => n && n.id && !isMockDemoNovel(n.id));
+    setStored(KEYS.NOVELS, cleaned);
+  },
+
+  setRawChapters(chapters: Chapter[]): void {
+    setStored(KEYS.CHAPTERS, deduplicateById(chapters));
+  },
+
   saveNovels(novels: Novel[]): void {
     const isMockDemoNovel = (id: string) => {
       return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);

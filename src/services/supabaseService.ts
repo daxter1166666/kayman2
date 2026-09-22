@@ -255,56 +255,40 @@ class SupabaseService {
             );
             const deletedNovelIds = new Set(storageService.getDeletedNovelIds());
 
-            const novelsMap = new Map<string, Novel>();
-            const localNovelViewsMap = new Map(localNovels.map(ln => [ln.id, ln.totalViews || 0]));
-            remoteNovels.forEach((rn: Novel) => {
-              if (!deletedNovelIds.has(rn.id) && !isUnwantedLegacyNovel(rn.id)) {
-                novelsMap.set(rn.id, {
+            let mergedNovels: Novel[] = [];
+            if (remoteNovels.length > 0) {
+              const localNovelViewsMap = new Map(localNovels.map(ln => [ln.id, ln.totalViews || 0]));
+              mergedNovels = remoteNovels
+                .filter(rn => !deletedNovelIds.has(rn.id))
+                .map(rn => ({
                   ...rn,
                   totalViews: Math.max(rn.totalViews || 0, localNovelViewsMap.get(rn.id) || 0),
-                });
-              }
-            });
+                }));
+              storageService.setRawNovels(mergedNovels);
+            } else {
+              mergedNovels = localNovels;
+            }
 
-            localNovels.forEach(ln => {
-              if (!deletedNovelIds.has(ln.id) && !isUnwantedLegacyNovel(ln.id)) {
-                if (!novelsMap.has(ln.id)) {
-                  novelsMap.set(ln.id, ln);
-                }
-              }
-            });
-
-            const mergedNovels = Array.from(novelsMap.values());
-            storageService.saveNovels(mergedNovels);
-
-            // Chapters merge (preserves existing loaded content)
+            // Chapters merge (adopts server chapters list as single source of truth, preserving cached local text)
             const localChapters = storageService.getChapters();
             const localChapterContentMap = new Map(localChapters.map(lc => [lc.id, lc.content || '']));
             const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
             const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
             const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
 
-            const chaptersMap = new Map<string, Chapter>();
-            remoteChapters.forEach((rc: Chapter) => {
-              if (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)) {
-                chaptersMap.set(rc.id, {
+            let mergedChapters: Chapter[] = [];
+            if (remoteChapters.length > 0) {
+              mergedChapters = remoteChapters
+                .filter(rc => !deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId))
+                .map(rc => ({
                   ...rc,
                   content: rc.content || localChapterContentMap.get(rc.id) || '',
                   views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
-                });
-              }
-            });
-
-            localChapters.forEach(lc => {
-              if (!deletedChapterIds.has(lc.id) && !deletedNovelIds.has(lc.novelId)) {
-                if (!chaptersMap.has(lc.id)) {
-                  chaptersMap.set(lc.id, lc);
-                }
-              }
-            });
-
-            const mergedChapters = Array.from(chaptersMap.values());
-            storageService.saveChapters(mergedChapters);
+                }));
+              storageService.setRawChapters(mergedChapters);
+            } else {
+              mergedChapters = localChapters;
+            }
 
             if (Array.isArray(syncData.comments)) storageService.saveComments(syncData.comments);
             if (syncData.authorProfile) storageService.saveAuthorProfile(syncData.authorProfile);

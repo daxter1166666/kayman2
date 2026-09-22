@@ -1106,8 +1106,23 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
       }
     }
 
-    chaptersMetaCache = { data: result, timestamp: Date.now() };
-    return result;
+    // Deduplicate strictly by novelId + chapterNumber so every chapter number appears exactly once
+    const chapterMapByNum = new Map<string, Chapter>();
+    result.forEach((c) => {
+      const key = `${c.novelId}_${c.chapterNumber}`;
+      const existing = chapterMapByNum.get(key);
+      if (!existing) {
+        chapterMapByNum.set(key, c);
+      } else {
+        if ((c.wordCount || 0) > (existing.wordCount || 0) || (c.title && c.title.length > existing.title.length) || c.id > existing.id) {
+          chapterMapByNum.set(key, c);
+        }
+      }
+    });
+
+    const uniqueResult = Array.from(chapterMapByNum.values()).sort((a, b) => a.chapterNumber - b.chapterNumber);
+    chaptersMetaCache = { data: uniqueResult, timestamp: Date.now() };
+    return uniqueResult;
   } catch (err) {
     console.error('serverFetchAllChapters exception:', err);
     const publishedFromFile = getPublishedChaptersFromFile();
