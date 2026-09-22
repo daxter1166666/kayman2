@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import React from 'react';
@@ -35,6 +36,23 @@ async function startServer() {
   const isProd = process.env.NODE_ENV === 'production';
   const distPath = path.resolve(process.cwd(), 'dist');
 
+  // Enable Gzip/Deflate compression for fast network transfers
+  app.use(compression({
+    level: 6,
+    threshold: 1024,
+    filter: (req, res) => {
+      if (req.headers['x-no-compression']) return false;
+      return compression.filter(req, res);
+    }
+  }));
+
+  // Performance & security headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-DNS-Prefetch-Control', 'on');
+    next();
+  });
+
   app.use(express.json({ limit: '25mb' }));
 
   // Setup Vite in development or static serving in production
@@ -45,7 +63,14 @@ async function startServer() {
       appType: 'custom',
     });
   } else {
-    // In production, serve static assets from dist
+    // In production, serve static assets with aggressive caching
+    app.use(
+      '/assets',
+      express.static(path.resolve(distPath, 'assets'), {
+        immutable: true,
+        maxAge: '1y',
+      })
+    );
     app.use(
       express.static(distPath, {
         index: false,
