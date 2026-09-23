@@ -2,14 +2,14 @@ import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, Sit
 import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
 
 export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
-export const DEFAULT_BANNER_IMAGE = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?w=1600&auto=format&fit=crop&q=80';
+export const DEFAULT_BANNER_IMAGE = '/author-cover.jpg';
 
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   name: 'أيمن كناني',
   englishName: 'Ayman Kinani',
   title: 'كاتب، باحث، ومؤلف',
-  avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=800&auto=format&fit=crop',
-  coverImage: 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop',
+  avatar: '/author-avatar.jpg',
+  coverImage: '/author-cover.jpg',
   shortBio: 'مؤلف وباحث شغوف بالكتابة الإبداعية، الفكر الفلسفي، وسرد العوالم القصصية والأدبية الثرية.',
   fullBio: 'أيمن كناني (Ayman Kinani) كاتب وباحث عربي يركز في أعماله على سبر أغوار الفكر الإنساني وتجسيد الأسئلة الوجودية في قوالب روائية وأدبية بديعة. تضم مؤلفاته أعمالاً في الفلسفة، الرواية المعاصرة، الخيال العلمي، والتراث الفكري. تهدف هذه المنصة الرسمية إلى تقديم جميع مؤلفاته وكتبه ومقالاته بتجربة قراءة تفاعلية مفتوحة ومباشرة للقراء في كل مكان.',
   location: 'الوطن العربي',
@@ -90,14 +90,11 @@ export const INITIAL_READER_SETTINGS: ReaderSettings = {
 };
 
 export const INITIAL_CATEGORIES: Array<{ id: string; name: string; arabicName: string; description: string }> = [
-  { id: 'cat-1', name: 'Fantasy', arabicName: 'فانتازيا وخيال أسطوري', description: 'عوالم السحر والملحمات الأسطورية والآلات البخارية' },
-  { id: 'cat-2', name: 'Sci-Fi', arabicName: 'خيال علمي وفضاء', description: 'أوبرا الفضاء، الذكاء الاصطناعي، والتقنيات المستقبلية' },
-  { id: 'cat-3', name: 'Mystery & Thriller', arabicName: 'غموض وتشويق', description: 'تحقيقات الجرائم، الألغاز المعقدة، والتشويق النفسي' },
-  { id: 'cat-4', name: 'Historical Fiction', arabicName: 'تاريخ وتراث', description: 'أحداث تاريخية ملحمية، حضارات قديمة، وسير وثائقية' },
-  { id: 'cat-5', name: 'Philosophy & Thought', arabicName: 'فلسفة وفكر', description: 'دراسات فكرية، حوارات فلسفية، وتحليلات أدبية عميقة' },
-  { id: 'cat-6', name: 'Self-Development', arabicName: 'تطوير الذات والوعي', description: 'بناء العادات، النجاح، الفكر الريادي، والاتزان النفسي' },
-  { id: 'cat-7', name: 'Novels & Literature', arabicName: 'روايات وأدب عالمي', description: 'أدب مترجم، كلاسيكيات السرد، والقصص الواقعية المؤثرة' },
-  { id: 'cat-8', name: 'Poetry & Prose', arabicName: 'شعر ونصوص أدبية', description: 'قصائد ديوانية، نصوص وجدانية، وشعر حديث وكلاسيكي' },
+  { id: 'cat-1', name: 'Islamic Thought & Methodology', arabicName: 'فكر إسلامي ومنهجية البحث', description: 'تأصيل قواعد البحث العلمي والتفكير النقدي في الفكر الإسلامي المعاصر' },
+  { id: 'cat-2', name: 'Philosophy & Ethics', arabicName: 'فلسفة وأخلاق', description: 'دراسات في الأخلاقيات المعرفية وفلسفة العلوم والمنطق' },
+  { id: 'cat-3', name: 'Critical Studies', arabicName: 'دراسات نقدية ومعرفية', description: 'قراءات تحليلية ونقدية في المناهج والأفكار المعاصرة' },
+  { id: 'cat-4', name: 'Thought & Heritage', arabicName: 'تراث وفكر', description: 'أصول التعامل مع النص الشرعي والتراث الفكري الأصيل' },
+  { id: 'cat-5', name: 'Articles & Research', arabicName: 'مقالات وبحوث علمية', description: 'أوراق بحثية ومقالات محكمة في المنهجية والأمانة المعرفية' },
 ];
 
 export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
@@ -146,14 +143,14 @@ export const INITIAL_COMMENTS: Comment[] = [];
 
 export const INITIAL_AD_SETTINGS: AdSettings = {
   googleAdSense: {
-    enabled: true,
-    publisherId: 'ca-pub-9842103859124012',
-    autoAds: true,
-    testMode: true,
-    adsTxtContent: `google.com, pub-9842103859124012, DIRECT, f08c47fec0942fa0\n# Novelia Verified Publisher ads.txt\n# Configured for Google AdSense & Authorized Exchange Partners`,
+    enabled: false,
+    publisherId: '',
+    autoAds: false,
+    testMode: false,
+    adsTxtContent: '',
   },
   adsterra: {
-    enabled: true,
+    enabled: false,
     popunderScript: '',
     socialBarScript: '',
     directLinkUrl: '',
@@ -162,91 +159,50 @@ export const INITIAL_AD_SETTINGS: AdSettings = {
   placements: {
     header: {
       id: 'place-header',
-      name: 'شريط الإعلانات العلوي للرواية (Leaderboard)',
+      name: 'شريط الإعلانات العلوي',
       location: 'header',
-      enabled: true,
-      type: 'corporate',
-      adSlotId: '1092837465',
+      enabled: false,
+      type: 'adsense',
+      adSlotId: '',
       adFormat: 'horizontal',
-      corporateSponsorId: 'corp-1',
     },
     sidebar: {
       id: 'place-sidebar',
-      name: 'الإعلان الجانبي لصفحة الرواية',
+      name: 'الإعلان الجانبي لصفحة الكتاب',
       location: 'sidebar',
-      enabled: true,
-      type: 'corporate',
-      corporateSponsorId: 'corp-2',
-      adSlotId: '2983746510',
+      enabled: false,
+      type: 'adsense',
+      adSlotId: '',
       adFormat: 'rectangle',
     },
     mid_chapter: {
       id: 'place-mid',
       name: 'فاصل قراءة منتصف الفصل',
       location: 'mid_chapter',
-      enabled: true,
+      enabled: false,
       type: 'adsense',
-      adSlotId: '3948571029',
+      adSlotId: '',
       adFormat: 'rectangle',
-      corporateSponsorId: 'corp-3',
     },
     chapter_end: {
       id: 'place-end',
-      name: 'بنر نهاية الفصل والراعي الرسمي',
+      name: 'بنر نهاية الفصل',
       location: 'chapter_end',
-      enabled: true,
-      type: 'corporate',
-      corporateSponsorId: 'corp-1',
-      adSlotId: '4839201948',
+      enabled: false,
+      type: 'adsense',
+      adSlotId: '',
       adFormat: 'horizontal',
     },
     footer: {
       id: 'place-footer',
       name: 'بنر التذييل العام للموقع',
       location: 'footer',
-      enabled: true,
+      enabled: false,
       type: 'adsense',
-      adSlotId: '5738291049',
+      adSlotId: '',
       adFormat: 'horizontal',
     }
   },
-  corporateSponsors: [
-    {
-      id: 'corp-1',
-      sponsorName: 'منصة لومينا للكتب الصوتية والإلكترونية',
-      tagline: 'استمتع بآلاف الروايات المسموعة الفاخرة باللغة العربية مع مؤثرات صوتية مكانية غامرة وأداء درامي محترف.',
-      badge: 'الشريك الأدبي المميز',
-      imageUrl: 'https://images.unsplash.com/photo-1544716278-ca5e3f4abd8c?q=80&w=800&auto=format&fit=crop',
-      targetUrl: 'https://luminaaudio.example.com/ar/deal',
-      ctaText: 'احصل على اشتراك تجريبي 30 يوماً مجاناً',
-      active: true,
-      impressions: 0,
-      clicks: 0,
-    },
-    {
-      id: 'corp-2',
-      sponsorName: 'أقلام الريشة والمجلد الأثرية (Quill & Tome)',
-      tagline: 'أقلام حبر فاخرة مصنوعة يدوياً من التيتانيوم وخشب الأبنوس، مصممة خصيصاً للروائيين وكتاب المذكرات.',
-      badge: 'الأداة الرسمية للكتابة',
-      imageUrl: 'https://images.unsplash.com/photo-1583485088034-697b5bc54ccd?q=80&w=800&auto=format&fit=crop',
-      targetUrl: 'https://quillandtome.example.com/ar',
-      ctaText: 'استكشف التشكيلة الحصرية',
-      active: true,
-      impressions: 0,
-      clicks: 0,
-    },
-    {
-      id: 'corp-3',
-      sponsorName: 'أكاديمية سحر السرد وصناعة الرواية',
-      tagline: 'تعلّم بناء العوالم الفانتازية الملحمية، وتطوير الشخصيات، والنشر الرقمي على يد كبار الروائيين العرب.',
-      badge: 'أكاديمية الكتاب',
-      imageUrl: 'https://images.unsplash.com/photo-1455390582262-044cdead277a?q=80&w=800&auto=format&fit=crop',
-      targetUrl: 'https://wordsmithcraft.example.com/ar',
-      ctaText: 'انضم للدفعة القادمة',
-      active: true,
-      impressions: 0,
-      clicks: 0,
-    }
-  ]
+  corporateSponsors: []
 };
 

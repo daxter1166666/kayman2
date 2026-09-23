@@ -79,13 +79,28 @@ try {
   });
 
   // Temporarily reset / flush cached local books and chapters once on session startup
-  // to force fresh re-synchronization with Supabase across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v7';
+  // to force fresh real stats across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v8';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
+      
+      // Reset fake 1250 views and fake likes from old stored novel
+      try {
+        const storedNovels = JSON.parse(localStorage.getItem(KEYS.NOVELS) || '[]');
+        if (Array.isArray(storedNovels)) {
+          const cleaned = storedNovels.map((n: any) => ({
+            ...n,
+            totalViews: (n.totalViews === 1250 || n.totalViews > 500) ? 0 : (n.totalViews || 0),
+            totalLikes: (n.totalLikes === 340 || n.totalLikes > 200) ? 0 : (n.totalLikes || 0),
+            ratingCount: (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0),
+          }));
+          localStorage.setItem(KEYS.NOVELS, JSON.stringify(cleaned));
+        }
+      } catch {}
+
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
   }
@@ -128,19 +143,34 @@ export const storageService = {
     const raw = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
     const deletedIds = new Set(this.getDeletedNovelIds());
     const isMockDemoNovel = (id: string) => {
-      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);
+      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-book-1', 'study-research-1', 'translated-study-1', 'study-ai-ethics-research'].includes(id);
     };
 
     const valid = (raw || []).filter(n => n && n.id && !deletedIds.has(n.id) && !isMockDemoNovel(n.id));
-    if (valid.length === 0) {
-      return INITIAL_NOVELS;
-    }
-    return deduplicateById(valid);
+    const baseNovels = valid.length === 0 ? INITIAL_NOVELS : deduplicateById(valid);
+
+    // Compute real views and likes from actual chapter reads
+    return baseNovels.map(n => {
+      const allChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS).filter(c => c.novelId === n.id);
+      const chapterViewsSum = allChapters.reduce((sum, c) => sum + (c.views || 0), 0);
+      const chapterLikesSum = allChapters.reduce((sum, c) => sum + (c.likes || 0), 0);
+      
+      const realViews = (n.totalViews === 1250 || n.totalViews > 500) ? chapterViewsSum : Math.max(n.totalViews || 0, chapterViewsSum);
+      const realLikes = (n.totalLikes === 340 || n.totalLikes > 200) ? chapterLikesSum : Math.max(n.totalLikes || 0, chapterLikesSum);
+      const realRatingCount = (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0);
+
+      return {
+        ...n,
+        totalViews: realViews,
+        totalLikes: realLikes,
+        ratingCount: realRatingCount,
+      };
+    });
   },
 
   setRawNovels(novels: Novel[]): void {
     const isMockDemoNovel = (id: string) => {
-      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(id);
+      return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-book-1', 'study-research-1', 'translated-study-1', 'study-ai-ethics-research'].includes(id);
     };
     const cleaned = deduplicateById(novels).filter(n => n && n.id && !isMockDemoNovel(n.id));
     setStored(KEYS.NOVELS, cleaned);
@@ -210,7 +240,7 @@ export const storageService = {
       const rawNovels = getStored<Novel[]>(KEYS.NOVELS, INITIAL_NOVELS);
       const isMockDemoNovel = (n: Novel) => {
         if (!n || !n.id) return true;
-        return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10'].includes(n.id);
+        return ['novel-demo-1', 'novel-demo-2', 'novel-1', 'novel-2', 'novel-3', 'novel-4', 'novel-5', 'novel-6', 'novel-7', 'novel-8', 'novel-9', 'novel-10', 'novel-book-1', 'study-research-1', 'translated-study-1', 'study-ai-ethics-research'].includes(n.id);
       };
 
       const keptNovels = rawNovels.filter(n => !isMockDemoNovel(n));
@@ -592,7 +622,12 @@ export const storageService = {
 
   // --- Ads & Sponsors ---
   getAdSettings(): AdSettings {
-    return getStored<AdSettings>(KEYS.AD_SETTINGS, INITIAL_AD_SETTINGS);
+    const raw = getStored<AdSettings>(KEYS.AD_SETTINGS, INITIAL_AD_SETTINGS);
+    const cleanedSponsors = (raw.corporateSponsors || []).filter(s => s && s.id && !['corp-1', 'corp-2', 'corp-3'].includes(s.id));
+    return {
+      ...raw,
+      corporateSponsors: cleanedSponsors,
+    };
   },
 
   saveAdSettings(settings: AdSettings): void {
@@ -825,6 +860,12 @@ export const storageService = {
         ...(profile?.socialLinks || {}),
       },
     };
+    if (!resolved.avatar || resolved.avatar.includes('photo-1507003211169')) {
+      resolved.avatar = '/author-avatar.jpg';
+    }
+    if (!resolved.coverImage || resolved.coverImage.includes('photo-1507842229451')) {
+      resolved.coverImage = '/author-cover.jpg';
+    }
     if (resolved.socialLinks.website && resolved.socialLinks.website.includes('aymankinani.com')) {
       resolved.socialLinks.website = resolved.socialLinks.website.replace('aymankinani.com', 'www.aymankinani.org');
     }
