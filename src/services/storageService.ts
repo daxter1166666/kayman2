@@ -79,12 +79,13 @@ try {
   });
 
   // Temporarily reset / flush cached local books and chapters once on session startup
-  // to force fresh real stats across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v8';
+  // to force fresh real stats and new chapters across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v9';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
+      localStorage.removeItem(KEYS.CHAPTERS);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
       
       // Reset fake 1250 views and fake likes from old stored novel
@@ -158,9 +159,13 @@ export const storageService = {
       const realViews = (n.totalViews === 1250 || n.totalViews > 500) ? chapterViewsSum : Math.max(n.totalViews || 0, chapterViewsSum);
       const realLikes = (n.totalLikes === 340 || n.totalLikes > 200) ? chapterLikesSum : Math.max(n.totalLikes || 0, chapterLikesSum);
       const realRatingCount = (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0);
+      const coverImage = (n.id === 'novel-1788556252989' && (!n.coverImage || n.coverImage.includes('photo-1544947950-fa07a98d237f') || n.coverImage.includes('book_akhlaq_cover_')))
+        ? '/book-akhlaq-cover.svg'
+        : (n.coverImage || '/book-akhlaq-cover.svg');
 
       return {
         ...n,
+        coverImage,
         totalViews: realViews,
         totalLikes: realLikes,
         ratingCount: realRatingCount,

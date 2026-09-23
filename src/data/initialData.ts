@@ -1,7 +1,7 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
 import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
 
-export const DEFAULT_BOOK_COVER = 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&auto=format&fit=crop&q=80';
+export const DEFAULT_BOOK_COVER = '/book-akhlaq-cover.svg';
 export const DEFAULT_BANNER_IMAGE = '/author-cover.jpg';
 
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
