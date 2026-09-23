@@ -80,7 +80,7 @@ try {
 
   // Temporarily reset / flush cached local books and chapters once on session startup
   // to force fresh real stats and new chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v9';
+  const sessionFlushKey = 'ayman_startup_synced_session_v10';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
