@@ -1,7 +1,7 @@
 import { Novel, Chapter, Comment, AdSettings, ReaderSettings, AuthorProfile, SiteBranding, SeoSettings, DonationSettings, SupabaseConfig, LegalDocuments } from '../types';
 import { BAKED_NOVELS, BAKED_CHAPTERS } from './bakedContent';
 
-export const DEFAULT_BOOK_COVER = '/book-akhlaq-cover.svg';
+export const DEFAULT_BOOK_COVER = '/book-cover.jpg';
 export const DEFAULT_BANNER_IMAGE = '/author-cover.jpg';
 
 export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
@@ -16,15 +16,15 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   vision: 'السعي نحو إثراء المشهد الثقافي العربي بمؤلفات تجمع بين عمق الفكرة ورشاقة الأسلوب وسهولة الوصول لكافة القراء.',
   contactEmail: 'aymankinani.author@gmail.com',
   socialLinks: {
-    twitter: 'https://twitter.com/aymankinani',
-    facebook: 'https://facebook.com/aymankinani.official',
-    instagram: 'https://instagram.com/aymankinani',
-    youtube: 'https://youtube.com/@aymankinani',
+    twitter: '',
+    facebook: 'https://web.facebook.com/profile.php?id=61590131123276&locale=ar_AR',
+    instagram: '',
+    youtube: '',
     telegram: 'https://t.me/aymankinani',
-    linkedin: 'https://linkedin.com/in/aymankinani',
-    tiktok: 'https://tiktok.com/@aymankinani',
-    goodreads: 'https://goodreads.com/aymankinani',
-    whatsapp: 'https://wa.me/966500000000',
+    linkedin: '',
+    tiktok: '',
+    goodreads: '',
+    whatsapp: '',
     email: 'aymankinani.author@gmail.com',
     website: 'https://www.aymankinani.org'
   }

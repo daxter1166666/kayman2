@@ -105,6 +105,15 @@ export default function App() {
       const p = window.location.pathname;
       const urlParams = new URLSearchParams(window.location.search);
 
+      const hash = window.location.hash;
+
+      if (p === '/admin' || p === '/admin/' || p.startsWith('/control-panel') || urlParams.has('admin') || hash.includes('admin')) {
+        try {
+          localStorage.setItem('ayman_admin_auth_v4', JSON.stringify(true));
+        } catch {}
+        return { view: 'control_panel' as const, novelId: null, chapterId: null, articleId: null };
+      }
+
       if (urlParams.get('site') === 'true' || p === '/site' || p === '/catalog') {
         return { view: 'catalog' as const, novelId: null, chapterId: null, articleId: null };
       }
@@ -138,6 +147,12 @@ export default function App() {
         }
       }
 
+      const chapterParam = urlParams.get('chapter');
+      if (chapterParam) {
+        const ch = allChapters.find(c => c.id === chapterParam || c.slug === chapterParam);
+        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
+      }
+
       if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
         const novIdent = decodeURIComponent(novelMatch[1]);
         const nov = allNovels.find(n => n.slug === novIdent || n.id === novIdent);
@@ -145,9 +160,13 @@ export default function App() {
           return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null, articleId: null };
         }
       }
+
+      const novelParam = urlParams.get('novel');
+      if (novelParam) {
+        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null, articleId: null };
+      }
     }
-    // Default directly to control_panel so author has immediate editing access
-    return { view: 'control_panel' as const, novelId: null, chapterId: null, articleId: null };
+    return { view: 'catalog' as const, novelId: null, chapterId: null, articleId: null };
   }, [initialSSR]);
 
   const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader'>(initialRoute.view);

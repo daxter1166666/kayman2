@@ -159,9 +159,9 @@ export const storageService = {
       const realViews = (n.totalViews === 1250 || n.totalViews > 500) ? chapterViewsSum : Math.max(n.totalViews || 0, chapterViewsSum);
       const realLikes = (n.totalLikes === 340 || n.totalLikes > 200) ? chapterLikesSum : Math.max(n.totalLikes || 0, chapterLikesSum);
       const realRatingCount = (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0);
-      const coverImage = (n.id === 'novel-1788556252989' && (!n.coverImage || n.coverImage.includes('photo-1544947950-fa07a98d237f') || n.coverImage.includes('book_akhlaq_cover_')))
-        ? '/book-akhlaq-cover.svg'
-        : (n.coverImage || '/book-akhlaq-cover.svg');
+      const coverImage = (n.id === 'novel-1788556252989' && (!n.coverImage || n.coverImage.includes('photo-1544947950-fa07a98d237f') || n.coverImage.includes('book_akhlaq_cover_') || n.coverImage.includes('.svg')))
+        ? '/book-cover.jpg'
+        : (n.coverImage || '/book-cover.jpg');
 
       return {
         ...n,
@@ -870,6 +870,9 @@ export const storageService = {
     }
     if (!resolved.coverImage || resolved.coverImage.includes('photo-1507842229451')) {
       resolved.coverImage = '/author-cover.jpg';
+    }
+    if (resolved.socialLinks.facebook && resolved.socialLinks.facebook.includes('aymankinani.official')) {
+      resolved.socialLinks.facebook = 'https://web.facebook.com/profile.php?id=61590131123276&locale=ar_AR';
     }
     if (resolved.socialLinks.website && resolved.socialLinks.website.includes('aymankinani.com')) {
       resolved.socialLinks.website = resolved.socialLinks.website.replace('aymankinani.com', 'www.aymankinani.org');
