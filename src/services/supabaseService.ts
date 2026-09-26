@@ -371,33 +371,46 @@ class SupabaseService {
           tableOfContents: Array.isArray(n.table_of_contents) ? n.table_of_contents : undefined,
         }));
 
-      // 2. Fetch Chapters (light metadata columns only - omitting heavy content!)
+      // 2. Fetch Chapters (including content for robust full text preservation across devices)
       const { data: rawChapters, error: cErr } = await client
         .from('chapters')
-        .select('id, novel_id, chapter_number, title, slug, author_note, published_at, views, likes, rating, rating_count, word_count, status')
+        .select('id, novel_id, chapter_number, title, slug, content, author_note, published_at, views, likes, rating, rating_count, word_count, status')
         .order('chapter_number', { ascending: true });
 
       const existingLocalChaptersForViews = storageService.getChapters();
       const localChapterViewsMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.views || 0]));
       const localChapterContentMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.content || '']));
 
-      const chapters: Chapter[] = (rawChapters || []).map((c: any) => ({
-        id: c.id,
-        novelId: c.novel_id,
-        chapterNumber: Number(c.chapter_number) || 1,
-        title: c.title,
-        slug: c.slug || c.id,
-        content: localChapterContentMap.get(c.id) || '',
-        authorNote: c.author_note || undefined,
-        publishedAt: c.published_at || new Date().toISOString(),
-        views: Math.max(Number(c.views) || 0, localChapterViewsMap.get(c.id) || 0),
-        likes: Number(c.likes) || 0,
-        rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
-        ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
-        wordCount: Number(c.word_count) || 0,
-        status: c.status || 'PUBLISHED',
-        seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
-      }));
+      const chapters: Chapter[] = (rawChapters || []).map((c: any) => {
+        const chapterNum = Number(c.chapter_number) || 1;
+        const bakedContent = storageService.getBakedChapterContent(c.id) || storageService.getBakedChapterContent(chapterNum);
+        
+        let resolvedContent = c.content || localChapterContentMap.get(c.id) || '';
+        if ((!resolvedContent || resolvedContent.trim().length === 0) && bakedContent) {
+          resolvedContent = bakedContent;
+        }
+
+        const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (Number(c.word_count) || 0);
+
+        return {
+          id: c.id,
+          novelId: c.novel_id,
+          chapterNumber: chapterNum,
+          title: c.title,
+          slug: c.slug || c.id,
+          content: resolvedContent,
+          authorNote: c.author_note || undefined,
+          publishedAt: c.published_at || new Date().toISOString(),
+          views: Math.max(Number(c.views) || 0, localChapterViewsMap.get(c.id) || 0),
+          likes: Number(c.likes) || 0,
+          rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
+          ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
+          wordCount: computedWords,
+          status: c.status || 'PUBLISHED',
+          seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
+        };
+      });
 
       // 3. Fetch Comments
       const { data: rawComments } = await client

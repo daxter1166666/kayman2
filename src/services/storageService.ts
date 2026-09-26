@@ -80,7 +80,7 @@ try {
 
   // Temporarily reset / flush cached local books and chapters once on session startup
   // to force fresh real stats and new chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v10';
+  const sessionFlushKey = 'ayman_startup_synced_session_v11';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
@@ -322,11 +322,40 @@ export const storageService = {
   },
 
   // --- Chapters ---
+  getBakedChapterContent(identifier: string | number): string | undefined {
+    const baked = INITIAL_CHAPTERS.find(
+      b => b.id === identifier || b.chapterNumber === identifier || String(b.chapterNumber) === String(identifier)
+    );
+    return baked?.content || undefined;
+  },
+
   getChapters(novelId?: string): Chapter[] {
     const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
     const deletedChapterIds = new Set(this.getDeletedChapterIds());
     const deletedNovelIds = new Set(this.getDeletedNovelIds());
-    const valid = chapters.filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId));
+    
+    // Fast baked map
+    const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
+    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
+
+    const valid = chapters
+      .filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId))
+      .map(c => {
+        const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
+        const resolvedContent = (c.content && c.content.length > (baked?.content?.length || 0))
+          ? c.content
+          : (baked?.content || c.content || '');
+        
+        const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
+
+        return {
+          ...c,
+          content: resolvedContent,
+          wordCount: computedWords,
+        };
+      });
+
     if (novelId) {
       return valid
         .filter(c => c.novelId === novelId)
@@ -336,14 +365,46 @@ export const storageService = {
   },
 
   saveChapters(chapters: Chapter[]): void {
-    setStored(KEYS.CHAPTERS, deduplicateById(chapters));
-    this.syncChaptersToServer(chapters);
+    const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
+    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
+
+    const protectedChapters = deduplicateById(chapters).map(c => {
+      const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
+      const safeContent = (c.content && c.content.trim().length > 0)
+        ? c.content
+        : (baked?.content || c.content || '');
+      
+      const plainText = safeContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
+
+      return {
+        ...c,
+        content: safeContent,
+        wordCount: computedWords,
+      };
+    });
+
+    setStored(KEYS.CHAPTERS, protectedChapters);
+    this.syncChaptersToServer(protectedChapters);
     this.autoSyncAllToServer();
   },
 
   getChapterById(id: string): Chapter | undefined {
     const chapters = this.getChapters();
-    return chapters.find(c => c.id === id);
+    const found = chapters.find(c => c.id === id);
+    if (found) {
+      if (!found.content || found.content.trim().length === 0) {
+        const bakedContent = this.getBakedChapterContent(found.id) || this.getBakedChapterContent(found.chapterNumber);
+        if (bakedContent) {
+          found.content = bakedContent;
+          const plainText = bakedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          found.wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : found.wordCount;
+        }
+      }
+      return found;
+    }
+    const baked = INITIAL_CHAPTERS.find(b => b.id === id);
+    return baked ? { ...baked } : undefined;
   },
 
   addChapter(data: {

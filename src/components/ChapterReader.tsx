@@ -101,10 +101,14 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     setChapterRating(typeof freshChapter?.rating === 'number' ? freshChapter.rating : (chapter.rating || 5.0));
     setChapterRatingCount(typeof freshChapter?.ratingCount === 'number' ? freshChapter.ratingCount : (chapter.ratingCount || 0));
 
-    // Resolve chapter content: from prop, from local cache, or lazy-fetch from server
-    let effectiveContent = chapter.content;
-    if (!effectiveContent && freshChapter?.content) {
+    // Resolve chapter content: from prop, from local cache, baked fallback, or lazy-fetch from server
+    const bakedFallback = storageService.getBakedChapterContent(chapter.id) || storageService.getBakedChapterContent(chapter.chapterNumber);
+    let effectiveContent = (chapter.content && chapter.content.trim().length > 0) ? chapter.content : '';
+    if (!effectiveContent && freshChapter?.content && freshChapter.content.trim().length > 0) {
       effectiveContent = freshChapter.content;
+    }
+    if (!effectiveContent && bakedFallback) {
+      effectiveContent = bakedFallback;
     }
 
     if (effectiveContent) {
@@ -113,11 +117,16 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
     } else {
       setIsLoadingContent(true);
       supabaseService.fetchChapterContent(chapter.id).then(fetched => {
-        if (fetched) {
+        if (fetched && fetched.trim().length > 0) {
           setChapterContent(fetched);
+        } else if (bakedFallback) {
+          setChapterContent(bakedFallback);
         }
         setIsLoadingContent(false);
       }).catch(() => {
+        if (bakedFallback) {
+          setChapterContent(bakedFallback);
+        }
         setIsLoadingContent(false);
       });
     }

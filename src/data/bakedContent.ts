@@ -1,7 +1,7 @@
 import { Chapter, Novel } from '../types';
 import bakedJson from './publishedChapters.json';
 
-export const BAKED_CHAPTERS: Chapter[] = bakedJson as Chapter[];
+export const BAKED_CHAPTERS: Chapter[] = bakedJson as unknown as Chapter[];
 
 export const BAKED_NOVELS: Novel[] = [
   {

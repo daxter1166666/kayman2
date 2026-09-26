@@ -34,10 +34,29 @@ function savePublishedChapterToFile(chapter: Chapter) {
     const filePath = path.resolve(process.cwd(), 'src/data/publishedChapters.json');
     let chapters = getPublishedChaptersFromFile();
     const index = chapters.findIndex(c => c.id === chapter.id || (c.chapterNumber === chapter.chapterNumber && c.novelId === chapter.novelId));
+    
     if (index >= 0) {
-      chapters[index] = { ...chapters[index], ...chapter };
+      const existing = chapters[index];
+      const finalContent = (chapter.content && chapter.content.trim().length > 0)
+        ? chapter.content
+        : (existing.content || '');
+      
+      const plainText = finalContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const finalWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (chapter.wordCount || existing.wordCount || 0);
+
+      chapters[index] = {
+        ...existing,
+        ...chapter,
+        content: finalContent,
+        wordCount: finalWords,
+      };
     } else {
-      chapters.unshift(chapter);
+      const plainText = (chapter.content || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      const finalWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (chapter.wordCount || 0);
+      chapters.unshift({
+        ...chapter,
+        wordCount: finalWords,
+      });
     }
     fs.writeFileSync(filePath, JSON.stringify(chapters, null, 2), 'utf-8');
   } catch (err) {
