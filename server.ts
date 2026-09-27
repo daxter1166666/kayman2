@@ -25,10 +25,34 @@ import {
 import {
   ServerChapterView,
   ServerNovelView,
+  ServerHomeView,
   generateChapterSeoTags,
   generateNovelSeoTags,
+  generateHomeSeoTags,
+  generateLlmsTxt,
+  generateLlmsFullTxt,
   injectSsrIntoTemplate,
 } from './src/server/ssrRenderer';
+
+/**
+ * Detects if the incoming HTTP request is from a Search Engine, AI Crawler, or Social Bot
+ */
+function isBotRequest(req: express.Request): boolean {
+  const ua = (req.headers['user-agent'] || '').toLowerCase();
+  const botKeywords = [
+    'googlebot', 'bingbot', 'yandex', 'baiduspider', 'duckduckbot',
+    'slurp', 'facebookexternalhit', 'twitterbot', 'linkedinbot',
+    'whatsapp', 'telegrambot', 'discordbot', 'slackbot', 'applebot',
+    'chatgpt', 'gptbot', 'claudebot', 'anthropic', 'claude-web',
+    'perplexity', 'perplexitybot', 'cohere', 'bytespider', 'ccbot',
+    'diffbot', 'web-capture', 'semrushbot', 'ahrefsbot', 'mj12bot',
+    'dotbot', 'rogerbot', 'screaming frog', 'curl', 'wget',
+    'python-requests', 'python', 'aiohttp', 'scrapy', 'go-http-client',
+    'httpclient', 'postman', 'insomnia', 'headless', 'phantomjs',
+    'lighthouse', 'pagespeed', 'google-inspectiontool'
+  ];
+  return botKeywords.some(keyword => ua.includes(keyword));
+}
 
 async function startServer() {
   const app = express();
@@ -340,7 +364,7 @@ async function startServer() {
   }
 
   // ==========================================
-  // 2. SEO Files: robots.txt, sitemap.xml, rss.xml, atom.xml
+  // 2. SEO & AI Files: robots.txt, sitemap.xml, llms.txt, llms-full.txt, rss.xml, atom.xml
   // ==========================================
   app.get('/robots.txt', (req, res) => {
     const domain = getRequestDomain(req);
@@ -353,9 +377,50 @@ async function startServer() {
       `Sitemap: ${domain}/sitemap.xml`,
       `Sitemap: ${domain}/rss.xml`,
       `Sitemap: ${domain}/atom.xml`,
+      `Sitemap: ${domain}/llms.txt`,
     ].join('\n');
 
     res.type('text/plain; charset=utf-8').send(robots);
+  });
+
+  // LLMs.txt AI Crawler and LLM Specification Endpoint
+  app.get('/llms.txt', async (req, res) => {
+    try {
+      const domain = getRequestDomain(req);
+      const [novels, chapters] = await Promise.all([
+        serverFetchAllNovels(),
+        serverFetchAllChapters(),
+      ]);
+      const text = generateLlmsTxt({
+        novel: novels[0] || null,
+        chapters,
+        domain,
+      });
+      res.type('text/plain; charset=utf-8').set({ 'Cache-Control': 'public, max-age=3600' }).send(text);
+    } catch (err) {
+      console.error('llms.txt error:', err);
+      res.status(500).type('text/plain').send('Error generating llms.txt');
+    }
+  });
+
+  // LLMs-full.txt Full Book Text for AI Models Endpoint
+  app.get('/llms-full.txt', async (req, res) => {
+    try {
+      const domain = getRequestDomain(req);
+      const [novels, chapters] = await Promise.all([
+        serverFetchAllNovels(),
+        serverFetchAllChapters(),
+      ]);
+      const text = generateLlmsFullTxt({
+        novel: novels[0] || null,
+        chapters,
+        domain,
+      });
+      res.type('text/plain; charset=utf-8').set({ 'Cache-Control': 'public, max-age=3600' }).send(text);
+    } catch (err) {
+      console.error('llms-full.txt error:', err);
+      res.status(500).type('text/plain').send('Error generating llms-full.txt');
+    }
   });
 
   app.get('/sitemap.xml', async (req, res) => {
@@ -699,7 +764,84 @@ ${entriesXml.join('\n')}
     }
   }
 
+  /**
+   * SSR Home Page Handler for / and /index.html
+   */
+  async function handleHomeSSR(req: express.Request, res: express.Response) {
+    try {
+      const domain = getRequestDomain(req);
+
+      // Fetch novels and chapters for homepage SSR
+      const [novels, chapters] = await Promise.all([
+        serverFetchAllNovels(),
+        serverFetchAllChapters(),
+      ]);
+
+      const primaryNovel = novels[0] || null;
+
+      // Render React Component to full HTML string via renderToString
+      const renderedComponentHtml = renderToString(
+        React.createElement(ServerHomeView, {
+          novel: primaryNovel,
+          chapters,
+          reqUrl: req.originalUrl,
+        })
+      );
+
+      // Generate Home SEO meta & Schema.org JSON-LD
+      const { title, metaTags, jsonLd } = generateHomeSeoTags({
+        novel: primaryNovel,
+        chapters,
+        domain,
+      });
+
+      // Initial state payload for seamless client hydration
+      const initialData = {
+        currentView: 'catalog',
+        novels,
+        chapters,
+      };
+
+      const template = await getBaseTemplate(req.originalUrl);
+      const fullHtml = injectSsrIntoTemplate({
+        template,
+        title,
+        metaTags,
+        jsonLd,
+        renderedHtml: renderedComponentHtml,
+        initialData,
+      });
+
+      return res
+        .status(200)
+        .set({
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Rendered-By': 'NodeJS-Express-React-SSR',
+        })
+        .send(fullHtml);
+    } catch (err) {
+      console.error('SSR Home Handler Exception:', err);
+      const template = await getBaseTemplate(req.originalUrl);
+      return res.status(200).send(template);
+    }
+  }
+
   // --- Express SSR Route Registrations ---
+
+  // PRIMARY: Homepage SSR (/)
+  app.get('/', (req, res) => {
+    return handleHomeSSR(req, res);
+  });
+
+  // PRIMARY: /index.html SSR
+  app.get('/index.html', (req, res) => {
+    return handleHomeSSR(req, res);
+  });
+
+  // Other Home / Catalog aliases
+  app.get(['/site', '/catalog', '/books', '/about', '/author', '/articles', '/translations', '/legal', '/privacy', '/terms', '/dmca'], (req, res) => {
+    return handleHomeSSR(req, res);
+  });
 
   // PRIMARY: /book/:novelId/chapter/:chapterId
   app.get('/book/:novelId/chapter/:chapterId', (req, res) => {
@@ -716,6 +858,11 @@ ${entriesXml.join('\n')}
   app.get('/book/chapter-:num', (req, res) => {
     const chapterIdent = `chapter-${req.params.num}`;
     return handleChapterSSR(req, res, null, chapterIdent);
+  });
+
+  // PRIMARY: /book/chapter/:chapterId
+  app.get('/book/chapter/:chapterId', (req, res) => {
+    return handleChapterSSR(req, res, null, req.params.chapterId);
   });
 
   // PRIMARY: /book/:novelId (Book overview page)
@@ -772,15 +919,34 @@ ${entriesXml.join('\n')}
   }
 
   // ==========================================
-  // 4. Default Fallback SPA Routing
+  // 4. Default Fallback Universal SSR Routing
   // ==========================================
   app.get('*', async (req, res) => {
     try {
-      const template = await getBaseTemplate(req.originalUrl);
-      res.status(200).set({ 'Content-Type': 'text/html; charset=utf-8' }).send(template);
+      const p = req.path;
+      // Skip asset files (images, fonts, scripts, stylesheets, service workers)
+      if (/\.(js|mjs|css|png|jpg|jpeg|gif|svg|ico|json|map|woff|woff2|ttf|eot|webp|avif)$/i.test(p)) {
+        return res.status(404).send('Not found');
+      }
+
+      // If URL matches chapter pattern in fallback
+      const chapterMatch = p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
+      if (chapterMatch) {
+        return handleChapterSSR(req, res, null, decodeURIComponent(chapterMatch[1]));
+      }
+
+      // If URL matches book pattern
+      const novelMatch = p.match(/\/(?:novel|book)\/([^/]+)$/i);
+      if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
+        return handleNovelSSR(req, res, decodeURIComponent(novelMatch[1]));
+      }
+
+      // Always render full SSR Home/Catalog HTML so bots and crawlers never receive an empty template
+      return handleHomeSSR(req, res);
     } catch (err: any) {
       console.error('Fallback error:', err);
-      res.status(500).send('Server Error');
+      const template = await getBaseTemplate(req.originalUrl);
+      res.status(200).send(template);
     }
   });
 

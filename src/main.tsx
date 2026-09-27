@@ -13,14 +13,7 @@ if ('serviceWorker' in navigator) {
 }
 
 const rootEl = document.getElementById('root');
-if (rootEl && rootEl.hasChildNodes()) {
-  hydrateRoot(
-    rootEl,
-    <StrictMode>
-      <App />
-    </StrictMode>
-  );
-} else if (rootEl) {
+if (rootEl) {
   createRoot(rootEl).render(
     <StrictMode>
       <App />

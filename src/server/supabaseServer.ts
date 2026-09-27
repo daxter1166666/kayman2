@@ -350,6 +350,31 @@ export async function fetchChapterFromSupabaseForSSR(
           };
         }
       }
+
+      // 3. Fallback to local publishedChapters.json & BAKED_CHAPTERS
+      const localChapters = getPublishedChaptersFromFile().length > 0 ? getPublishedChaptersFromFile() : BAKED_CHAPTERS;
+      const foundLocal = localChapters.find(c => 
+        c.id === cleanChapterIdent || 
+        c.slug === cleanChapterIdent || 
+        (parsedNum !== null && (c.chapterNumber === parsedNum || (c as any).chapter_number === parsedNum))
+      );
+
+      if (foundLocal) {
+        const allNovels = await serverFetchAllNovels();
+        const primaryNovel = allNovels[0] || BAKED_NOVELS[0];
+        const chIdx = localChapters.findIndex(c => c.id === foundLocal.id);
+        const prev = chIdx > 0 ? localChapters[chIdx - 1] : null;
+        const next = chIdx < localChapters.length - 1 ? localChapters[chIdx + 1] : null;
+
+        return {
+          chapter: foundLocal,
+          novel: primaryNovel,
+          prevChapter: prev,
+          nextChapter: next,
+          totalChapters: localChapters.length,
+        };
+      }
+
       return null;
     }
 
