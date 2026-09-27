@@ -378,9 +378,11 @@ async function startServer() {
       `Sitemap: ${domain}/rss.xml`,
       `Sitemap: ${domain}/atom.xml`,
       `Sitemap: ${domain}/llms.txt`,
+      '',
     ].join('\n');
 
-    res.type('text/plain; charset=utf-8').send(robots);
+    res.setHeader('Content-Type', 'text/plain; charset=utf-8');
+    res.send(robots);
   });
 
   // LLMs.txt AI Crawler and LLM Specification Endpoint
