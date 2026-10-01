@@ -364,8 +364,23 @@ async function startServer() {
   }
 
   // ==========================================
-  // 2. SEO & AI Files: robots.txt, sitemap.xml, llms.txt, llms-full.txt, rss.xml, atom.xml
+  // 2. SEO & AI Files: robots.txt, sitemaps, verification, llms.txt, rss.xml, atom.xml
   // ==========================================
+
+  // Google Search Console HTML file verification (e.g. /google1234567890abcdef.html)
+  app.use((req, res, next) => {
+    const match = req.path.match(/^\/(google[a-zA-Z0-9_-]+)\.html$/i);
+    if (match) {
+      return res.type('text/html').send(`google-site-verification: ${match[1]}.html`);
+    }
+    next();
+  });
+
+  // Bing Webmaster / IndexNow verification key
+  app.get('/indexnow.txt', (_req, res) => {
+    res.type('text/plain').send('aymankinani-indexnow-key');
+  });
+
   app.get('/robots.txt', (req, res) => {
     const domain = getRequestDomain(req);
     const robots = [
@@ -375,6 +390,9 @@ async function startServer() {
       'Disallow: /?admin=true',
       '',
       `Sitemap: ${domain}/sitemap.xml`,
+      `Sitemap: ${domain}/sitemap_index.xml`,
+      `Sitemap: ${domain}/sitemap-books.xml`,
+      `Sitemap: ${domain}/sitemap-chapters.xml`,
       `Sitemap: ${domain}/rss.xml`,
       `Sitemap: ${domain}/atom.xml`,
       `Sitemap: ${domain}/llms.txt`,
@@ -383,6 +401,88 @@ async function startServer() {
 
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     res.send(robots);
+  });
+
+  // Sitemap Index Endpoint (/sitemap_index.xml)
+  app.get('/sitemap_index.xml', (req, res) => {
+    const domain = getRequestDomain(req);
+    const now = new Date().toISOString().split('T')[0];
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <sitemap>
+    <loc>${domain}/sitemap.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>${domain}/sitemap-books.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
+  <sitemap>
+    <loc>${domain}/sitemap-chapters.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
+</sitemapindex>`;
+    res.type('application/xml; charset=utf-8').send(xml);
+  });
+
+  // Dedicated Books Sitemap (/sitemap-books.xml)
+  app.get('/sitemap-books.xml', async (req, res) => {
+    try {
+      const domain = getRequestDomain(req);
+      const { novels } = await fetchAllForSitemap();
+      const urlsXml = [
+        `  <url>`,
+        `    <loc>${domain}/</loc>`,
+        `    <lastmod>${new Date().toISOString().split('T')[0]}</lastmod>`,
+        `    <changefreq>daily</changefreq>`,
+        `    <priority>1.0</priority>`,
+        `  </url>`,
+      ];
+      for (const novel of novels) {
+        const novelUrl = `${domain}/book/${encodeURIComponent(novel.slug)}`;
+        urlsXml.push(
+          `  <url>`,
+          `    <loc>${novelUrl}</loc>`,
+          `    <lastmod>${novel.updatedAt.split('T')[0]}</lastmod>`,
+          `    <changefreq>weekly</changefreq>`,
+          `    <priority>0.9</priority>`,
+          `  </url>`
+        );
+      }
+      res.type('application/xml; charset=utf-8').send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlsXml.join('\n')}
+</urlset>`);
+    } catch (err) {
+      res.status(500).type('text/plain').send('Error generating books sitemap');
+    }
+  });
+
+  // Dedicated Chapters Sitemap (/sitemap-chapters.xml)
+  app.get('/sitemap-chapters.xml', async (req, res) => {
+    try {
+      const domain = getRequestDomain(req);
+      const { chapters } = await fetchAllForSitemap();
+      const urlsXml: string[] = [];
+      for (const ch of chapters) {
+        const novelSlugPart = ch.novelSlug || ch.novelId;
+        const chapterUrl = `${domain}/book/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
+        urlsXml.push(
+          `  <url>`,
+          `    <loc>${chapterUrl}</loc>`,
+          `    <lastmod>${ch.updatedAt.split('T')[0]}</lastmod>`,
+          `    <changefreq>monthly</changefreq>`,
+          `    <priority>0.8</priority>`,
+          `  </url>`
+        );
+      }
+      res.type('application/xml; charset=utf-8').send(`<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${urlsXml.join('\n')}
+</urlset>`);
+    } catch (err) {
+      res.status(500).type('text/plain').send('Error generating chapters sitemap');
+    }
   });
 
   // LLMs.txt AI Crawler and LLM Specification Endpoint
