@@ -1,8 +1,13 @@
 import React, { useState } from 'react';
-import { IntellectualItem } from '../../types';
+import { IntellectualItem, IntellectualType } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
+import {
+  getIntellectualTypeInfo,
+  ALL_INTELLECTUAL_TYPES,
+  isTranslatedIntellectualType
+} from '../../utils/intellectualTypeHelper';
 import {
   FileText,
   Plus,
@@ -19,7 +24,10 @@ import {
   Heart,
   Feather,
   Loader2,
-  CheckCircle2
+  CheckCircle2,
+  Layers,
+  GraduationCap,
+  BookOpenCheck
 } from 'lucide-react';
 
 interface IntellectualManagerTabProps {
@@ -43,7 +51,7 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
   const [title, setTitle] = useState<string>('');
   const [subtitle, setSubtitle] = useState<string>('');
   const [slug, setSlug] = useState<string>('');
-  const [type, setType] = useState<'study' | 'article' | 'translated_article'>('article');
+  const [type, setType] = useState<IntellectualType>('article');
   const [author, setAuthor] = useState<string>('أيمن كناني');
   const [originalAuthor, setOriginalAuthor] = useState<string>('');
   const [translator, setTranslator] = useState<string>('أيمن كناني');
@@ -287,46 +295,29 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
           <form onSubmit={handleSave} className="space-y-4 text-xs sm:text-sm">
             {/* Type selector */}
             <div>
-              <label className="block font-bold mb-1.5 text-stone-700">نوع المادة المعرفية:</label>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setType('study')}
-                  className={`p-3 rounded-xl border font-bold flex items-center justify-center gap-2 cursor-pointer ${
-                    type === 'study'
-                      ? 'bg-blue-50 border-blue-500 text-blue-900 ring-2 ring-blue-400'
-                      : 'border-stone-200 bg-stone-50 text-stone-700'
-                  }`}
-                >
-                  <FileText className="w-4 h-4 text-blue-600" />
-                  <span>دراسة بحثية محكمة</span>
-                </button>
+              <label className="block font-bold mb-1.5 text-stone-700">نوع المادة الفكرية:</label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {ALL_INTELLECTUAL_TYPES.map(t => {
+                  const info = getIntellectualTypeInfo(t);
+                  const IconComp = info.icon;
+                  const isSelected = type === t;
 
-                <button
-                  type="button"
-                  onClick={() => setType('article')}
-                  className={`p-3 rounded-xl border font-bold flex items-center justify-center gap-2 cursor-pointer ${
-                    type === 'article'
-                      ? 'bg-amber-50 border-amber-500 text-amber-900 ring-2 ring-amber-400'
-                      : 'border-stone-200 bg-stone-50 text-stone-700'
-                  }`}
-                >
-                  <Sparkles className="w-4 h-4 text-amber-600" />
-                  <span>مقال فكري وفلسفي</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setType('translated_article')}
-                  className={`p-3 rounded-xl border font-bold flex items-center justify-center gap-2 cursor-pointer ${
-                    type === 'translated_article'
-                      ? 'bg-purple-50 border-purple-500 text-purple-900 ring-2 ring-purple-400'
-                      : 'border-stone-200 bg-stone-50 text-stone-700'
-                  }`}
-                >
-                  <Languages className="w-4 h-4 text-purple-600" />
-                  <span>مقال / دراسة مترجمة</span>
-                </button>
+                  return (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setType(t)}
+                      className={`p-2.5 rounded-xl border font-bold flex flex-col items-center justify-center gap-1.5 cursor-pointer transition-all ${
+                        isSelected
+                          ? `${info.badgeBg} ${info.badgeText} ${info.badgeBorder} ring-2 ring-[#4A5D4E]/30 scale-102`
+                          : 'border-stone-200 bg-stone-50 text-stone-700 hover:bg-stone-100'
+                      }`}
+                    >
+                      <IconComp className="w-4 h-4" />
+                      <span className="text-xs">{info.label}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -534,26 +525,38 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
 
       {/* Filter and Search Bar */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
-          {[
-            { id: 'all', label: 'الكل' },
-            { id: 'study', label: 'دراسات وأبحاث' },
-            { id: 'article', label: 'مقالات فكرية' },
-            { id: 'translated_article', label: 'مقالات مترجمة' },
-          ].map(f => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFilterType(f.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer ${
-                filterType === f.id
-                  ? 'bg-[#4A5D4E] text-white'
-                  : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
+        <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 scrollbar-none">
+          <button
+            type="button"
+            onClick={() => setFilterType('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
+              filterType === 'all'
+                ? 'bg-[#4A5D4E] text-white'
+                : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+            }`}
+          >
+            الكل ({articles.length})
+          </button>
+          {ALL_INTELLECTUAL_TYPES.map(t => {
+            const info = getIntellectualTypeInfo(t);
+            const count = articles.filter(a => a.type === t).length;
+            if (count === 0 && filterType !== t) return null;
+
+            return (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setFilterType(t)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap cursor-pointer transition-all ${
+                  filterType === t
+                    ? 'bg-[#4A5D4E] text-white'
+                    : 'bg-stone-100 text-stone-700 hover:bg-stone-200'
+                }`}
+              >
+                {info.shortLabel} ({count})
+              </button>
+            );
+          })}
         </div>
 
         <div className="relative w-full sm:w-64">
@@ -590,35 +593,28 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
                 </td>
               </tr>
             ) : (
-              filteredArticles.map(item => (
-                <tr key={item.id} className="hover:bg-stone-50/80 transition-colors">
-                  <td className="p-3">
-                    {item.type === 'study' && (
-                      <span className="px-2 py-0.5 rounded-full font-bold bg-blue-100 text-blue-800 text-[10px]">
-                        دراسة
+              filteredArticles.map(item => {
+                const itemTypeInfo = getIntellectualTypeInfo(item.type);
+                const ItemIcon = itemTypeInfo.icon;
+
+                return (
+                  <tr key={item.id} className="hover:bg-stone-50/80 transition-colors">
+                    <td className="p-3">
+                      <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] inline-flex items-center gap-1 border ${itemTypeInfo.badgeBg} ${itemTypeInfo.badgeText} ${itemTypeInfo.badgeBorder}`}>
+                        <ItemIcon className="w-3 h-3" />
+                        <span>{itemTypeInfo.shortLabel}</span>
                       </span>
-                    )}
-                    {item.type === 'article' && (
-                      <span className="px-2 py-0.5 rounded-full font-bold bg-amber-100 text-amber-800 text-[10px]">
-                        مقال فكري
-                      </span>
-                    )}
-                    {item.type === 'translated_article' && (
-                      <span className="px-2 py-0.5 rounded-full font-bold bg-purple-100 text-purple-800 text-[10px]">
-                        ترجمة
-                      </span>
-                    )}
-                  </td>
-                  <td className="p-3 font-amiri font-bold text-sm max-w-xs truncate">
-                    {item.title}
-                  </td>
-                  <td className="p-3 text-stone-600">
-                    {item.type === 'translated_article' ? (
-                      <span>{item.originalAuthor} (ترجمة: {item.translator})</span>
-                    ) : (
-                      item.author
-                    )}
-                  </td>
+                    </td>
+                    <td className="p-3 font-amiri font-bold text-sm max-w-xs truncate">
+                      {item.title}
+                    </td>
+                    <td className="p-3 text-stone-600">
+                      {isTranslatedIntellectualType(item.type) ? (
+                        <span>{item.originalAuthor || 'كاتب أصلي'} (ترجمة: {item.translator || item.author})</span>
+                      ) : (
+                        item.author
+                      )}
+                    </td>
                   <td className="p-3">
                     <span className="px-2 py-0.5 rounded-md bg-stone-100 text-stone-700">
                       {item.category}
@@ -661,9 +657,10 @@ export const IntellectualManagerTab: React.FC<IntellectualManagerTabProps> = ({
                     </div>
                   </td>
                 </tr>
-              ))
-            )}
-          </tbody>
+              );
+            })
+          )}
+        </tbody>
         </table>
       </div>
 

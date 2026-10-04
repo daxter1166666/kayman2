@@ -29,6 +29,7 @@ import {
   generateChapterSeoTags,
   generateNovelSeoTags,
   generateHomeSeoTags,
+  generateSectionSeoTags,
   generateLlmsTxt,
   generateLlmsFullTxt,
   injectSsrIntoTemplate,
@@ -928,6 +929,68 @@ ${entriesXml.join('\n')}
     }
   }
 
+  /**
+   * SSR Section Handler for dedicated subpages (/author, /articles, /support, /privacy, etc.)
+   */
+  async function handleSectionSSR(
+    req: express.Request,
+    res: express.Response,
+    section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'books',
+    currentView: string
+  ) {
+    try {
+      const domain = getRequestDomain(req);
+      const [novels, chapters] = await Promise.all([
+        serverFetchAllNovels(),
+        serverFetchAllChapters(),
+      ]);
+
+      const primaryNovel = novels[0] || null;
+
+      const renderedComponentHtml = renderToString(
+        React.createElement(ServerHomeView, {
+          novel: primaryNovel,
+          chapters,
+          reqUrl: req.originalUrl,
+        })
+      );
+
+      const { title, metaTags, jsonLd } = generateSectionSeoTags({
+        section,
+        domain,
+        reqUrl: req.originalUrl,
+      });
+
+      const initialData = {
+        currentView,
+        novels,
+        chapters,
+      };
+
+      const template = await getBaseTemplate(req.originalUrl);
+      const fullHtml = injectSsrIntoTemplate({
+        template,
+        title,
+        metaTags,
+        jsonLd,
+        renderedHtml: renderedComponentHtml,
+        initialData,
+      });
+
+      return res
+        .status(200)
+        .set({
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Rendered-By': 'NodeJS-Express-React-SSR',
+        })
+        .send(fullHtml);
+    } catch (err) {
+      console.error(`SSR Section ${section} Exception:`, err);
+      const template = await getBaseTemplate(req.originalUrl);
+      return res.status(200).send(template);
+    }
+  }
+
   // --- Express SSR Route Registrations ---
 
   // PRIMARY: Homepage SSR (/)
@@ -940,9 +1003,37 @@ ${entriesXml.join('\n')}
     return handleHomeSSR(req, res);
   });
 
-  // Other Home / Catalog aliases
-  app.get(['/site', '/catalog', '/books', '/about', '/author', '/articles', '/translations', '/legal', '/privacy', '/terms', '/dmca'], (req, res) => {
-    return handleHomeSSR(req, res);
+  // Dedicated Section Pages with Unique URLs & SEO
+  app.get(['/about', '/author'], (req, res) => {
+    return handleSectionSSR(req, res, 'author', 'about');
+  });
+
+  app.get(['/articles', '/studies', '/translations', '/essays'], (req, res) => {
+    return handleSectionSSR(req, res, 'articles', 'articles');
+  });
+
+  app.get(['/support', '/donate'], (req, res) => {
+    return handleSectionSSR(req, res, 'support', 'donate');
+  });
+
+  app.get('/contact', (req, res) => {
+    return handleSectionSSR(req, res, 'contact', 'contact');
+  });
+
+  app.get('/privacy', (req, res) => {
+    return handleSectionSSR(req, res, 'privacy', 'privacy');
+  });
+
+  app.get('/terms', (req, res) => {
+    return handleSectionSSR(req, res, 'terms', 'terms');
+  });
+
+  app.get('/dmca', (req, res) => {
+    return handleSectionSSR(req, res, 'dmca', 'dmca');
+  });
+
+  app.get(['/books', '/catalog', '/site'], (req, res) => {
+    return handleSectionSSR(req, res, 'books', 'catalog');
   });
 
   // PRIMARY: /book/:novelId/chapter/:chapterId

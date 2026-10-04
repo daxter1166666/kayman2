@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Novel, Chapter, AdSettings } from '../types';
 import { storageService } from '../services/storageService';
 import { AdSlot } from './AdSlot';
@@ -88,7 +88,25 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
     }
   };
 
-  const sortedChapters = [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
+  const sortedChapters = useMemo(() => {
+    return [...chapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
+  }, [chapters]);
+
+  // Group chapters by part/Bab
+  const groupedChapters = useMemo(() => {
+    const groups: { partName: string; chapters: Chapter[] }[] = [];
+    sortedChapters.forEach(ch => {
+      const part = ch.partName || 'فصول الكتاب';
+      const existing = groups.find(g => g.partName === part);
+      if (existing) {
+        existing.chapters.push(ch);
+      } else {
+        groups.push({ partName: part, chapters: [ch] });
+      }
+    });
+    return groups;
+  }, [sortedChapters]);
+
   const totalWords = chapters.reduce((acc, c) => acc + c.wordCount, 0);
   const tocItems = novel.tableOfContents || [];
   const hasChapters = sortedChapters.length > 0;
@@ -479,92 +497,118 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
             </div>
           )}
 
-          {/* Chapters View */}
+          {/* Chapters View Grouped by Parts/Babs */}
           {activeContentView === 'chapters' && hasChapters && (
-            <div className="space-y-2.5">
-              {sortedChapters.map((ch) => (
-                <div
-                  key={ch.id}
-                  id={`chapter-row-${ch.id}`}
-                  onClick={() => onSelectChapter(ch.id)}
-                  className="group p-3.5 sm:p-4 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#F7F5EE] hover:border-[#4A5D4E]/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 cursor-pointer shadow-xs"
-                >
-                  {/* Right/Top: Chapter info and metadata */}
-                  <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
-                    <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] shrink-0 group-hover:border-[#4A5D4E]/40 mt-0.5 sm:mt-0">
-                      {ch.chapterNumber}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors line-clamp-1 sm:truncate">
-                        الفصل {ch.chapterNumber}: {ch.title}
-                      </h4>
-                      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[#6E6A64] mt-1">
-                        <span>{ch.wordCount.toLocaleString()} كلمة</span>
-                        <span className="text-[#D5D2C9]">·</span>
-                        <span className="flex items-center gap-1">
-                          <Eye className="w-3 h-3 text-[#8E8A83]" />
-                          <span>{ch.views.toLocaleString()} قراءة</span>
+            <div className="space-y-6">
+              {groupedChapters.map((group) => {
+                const groupWords = group.chapters.reduce((acc, c) => acc + (c.wordCount || 0), 0);
+                return (
+                  <section key={group.partName} className="space-y-2.5">
+                    {/* Bab Header */}
+                    <div className="flex items-center justify-between gap-3 px-3 py-2 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-[#2C2C2C]">
+                      <div className="flex items-center gap-2">
+                        <Bookmark className="w-4 h-4 text-[#4A5D4E]" />
+                        <h3 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C]">
+                          {group.partName}
+                        </h3>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#6E6A64] font-medium">
+                        <span className="px-2 py-0.5 rounded-md bg-white border border-[#E5E2D9] font-mono text-[11px]">
+                          {group.chapters.length} {group.chapters.length === 1 ? 'فصل' : 'فصول'}
                         </span>
-                        <span className="text-[#D5D2C9]">·</span>
-                        <span className="flex items-center gap-1">
-                          <Heart className="w-3 h-3 text-rose-500" />
-                          <span>{ch.likes.toLocaleString()} إعجاب</span>
-                        </span>
-                        <span className="text-[#D5D2C9]">·</span>
-                        <span className="flex items-center gap-1 text-[#C88A3B]">
-                          <Star className="w-3 h-3 fill-[#C88A3B]" />
-                          <span className="font-mono font-bold">{ch.rating ? ch.rating.toFixed(1) : '5.0'}</span>
-                          {ch.ratingCount ? <span className="opacity-75">({ch.ratingCount})</span> : null}
-                        </span>
+                        <span className="hidden sm:inline">({groupWords.toLocaleString()} كلمة)</span>
                       </div>
                     </div>
-                  </div>
 
-                  {/* Left/Bottom: Actions (PDF, Share, Read) */}
-                  <div className="flex items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t border-[#F2EFE8] sm:border-t-0 shrink-0">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        type="button"
-                        id={`chapter-list-pdf-btn-${ch.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPdfChapter(ch);
-                        }}
-                        className="px-2.5 py-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer flex items-center gap-1.5 text-xs bg-[#FAF9F5] sm:bg-transparent"
-                        title="تنزيل هذا الفصل بصيغة PDF"
-                      >
-                        <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#4A5D4E]" />
-                        <span className="sm:hidden text-[11px] font-medium text-[#4A5D4E]">PDF</span>
-                      </button>
-                      <button
-                        type="button"
-                        id={`chapter-list-share-btn-${ch.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSharingChapter(ch);
-                        }}
-                        className="px-2.5 py-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#C88A3B]/50 hover:bg-[#C88A3B]/10 text-[#6E6A64] hover:text-[#C88A3B] transition-all cursor-pointer flex items-center gap-1.5 text-xs bg-[#FAF9F5] sm:bg-transparent"
-                        title="مشاركة هذا الفصل"
-                      >
-                        <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                        <span className="sm:hidden text-[11px] font-medium">مشاركة</span>
-                      </button>
+                    {/* Chapters in this Bab */}
+                    <div className="space-y-2">
+                      {group.chapters.map((ch) => (
+                        <div
+                          key={ch.id}
+                          id={`chapter-row-${ch.id}`}
+                          onClick={() => onSelectChapter(ch.id)}
+                          className="group p-3.5 sm:p-4 rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] hover:bg-[#FDFCF8] hover:border-[#4A5D4E]/50 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4 cursor-pointer shadow-2xs hover:shadow-sm"
+                        >
+                          {/* Right/Top: Chapter info and metadata */}
+                          <div className="flex items-start sm:items-center gap-3 sm:gap-3.5 min-w-0 flex-1">
+                            <span className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-center font-mono font-bold text-xs text-[#4A5D4E] shrink-0 group-hover:border-[#4A5D4E]/50 group-hover:bg-[#4A5D4E] group-hover:text-white transition-all mt-0.5 sm:mt-0">
+                              {ch.chapterNumber}
+                            </span>
+                            <div className="min-w-0 flex-1">
+                              <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors line-clamp-1 sm:truncate">
+                                الفصل {ch.chapterNumber}: {ch.title}
+                              </h4>
+                              <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[#6E6A64] mt-1">
+                                <span>{ch.wordCount.toLocaleString()} كلمة</span>
+                                <span className="text-[#D5D2C9]">·</span>
+                                <span className="flex items-center gap-1">
+                                  <Eye className="w-3 h-3 text-[#8E8A83]" />
+                                  <span>{ch.views.toLocaleString()} قراءة</span>
+                                </span>
+                                <span className="text-[#D5D2C9]">·</span>
+                                <span className="flex items-center gap-1">
+                                  <Heart className="w-3 h-3 text-rose-500" />
+                                  <span>{ch.likes.toLocaleString()} إعجاب</span>
+                                </span>
+                                <span className="text-[#D5D2C9]">·</span>
+                                <span className="flex items-center gap-1 text-[#C88A3B]">
+                                  <Star className="w-3 h-3 fill-[#C88A3B]" />
+                                  <span className="font-mono font-bold">{ch.rating ? ch.rating.toFixed(1) : '5.0'}</span>
+                                  {ch.ratingCount ? <span className="opacity-75">({ch.ratingCount})</span> : null}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Left/Bottom: Actions (PDF, Share, Read) */}
+                          <div className="flex items-center justify-between sm:justify-end gap-2 pt-2.5 sm:pt-0 border-t border-[#F2EFE8] sm:border-t-0 shrink-0">
+                            <div className="flex items-center gap-1.5">
+                              <button
+                                type="button"
+                                id={`chapter-list-pdf-btn-${ch.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPdfChapter(ch);
+                                }}
+                                className="px-2.5 py-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#4A5D4E]/50 hover:bg-[#4A5D4E]/10 text-[#6E6A64] hover:text-[#4A5D4E] transition-all cursor-pointer flex items-center gap-1.5 text-xs bg-[#FAF9F5] sm:bg-transparent"
+                                title="تنزيل هذا الفصل بصيغة PDF"
+                              >
+                                <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-[#4A5D4E]" />
+                                <span className="sm:hidden text-[11px] font-medium text-[#4A5D4E]">PDF</span>
+                              </button>
+                              <button
+                                type="button"
+                                id={`chapter-list-share-btn-${ch.id}`}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSharingChapter(ch);
+                                }}
+                                className="px-2.5 py-1.5 sm:p-2 rounded-lg border border-[#E5E2D9] hover:border-[#C88A3B]/50 hover:bg-[#C88A3B]/10 text-[#6E6A64] hover:text-[#C88A3B] transition-all cursor-pointer flex items-center gap-1.5 text-xs bg-[#FAF9F5] sm:bg-transparent"
+                                title="مشاركة هذا الفصل"
+                              >
+                                <Share2 className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                                <span className="sm:hidden text-[11px] font-medium">مشاركة</span>
+                              </button>
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onSelectChapter(ch.id);
+                              }}
+                              className="text-xs font-bold text-[#4A5D4E] bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 sm:bg-transparent sm:hover:bg-transparent px-3 py-1.5 sm:p-0 rounded-lg group-hover:-translate-x-1 transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>قراءة الفصل</span>
+                              <ChevronLeft className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onSelectChapter(ch.id);
-                      }}
-                      className="text-xs font-bold text-[#4A5D4E] bg-[#4A5D4E]/10 hover:bg-[#4A5D4E]/20 sm:bg-transparent sm:hover:bg-transparent px-3 py-1.5 sm:p-0 rounded-lg group-hover:-translate-x-1 transition-all flex items-center gap-1 cursor-pointer"
-                    >
-                      <span>قراءة الفصل</span>
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  </section>
+                );
+              })}
             </div>
           )}
 

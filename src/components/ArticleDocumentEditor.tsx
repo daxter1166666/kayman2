@@ -34,7 +34,12 @@ import {
   BookOpen,
   ArrowRight
 } from 'lucide-react';
-import { IntellectualItem } from '../types';
+import { IntellectualItem, IntellectualType } from '../types';
+import {
+  getIntellectualTypeInfo,
+  ALL_INTELLECTUAL_TYPES,
+  isTranslatedIntellectualType
+} from '../utils/intellectualTypeHelper';
 
 export interface ArticleDocumentEditorProps {
   // Document state
@@ -53,8 +58,8 @@ export interface ArticleDocumentEditorProps {
   tags: string;
   onTagsChange: (val: string) => void;
   status: 'DRAFT' | 'PUBLISHED';
-  articleType: 'article' | 'study' | 'translated_article';
-  onArticleTypeChange: (val: 'article' | 'study' | 'translated_article') => void;
+  articleType: IntellectualType;
+  onArticleTypeChange: (val: IntellectualType) => void;
   
   // Citations & Footnotes
   footnotes: { id: number; text: string }[];
@@ -491,9 +496,9 @@ export const ArticleDocumentEditor: React.FC<ArticleDocumentEditorProps> = ({
       <div className="bg-white border border-[#E5E2D9] rounded-2xl p-3.5 mb-5 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
         {/* Left: Article Metadata Badges */}
         <div className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="font-bold text-[#4A5D4E] bg-[#EBF3ED] px-3 py-1.5 rounded-xl border border-[#C8DEC9] flex items-center gap-1.5">
-            <BookOpen className="w-3.5 h-3.5" />
-            <span>{articleType === 'study' ? 'دراسة بحثية محكمة' : 'مقال فكري'}</span>
+          <span className={`font-bold px-3 py-1.5 rounded-xl border flex items-center gap-1.5 ${getIntellectualTypeInfo(articleType).badgeBg} ${getIntellectualTypeInfo(articleType).badgeText} ${getIntellectualTypeInfo(articleType).badgeBorder}`}>
+            {React.createElement(getIntellectualTypeInfo(articleType).icon, { className: 'w-3.5 h-3.5' })}
+            <span>{getIntellectualTypeInfo(articleType).label}</span>
           </span>
 
           <span className="text-[#5A5751] bg-[#FAF8F5] px-3 py-1.5 rounded-xl border border-[#E5E2D9] flex items-center gap-1.5 font-bold">
@@ -870,8 +875,23 @@ export const ArticleDocumentEditor: React.FC<ArticleDocumentEditorProps> = ({
       {/* ------------------------------------------------------------- */}
       <div className="bg-white rounded-3xl border border-[#E5E2D9] shadow-sm max-w-4xl mx-auto p-6 sm:p-12 space-y-6 min-h-[750px] relative transition-all">
         
-        {/* Document Header Line: Category & Metadata */}
+        {/* Document Header Line: Category, Type & Metadata */}
         <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#E5E2D9]/80 text-xs text-[#5A5751]">
+          <div className="flex items-center gap-2">
+            <span className="font-bold">نوع المادة:</span>
+            <select
+              value={articleType}
+              onChange={e => onArticleTypeChange(e.target.value as IntellectualType)}
+              className="px-2.5 py-1 rounded-lg border border-[#E5E2D9] bg-[#FAF8F5] font-bold text-[#4A5D4E] focus:outline-none cursor-pointer"
+            >
+              {ALL_INTELLECTUAL_TYPES.map(t => (
+                <option key={t} value={t}>
+                  {getIntellectualTypeInfo(t).label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="font-bold">المجال المعرفي:</span>
             <select

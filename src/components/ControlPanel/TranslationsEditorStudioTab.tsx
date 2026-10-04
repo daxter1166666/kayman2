@@ -3,6 +3,7 @@ import { IntellectualItem } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
+import { ImageUploadInput } from '../ImageUploadInput';
 import {
   Languages,
   Save,
@@ -16,7 +17,9 @@ import {
   Globe,
   Quote,
   FileText,
-  HelpCircle
+  HelpCircle,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
 
 interface TranslationsEditorStudioTabProps {

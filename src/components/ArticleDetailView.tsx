@@ -4,6 +4,11 @@ import { storageService } from '../services/storageService';
 import { BilingualReaderView } from './BilingualReaderView';
 import { ArticleReplies } from './ArticleReplies';
 import {
+  getIntellectualTypeInfo,
+  isTranslatedIntellectualType,
+  isStudyIntellectualType
+} from '../utils/intellectualTypeHelper';
+import {
   ArrowRight,
   Clock,
   Eye,
@@ -21,7 +26,8 @@ import {
   ZoomIn,
   ZoomOut,
   Palette,
-  FileText
+  FileText,
+  BookOpenCheck
 } from 'lucide-react';
 
 interface ArticleDetailViewProps {
@@ -36,12 +42,16 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
   const [isLiked, setIsLiked] = useState<boolean>(() => storageService.isArticleLiked(article.id));
   const [copied, setCopied] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'reading' | 'bilingual'>(() => {
-    return article.type === 'translated_article' || Boolean(article.originalContent) ? 'bilingual' : 'reading';
+    return isTranslatedIntellectualType(article.type) || Boolean(article.originalContent) ? 'bilingual' : 'reading';
   });
 
   const [marginNotes, setMarginNotes] = useState<MarginNote[]>(() => {
     return storageService.getArticleReaderNotes(article.id);
   });
+
+  const typeInfo = getIntellectualTypeInfo(article.type);
+  const TypeIcon = typeInfo.icon;
+  const isTranslated = isTranslatedIntellectualType(article.type) || Boolean(article.translator);
 
   // Increment views once per session
   useEffect(() => {
@@ -67,7 +77,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
   };
 
   const isBilingualCapable = Boolean(
-    article.type === 'translated_article' ||
+    isTranslatedIntellectualType(article.type) ||
     article.originalContent ||
     (article.parallelSegments && article.parallelSegments.length > 0)
   );
@@ -152,14 +162,23 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
       <header className="p-6 sm:p-8 rounded-3xl bg-[#F7F5EE] border border-[#E5E2D9] mb-8 shadow-xs">
         {/* Category & Badge */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* Specific Type Badge */}
+            <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-2xs flex items-center gap-1.5 border ${typeInfo.badgeBg} ${typeInfo.badgeText} ${typeInfo.badgeBorder}`}>
+              <TypeIcon className="w-3.5 h-3.5" />
+              <span>{typeInfo.label}</span>
+            </span>
+
+            {/* Category Tag */}
             <span className="px-3 py-1 rounded-full bg-[#4A5D4E] text-white text-xs font-bold shadow-2xs">
               {article.category || 'دراسات فكرية'}
             </span>
-            {article.type === 'translated_article' && (
-              <span className="px-2.5 py-1 rounded-full bg-[#C88A3B]/15 text-[#965A15] border border-[#C88A3B]/30 text-xs font-bold flex items-center gap-1">
+
+            {/* Translation Source Language indicator */}
+            {isTranslated && article.originalLanguage && (
+              <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-bold flex items-center gap-1">
                 <Languages className="w-3.5 h-3.5" />
-                <span>دراسة مترجمة</span>
+                <span>عن {article.originalLanguage}</span>
               </span>
             )}
           </div>
@@ -191,7 +210,7 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
         {/* Original title for translated works */}
         {article.originalTitle && (
           <p className="text-xs text-[#8E8A83] font-serif italic mt-2 text-left" dir="ltr">
-            Original Title: "{article.originalTitle}"
+            Original Title: "{article.originalTitle}" {article.originalYear ? `(${article.originalYear})` : ''}
           </p>
         )}
 
@@ -203,11 +222,11 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
             </div>
             <div>
               <span className="text-xs font-bold text-[#2C2C2C] block">
-                {article.author || 'أيمن كناني'}
+                {isTranslated && article.translator ? `ترجمة وتحقيق: ${article.translator}` : (article.author || 'أيمن كناني')}
               </span>
               {article.originalAuthor && (
-                <span className="text-[11px] text-[#8E8A83]">
-                  المؤلف الأصلي: {article.originalAuthor}
+                <span className="text-[11px] text-[#8E8A83] block">
+                  المؤلف الأصلي: {article.originalAuthor} {article.originalSource ? `— المصدر: ${article.originalSource}` : ''}
                 </span>
               )}
             </div>
@@ -218,19 +237,19 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
             <button
               type="button"
               onClick={handleToggleLike}
-              className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-2xs ${
+              className={`px-3.5 py-1.5 rounded-xl border text-xs font-bold flex items-center gap-2 transition-all cursor-pointer shadow-2xs active:scale-95 ${
                 isLiked
                   ? 'bg-rose-50 border-rose-200 text-rose-600'
-                  : 'bg-white border-[#E5E2D9] text-[#6E6A64] hover:border-rose-300'
+                  : 'bg-white border-[#E5E2D9] text-[#6E6A64] hover:border-rose-300 hover:text-rose-600'
               }`}
             >
-              <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-500 text-rose-500' : 'text-[#8E8A83]'}`} />
+              <Heart className={`w-4 h-4 ${isLiked ? 'fill-rose-500 text-rose-500' : ''}`} />
               <span className="font-mono">{likes}</span>
               <span>إعجاب</span>
             </button>
 
             <div className="px-3 py-1.5 rounded-xl bg-white border border-[#E5E2D9] text-xs text-[#8E8A83] flex items-center gap-1.5 shadow-2xs font-mono">
-              <Eye className="w-3.5 h-3.5" />
+              <Eye className="w-4 h-4 text-[#8E8A83]" />
               <span>{article.views || 0}</span>
             </div>
           </div>

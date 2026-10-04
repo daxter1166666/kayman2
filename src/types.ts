@@ -173,6 +173,7 @@ export interface Chapter {
   slug: string;
   content: string;
   authorNote?: string;
+  partName?: string;
   publishedAt: string;
   views: number;
   likes: number;
@@ -306,12 +307,22 @@ export interface MultilingualAbstract {
   fr?: string;
 }
 
+export type IntellectualType =
+  | 'article'
+  | 'study'
+  | 'translated_article'
+  | 'translated_study'
+  | 'academic_research'
+  | 'book_review'
+  | 'intellectual_dialogue'
+  | 'essay';
+
 export interface IntellectualItem {
   id: string;
   title: string;
   subtitle?: string;
   slug: string;
-  type: 'study' | 'article' | 'translated_article';
+  type: IntellectualType;
   status?: 'PUBLISHED' | 'DRAFT' | 'ARCHIVED';
   author: string;
   originalAuthor?: string;
@@ -321,6 +332,7 @@ export interface IntellectualItem {
   translatedTitle?: string;
   translatedContent?: string;
   originalSource?: string;
+  originalArticleUrl?: string;
   originalYear?: string;
   originalTitle?: string;
   category: string;
@@ -377,7 +389,7 @@ export interface ArticleReaderNote extends MarginNote {}
 
 export interface UnifiedSearchResult {
   id: string;
-  type: 'book' | 'study' | 'article' | 'translated_article' | 'chapter';
+  type: 'book' | 'study' | 'article' | 'translated_article' | 'translated_study' | 'academic_research' | 'book_review' | 'intellectual_dialogue' | 'essay' | 'chapter';
   title: string;
   subtitle?: string;
   snippet?: string;

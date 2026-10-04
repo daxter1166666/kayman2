@@ -895,6 +895,131 @@ export function generateHomeSeoTags({
 }
 
 /**
+ * Builds dynamic Open Graph, Twitter Card, and Schema.org JSON-LD tags for Static / Section Pages
+ */
+export function generateSectionSeoTags({
+  section,
+  domain,
+  reqUrl,
+}: {
+  section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'books';
+  domain: string;
+  reqUrl: string;
+}): {
+  title: string;
+  metaTags: string;
+  jsonLd: string;
+} {
+  const authorName = 'أيمن كناني';
+  const coverImage = 'https://images.unsplash.com/photo-1507842229451-79b1be886a29?q=80&w=1600&auto=format&fit=crop';
+  const canonicalUrl = `${domain}${reqUrl.split('?')[0]}`;
+
+  let pageTitle = 'أيمن كناني (Ayman Kinani) - المنصة الرسمية لنشر المؤلفات والكتب';
+  let excerpt = 'المنصة الرسمية المعتمدة لنشر وقراءة مؤلفات وأبحاث الكاتب أيمن كناني مجاناً.';
+  let keywords = 'أيمن كناني, Ayman Kinani, كتب, أبحاث, فكر إسلامي';
+  let schemaType = 'WebPage';
+
+  switch (section) {
+    case 'about':
+    case 'author':
+      pageTitle = 'عن الكاتب أيمن كناني (Ayman Kinani) - السيرة الذاتية والمؤلفات الفكرية';
+      excerpt = 'تعرف على الكاتب والباحث أيمن كناني، سيرته الفكرية، مؤلفاته في الفلسفة والفكر الإسلامي والمنهجية العلمية المعاصرة، ورؤيته الثقافية والأدبية.';
+      keywords = 'أيمن كناني, سيرة أيمن كناني, Ayman Kinani, باحث فكري, كاتب عربي, مؤلفات أيمن كناني, من هو أيمن كناني';
+      schemaType = 'ProfilePage';
+      break;
+
+    case 'articles':
+      pageTitle = 'المقالات والدراسات الفكرية والنقدية | الكاتب أيمن كناني';
+      excerpt = 'مجموعة المقالات والدراسات النقدية والفكرية المعاصرة بقلم الكاتب والباحث أيمن كناني، تناقش قضايا المنهج والمعرفة والفلسفة.';
+      keywords = 'مقالات أيمن كناني, دراسات فكرية, نقد منهجي, مقالات فلسفية, فكر معاصر, أيمن كناني';
+      schemaType = 'CollectionPage';
+      break;
+
+    case 'support':
+    case 'donate':
+      pageTitle = 'دعم الكاتب والمنصة (Support Ayman Kinani) | استمرار النشر المجاني';
+      excerpt = 'ساهم في رعاية واستمرار منصة الكاتب أيمن كناني لنشر المؤلفات والكتب والأبحاث الرصينة مجاناً لجميع القراء والباحثين بدون قيود.';
+      keywords = 'دعم أيمن كناني, رعاية المحتوى الفكري, Support Ayman Kinani, تبرع للمنصة, النشر الحر';
+      break;
+
+    case 'contact':
+      pageTitle = 'تواصل مع الكاتب أيمن كناني | المنصة الرسمية والمراسلة المباشرة';
+      excerpt = 'صفحة التواصل والمراسلة المباشرة مع الكاتب والباحث أيمن كناني للاستفسارات الفكرية، التعاون البحثي، والملاحظات المنهجية.';
+      keywords = 'تواصل مع أيمن كناني, مراسلة الكاتب, إيميل أيمن كناني, تليجرام أيمن كناني, قنوات التواصل';
+      schemaType = 'ContactPage';
+      break;
+
+    case 'privacy':
+      pageTitle = 'سياسة الخصوصية وحماية البيانات | منصة الكاتب أيمن كناني';
+      excerpt = 'سياسة الخصوصية المعتمدة في منصة الكاتب أيمن كناني؛ التزام تام بحماية بيانات القراء وعدم جمع أي معلومات شخصية دون موافقة.';
+      keywords = 'سياسة الخصوصية, حماية البيانات, Privacy Policy, خصوصية القارئ, منصة أيمن كناني';
+      break;
+
+    case 'terms':
+      pageTitle = 'شروط الاستخدام ورخصة المشاع الإبداعي (CC BY-NC 4.0) | منصة أيمن كناني';
+      excerpt = 'شروط استخدام منصة أيمن كناني وتفاصيل رخصة المشاع الإبداعي (CC BY-NC 4.0) التي تتيح القراءة والمشاركة غير التجارية بحرية.';
+      keywords = 'شروط الاستخدام, رخصة المشاع الإبداعي, CC BY-NC 4.0, شروط النشر, حقوق القراءة';
+      break;
+
+    case 'dmca':
+      pageTitle = 'حقوق الملكية الفكرية والنشر (DMCA) | المنصة الرسمية لأيمن كناني';
+      excerpt = 'سياسة حقوق الملكية الفكرية وحماية حقوق النشر والتأليف (DMCA) الخاصة بكتب ومؤلفات الكاتب أيمن كناني.';
+      keywords = 'حقوق الملكية الفكرية, DMCA, حماية حق المؤلف, الملكية الأدبية, أيمن كناني';
+      break;
+
+    case 'books':
+      pageTitle = 'مكتبة مؤلفات وكتب الكاتب أيمن كناني (Ayman Kinani)';
+      excerpt = 'تصفح كافة مؤلفات وكتب وروايات الكاتب أيمن كناني؛ قراءة تفاعلية مباشرة وتحميل نسخ PDF عالية الجودة مجاناً.';
+      keywords = 'كتب أيمن كناني, مؤلفات أيمن كناني, تحميل كتب PDF, قراءة كتب أونلاين, مكتبة أيمن كناني';
+      schemaType = 'CollectionPage';
+      break;
+  }
+
+  const metaTags = `
+    <!-- Dynamic SSR Meta Tags for Section: ${section} -->
+    <meta name="description" content="${escapeHtml(excerpt)}" />
+    <meta name="author" content="${escapeHtml(authorName)}" />
+    <meta name="keywords" content="${escapeHtml(keywords)}" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1" />
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="${escapeHtml(pageTitle)}" />
+    <meta property="og:description" content="${escapeHtml(excerpt)}" />
+    <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+    <meta property="og:image" content="${escapeHtml(coverImage)}" />
+    <meta property="og:site_name" content="أيمن كناني - المنصة الرسمية" />
+    <meta property="og:locale" content="ar_AR" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(excerpt)}" />
+    <meta name="twitter:image" content="${escapeHtml(coverImage)}" />
+  `;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': schemaType,
+    '@id': `${canonicalUrl}#${section}`,
+    name: pageTitle,
+    headline: pageTitle,
+    description: excerpt,
+    url: canonicalUrl,
+    inLanguage: 'ar',
+    mainEntityOfPage: canonicalUrl,
+    publisher: {
+      '@type': 'Person',
+      name: authorName,
+      url: domain,
+    },
+  });
+
+  return { title: pageTitle, metaTags, jsonLd };
+}
+
+/**
  * Injects rendered React HTML, Meta tags, and Initial Data into HTML template
  */
 export function injectSsrIntoTemplate({
@@ -914,24 +1039,38 @@ export function injectSsrIntoTemplate({
 }): string {
   let html = template;
 
-  // 1. Replace <title>
+  // 1. Remove old static SEO tags from index.html template
+  html = html
+    .replace(/<meta\s+name=["']description["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']keywords["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']author["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']robots["'][^>]*>/gi, '')
+    .replace(/<link\s+rel=["']canonical["'][^>]*>/gi, '')
+    .replace(/<meta\s+property=["']og:[^"']+["'][^>]*>/gi, '')
+    .replace(/<meta\s+name=["']twitter:[^"']+["'][^>]*>/gi, '')
+    .replace(/<meta\s+property=["']article:[^"']+["'][^>]*>/gi, '')
+    .replace(/<meta\s+property=["']book:[^"']+["'][^>]*>/gi, '')
+    .replace(/<script\s+id=["']seo-json-ld["'][^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<script\s+id=["']ssr-json-ld["'][^>]*>[\s\S]*?<\/script>/gi, '');
+
+  // 2. Replace <title>
   if (title) {
     html = html.replace(/<title>.*?<\/title>/i, `<title>${escapeHtml(title)}</title>`);
   }
 
-  // 2. Inject Meta Tags before </head>
+  // 3. Inject pristine, unique SEO Meta Tags and JSON-LD before </head>
   const headInjection = `
-    ${metaTags}
+    ${metaTags.trim()}
     <script id="ssr-json-ld" type="application/ld+json">
       ${jsonLd}
     </script>
   `;
   html = html.replace('</head>', `${headInjection}\n</head>`);
 
-  // 3. Inject Rendered React HTML inside <div id="root">
+  // 4. Inject Rendered React HTML inside <div id="root">
   html = html.replace('<div id="root"></div>', `<div id="root">${renderedHtml}</div>`);
 
-  // 4. Inject Initial State Script before </body>
+  // 5. Inject Initial State Script before </body>
   const serializedState = JSON.stringify(initialData).replace(/</g, '\\u003c');
   const stateScript = `<script id="__INITIAL_DATA__">window.__INITIAL_DATA__ = ${serializedState};</script>`;
   html = html.replace('</body>', `${stateScript}\n</body>`);

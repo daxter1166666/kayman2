@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { IntellectualItem } from '../types';
+import { getIntellectualTypeInfo } from '../utils/intellectualTypeHelper';
 import {
   Languages,
   Search,
@@ -148,31 +149,39 @@ export const TranslationsSection: React.FC<TranslationsSectionProps> = ({
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {filteredTranslations.map(item => (
-            <div
-              key={item.id}
-              onClick={() => onSelectTranslation(item)}
-              className="group bg-[#FDFCF8] rounded-2xl border border-[#E5E2D9] hover:border-[#C88A3B]/50 hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer active:scale-[0.99]"
-            >
-              <div className="p-6">
-                {/* Top Row: Language & Badge */}
-                <div className="flex items-center justify-between gap-2 mb-3">
-                  <div className="flex items-center gap-1.5">
-                    <span className="px-2.5 py-1 rounded-md bg-[#C88A3B]/15 text-[#965A15] border border-[#C88A3B]/30 text-xs font-bold flex items-center gap-1">
-                      <Columns className="w-3 h-3" />
-                      <span>قراءة مقارنة ثنائية</span>
-                    </span>
-                    {item.originalLanguage && (
-                      <span className="px-2 py-0.5 rounded text-[11px] bg-[#FAF8F2] text-[#8E8A83] border border-[#E5E2D9] font-mono">
-                        {item.originalLanguage}
-                      </span>
-                    )}
-                  </div>
+          {filteredTranslations.map(item => {
+            const typeInfo = getIntellectualTypeInfo(item.type);
+            const TypeIcon = typeInfo.icon;
 
-                  <span className="text-[11px] text-[#8E8A83] font-mono">
-                    {item.originalYear || (item.publishedAt ? new Date(item.publishedAt).getFullYear() : '2026')}
-                  </span>
-                </div>
+            return (
+              <div
+                key={item.id}
+                onClick={() => onSelectTranslation(item)}
+                className="group bg-[#FDFCF8] rounded-2xl border border-[#E5E2D9] hover:border-[#C88A3B]/50 hover:shadow-md transition-all duration-300 flex flex-col justify-between overflow-hidden cursor-pointer active:scale-[0.99]"
+              >
+                <div className="p-6">
+                  {/* Top Row: Type & Language & Year */}
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`px-2.5 py-0.5 rounded-md text-xs font-bold flex items-center gap-1 border ${typeInfo.badgeBg} ${typeInfo.badgeText} ${typeInfo.badgeBorder}`}>
+                        <TypeIcon className="w-3 h-3" />
+                        <span>{typeInfo.label}</span>
+                      </span>
+                      <span className="px-2.5 py-0.5 rounded-md bg-[#C88A3B]/15 text-[#965A15] border border-[#C88A3B]/30 text-xs font-bold flex items-center gap-1">
+                        <Columns className="w-3 h-3" />
+                        <span>قراءة مزدوجة</span>
+                      </span>
+                      {item.originalLanguage && (
+                        <span className="px-2 py-0.5 rounded text-[11px] bg-[#FAF8F2] text-[#8E8A83] border border-[#E5E2D9] font-mono">
+                          {item.originalLanguage}
+                        </span>
+                      )}
+                    </div>
+
+                    <span className="text-[11px] text-[#8E8A83] font-mono">
+                      {item.originalYear || (item.publishedAt ? new Date(item.publishedAt).getFullYear() : '2026')}
+                    </span>
+                  </div>
 
                 {/* Arabic Title */}
                 <h3 className="font-amiri font-bold text-xl text-[#2C2C2C] group-hover:text-[#C88A3B] transition-colors leading-snug">
@@ -238,7 +247,8 @@ export const TranslationsSection: React.FC<TranslationsSectionProps> = ({
                 </span>
               </div>
             </div>
-          ))}
+          );
+        })}
         </div>
       )}
     </div>

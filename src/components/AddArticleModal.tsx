@@ -17,11 +17,18 @@ import {
   ChevronDown,
   ChevronUp
 } from 'lucide-react';
-import { IntellectualItem, MultilingualAbstract, NovelSeoMeta, ParallelSegment } from '../types';
+import { IntellectualItem, IntellectualType, MultilingualAbstract, NovelSeoMeta, ParallelSegment } from '../types';
 import { ScholarlyIntegratedEditor } from './RichTextEditor/ScholarlyIntegratedEditor';
 import { ArticleSeoStudio } from './ArticleSeoStudio';
 import { BilingualReaderView } from './BilingualReaderView';
+import { ImageUploadInput } from './ImageUploadInput';
 import { storageService } from '../services/storageService';
+import {
+  getIntellectualTypeInfo,
+  ALL_INTELLECTUAL_TYPES,
+  isTranslatedIntellectualType,
+  isStudyIntellectualType
+} from '../utils/intellectualTypeHelper';
 
 interface AddArticleModalProps {
   isOpen: boolean;
@@ -52,7 +59,7 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
   const [title, setTitle] = useState('');
   const [subtitle, setSubtitle] = useState('');
   const [author, setAuthor] = useState('');
-  const [type, setType] = useState<'article' | 'study' | 'translated_article'>('article');
+  const [type, setType] = useState<IntellectualType>('article');
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [tagsInput, setTagsInput] = useState('');
   const [content, setContent] = useState('');
@@ -67,6 +74,7 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
   const [originalAuthor, setOriginalAuthor] = useState('');
   const [originalLanguage, setOriginalLanguage] = useState('العربية');
   const [originalSource, setOriginalSource] = useState('');
+  const [originalArticleUrl, setOriginalArticleUrl] = useState('');
   const [originalYear, setOriginalYear] = useState('');
 
   // Article SEO State
@@ -219,14 +227,19 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
     if (abstractFr.trim()) multilingualAbstract.fr = abstractFr.trim();
 
     // Auto align parallel segments if translation exists
-    const hasTranslationData = Boolean(translatedContent.trim() || translatedTitle.trim());
+    const hasTranslationData = Boolean(translatedContent.trim() || translatedTitle.trim() || showTranslation);
     const parallelSegments = hasTranslationData ? generateAlignedSegments() : undefined;
+
+    let finalType: IntellectualType = type;
+    if (hasTranslationData && !isTranslatedIntellectualType(type)) {
+      finalType = isStudyIntellectualType(type) ? 'translated_study' : 'translated_article';
+    }
 
     const newArticleData: Omit<IntellectualItem, 'id' | 'views' | 'likes' | 'publishedAt'> = {
       title: title.trim(),
       subtitle: subtitle.trim() || undefined,
       slug: title.trim().toLowerCase().replace(/[\s/\\#?]+/g, '-').slice(0, 80) + '-' + Date.now().toString().slice(-4),
-      type: hasTranslationData ? 'translated_article' : type,
+      type: finalType,
       author: author.trim(),
       originalAuthor: originalAuthor.trim() || undefined,
       translator: translator.trim() || (hasTranslationData ? author.trim() : undefined),
@@ -237,6 +250,7 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
       originalContent: translatedContent.trim() || undefined,
       parallelSegments: parallelSegments && parallelSegments.length > 0 ? parallelSegments : undefined,
       originalSource: originalSource.trim() || undefined,
+      originalArticleUrl: originalArticleUrl.trim() || undefined,
       originalYear: originalYear.trim() || undefined,
       abstract: abstractAr.trim() || undefined,
       multilingualAbstract: Object.keys(multilingualAbstract).length > 0 ? multilingualAbstract : undefined,
@@ -520,6 +534,33 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
 
                 <div>
                   <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
+                    نوع المادة الفكرية <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    id="new-article-type-select"
+                    value={type}
+                    onChange={e => {
+                      const newType = e.target.value as IntellectualType;
+                      setType(newType);
+                      if (isTranslatedIntellectualType(newType)) {
+                        setShowTranslation(true);
+                      }
+                    }}
+                    className="w-full px-3.5 py-2 text-xs font-bold rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] text-[#4A5D4E] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E]"
+                  >
+                    {ALL_INTELLECTUAL_TYPES.map(t => {
+                      const info = getIntellectualTypeInfo(t);
+                      return (
+                        <option key={t} value={t}>
+                          {info.label} ({info.description})
+                        </option>
+                      );
+                    })}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
                     اسم الكاتب / الباحث <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -551,14 +592,26 @@ export const AddArticleModal: React.FC<AddArticleModalProps> = ({
 
                 <div>
                   <label className="text-xs font-bold block mb-1 text-[#2C2C2C]">
-                    رابط صورة الغلاف (اختياري)
+                    رابط المقالة / المصدر الأصلي على الإنترنت (اختياري)
                   </label>
                   <input
                     type="url"
-                    placeholder="https://..."
-                    value={coverImageUrl}
-                    onChange={e => setCoverImageUrl(e.target.value)}
+                    id="new-article-original-url"
+                    placeholder="https://example.com/original-article..."
+                    value={originalArticleUrl}
+                    onChange={e => setOriginalArticleUrl(e.target.value)}
                     className="w-full px-3.5 py-2 text-xs rounded-xl border border-[#E5E2D9] bg-[#FFFFFF] focus:outline-none focus:ring-2 focus:ring-[#4A5D4E]/30 focus:border-[#4A5D4E] text-[#2C2C2C]"
+                  />
+                </div>
+
+                <div className="sm:col-span-2 pt-2 border-t border-[#E5E2D9]">
+                  <ImageUploadInput
+                    label="صورة غلاف المادة الفكرية / المقال"
+                    subLabel="يمكنك رفع صورة من الحاسوب أو سحبها وإفلاتها مباشرة، أو وضع رابط خارجي"
+                    value={coverImageUrl}
+                    onChange={setCoverImageUrl}
+                    aspectRatio="16/9"
+                    placeholder="https://..."
                   />
                 </div>
               </div>

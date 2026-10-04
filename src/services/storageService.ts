@@ -407,6 +407,35 @@ export const storageService = {
     return baked ? { ...baked } : undefined;
   },
 
+  getChapterBySlug(slugOrId: string, novelId?: string): Chapter | undefined {
+    const chapters = this.getChapters(novelId);
+    const decoded = decodeURIComponent(slugOrId);
+    const numMatch = decoded.match(/\d+/);
+    const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+
+    const found = chapters.find(c =>
+      c.slug === decoded ||
+      c.slug === slugOrId ||
+      c.id === slugOrId ||
+      c.id === decoded ||
+      `chapter-${c.chapterNumber}` === decoded ||
+      String(c.chapterNumber) === decoded ||
+      (parsedNum !== null && c.chapterNumber === parsedNum)
+    );
+    if (found) {
+      if (!found.content || found.content.trim().length === 0) {
+        const bakedContent = this.getBakedChapterContent(found.id) || this.getBakedChapterContent(found.chapterNumber);
+        if (bakedContent) {
+          found.content = bakedContent;
+          const plainText = bakedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          found.wordCount = plainText ? plainText.split(/\s+/).filter(Boolean).length : found.wordCount;
+        }
+      }
+      return found;
+    }
+    return undefined;
+  },
+
   addChapter(data: {
     novelId: string;
     title: string;
@@ -423,12 +452,20 @@ export const storageService = {
 
     const plainText = data.content.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
     const words = plainText ? plainText.split(/\s+/).filter(Boolean).length : 0;
+    const cleanSlug = data.title
+      .trim()
+      .replace(/[^\u0621-\u064A\w\s-]+/g, '')
+      .trim()
+      .replace(/[\s_]+/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-+|-+$/g, '') || `chapter-${nextChapterNumber}`;
+
     const newChapter: Chapter = {
       id: `ch-${data.novelId}-${Date.now()}`,
       novelId: data.novelId,
       chapterNumber: nextChapterNumber,
       title: data.title,
-      slug: `chapter-${nextChapterNumber}-${data.title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`,
+      slug: cleanSlug,
       content: data.content,
       authorNote: data.authorNote,
       publishedAt: new Date().toISOString(),
@@ -1167,7 +1204,7 @@ export const storageService = {
 
   saveArticles(articles: IntellectualItem[]): void {
     const deletedIds = new Set(this.getDeletedArticleIds());
-    const cleaned = deduplicateById(articles).filter(a => a && a.id && !deletedIds.has(a.id) && a.type !== 'translated_article' && !a.id.startsWith('trans-'));
+    const cleaned = deduplicateById(articles).filter(a => a && a.id && !deletedIds.has(a.id));
     setStored(KEYS.ARTICLES, cleaned);
   },
 

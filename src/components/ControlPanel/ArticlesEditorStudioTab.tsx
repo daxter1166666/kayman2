@@ -1,9 +1,16 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { IntellectualItem } from '../../types';
+import { IntellectualItem, IntellectualType } from '../../types';
 import { storageService } from '../../services/storageService';
 import { supabaseService } from '../../services/supabaseService';
 import { RichTextEditor } from '../RichTextEditor/RichTextEditor';
 import { ChapterSeoStudio } from './ChapterSeoStudio';
+import { ImageUploadInput } from '../ImageUploadInput';
+import {
+  getIntellectualTypeInfo,
+  ALL_INTELLECTUAL_TYPES,
+  isTranslatedIntellectualType,
+  isStudyIntellectualType
+} from '../../utils/intellectualTypeHelper';
 import {
   FileText,
   Save,
@@ -27,7 +34,11 @@ import {
   Share2,
   Search,
   ChevronUp,
-  ChevronDown
+  ChevronDown,
+  Languages,
+  BookOpenCheck,
+  Link as LinkIcon,
+  ExternalLink
 } from 'lucide-react';
 
 interface ArticlesEditorStudioTabProps {
@@ -38,6 +49,7 @@ interface ArticlesEditorStudioTabProps {
 const PRESET_CATEGORIES = [
   { label: 'فكر وفلسفة', icon: Lightbulb },
   { label: 'دراسات وبحوث', icon: GraduationCap },
+  { label: 'ترجمات فكرية', icon: Languages },
   { label: 'أدب ونقد', icon: Feather },
   { label: 'مقالات دينية وفكر إسلامي', icon: Compass },
   { label: 'مقالات علمية ومعرفية', icon: Atom },
@@ -48,14 +60,20 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
   onNavigateTab,
 }) => {
   const [articles, setArticles] = useState<IntellectualItem[]>(() => {
-    return storageService.getArticles().filter(a => a.type === 'article' || a.type === 'study');
+    return storageService.getArticles();
   });
 
   const [selectedArticleId, setSelectedArticleId] = useState<string>('new');
-  const [type, setType] = useState<'article' | 'study'>('article');
+  const [type, setType] = useState<IntellectualType>('article');
   const [title, setTitle] = useState<string>('');
   const [subtitle, setSubtitle] = useState<string>('');
   const [author, setAuthor] = useState<string>('أيمن كناني');
+  const [originalAuthor, setOriginalAuthor] = useState<string>('');
+  const [translator, setTranslator] = useState<string>('أيمن كناني');
+  const [originalLanguage, setOriginalLanguage] = useState<string>('الإنجليزية');
+  const [originalSource, setOriginalSource] = useState<string>('');
+  const [originalArticleUrl, setOriginalArticleUrl] = useState<string>('');
+  const [originalYear, setOriginalYear] = useState<string>('');
   const [category, setCategory] = useState<string>('فكر وفلسفة');
   const [customCategory, setCustomCategory] = useState<string>('');
   const [isCustomCategory, setIsCustomCategory] = useState<boolean>(false);
@@ -88,7 +106,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
   };
 
   const refreshArticleList = () => {
-    const list = storageService.getArticles().filter(a => a.type === 'article' || a.type === 'study');
+    const list = storageService.getArticles();
     setArticles(list);
     if (onRefreshData) onRefreshData();
   };
@@ -101,6 +119,12 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       setTitle('');
       setSubtitle('');
       setAuthor('أيمن كناني');
+      setOriginalAuthor('');
+      setTranslator('أيمن كناني');
+      setOriginalLanguage('الإنجليزية');
+      setOriginalSource('');
+      setOriginalArticleUrl('');
+      setOriginalYear('');
       setCategory('فكر وفلسفة');
       setIsCustomCategory(false);
       setCustomCategory('');
@@ -122,10 +146,16 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
     } else {
       const item = articles.find(a => a.id === id);
       if (item) {
-        setType(item.type === 'study' ? 'study' : 'article');
+        setType(item.type || 'article');
         setTitle(item.title);
         setSubtitle(item.subtitle || '');
         setAuthor(item.author || 'أيمن كناني');
+        setOriginalAuthor(item.originalAuthor || '');
+        setTranslator(item.translator || 'أيمن كناني');
+        setOriginalLanguage(item.originalLanguage || 'الإنجليزية');
+        setOriginalSource(item.originalSource || '');
+        setOriginalArticleUrl(item.originalArticleUrl || '');
+        setOriginalYear(item.originalYear || '');
         const matchPreset = PRESET_CATEGORIES.some(c => c.label === item.category);
         if (matchPreset) {
           setCategory(item.category);
@@ -203,6 +233,12 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           subtitle: subtitle.trim() || undefined,
           type,
           author: author.trim() || 'أيمن كناني',
+          originalAuthor: originalAuthor.trim() || undefined,
+          translator: translator.trim() || undefined,
+          originalLanguage: originalLanguage.trim() || undefined,
+          originalSource: originalSource.trim() || undefined,
+          originalArticleUrl: originalArticleUrl.trim() || undefined,
+          originalYear: originalYear.trim() || undefined,
           category: finalCategory,
           tags,
           readingTimeMinutes: readingTime,
@@ -234,6 +270,12 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           slug,
           type,
           author: author.trim() || 'أيمن كناني',
+          originalAuthor: originalAuthor.trim() || undefined,
+          translator: translator.trim() || undefined,
+          originalLanguage: originalLanguage.trim() || undefined,
+          originalSource: originalSource.trim() || undefined,
+          originalArticleUrl: originalArticleUrl.trim() || undefined,
+          originalYear: originalYear.trim() || undefined,
           category: finalCategory,
           tags,
           readingTimeMinutes: readingTime,
@@ -405,33 +447,90 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
 
         {/* Material Type Switcher */}
         <div className="flex items-center gap-2 self-start md:self-auto">
-          <span className="text-xs text-[#8E8A83] font-bold">نوع المادة:</span>
-          <div className="flex items-center bg-[#F7F5EE] p-1 rounded-xl border border-[#E5E2D9]">
-            <button
-              type="button"
-              onClick={() => setType('article')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                type === 'article'
-                  ? 'bg-white text-[#4A5D4E] shadow-xs'
-                  : 'text-[#8E8A83] hover:text-[#2C2C2C]'
-              }`}
-            >
-              مقال فكري
-            </button>
-            <button
-              type="button"
-              onClick={() => setType('study')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                type === 'study'
-                  ? 'bg-white text-[#4A5D4E] shadow-xs'
-                  : 'text-[#8E8A83] hover:text-[#2C2C2C]'
-              }`}
-            >
-              دراسة محكّمة
-            </button>
-          </div>
+          <span className="text-xs text-[#8E8A83] font-bold shrink-0">نوع المادة:</span>
+          <select
+            value={type}
+            onChange={e => setType(e.target.value as IntellectualType)}
+            className="px-3 py-1.5 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] text-xs font-bold text-[#4A5D4E] focus:outline-none focus:border-[#4A5D4E] cursor-pointer"
+          >
+            {ALL_INTELLECTUAL_TYPES.map(t => {
+              const info = getIntellectualTypeInfo(t);
+              return (
+                <option key={t} value={t}>
+                  {info.label} ({info.shortLabel})
+                </option>
+              );
+            })}
+          </select>
         </div>
       </div>
+
+      {/* Optional Translation Details (for translated articles & studies) */}
+      {isTranslatedIntellectualType(type) && (
+        <div className="bg-amber-50/60 p-5 rounded-2xl border border-amber-200 shadow-xs space-y-3">
+          <div className="flex items-center gap-2 text-xs font-bold text-amber-900 pb-2 border-b border-amber-200">
+            <Languages className="w-4 h-4 text-amber-700" />
+            <span>بيانات الترجمة والمصدر الأصلي للمادة:</span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">المؤلف الأصلي:</label>
+              <input
+                type="text"
+                value={originalAuthor}
+                onChange={e => setOriginalAuthor(e.target.value)}
+                placeholder="مثال: إيمانويل كانط / توماس ناغل"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-amber-300 text-stone-900 focus:outline-none focus:border-[#4A5D4E]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">اللغة الأصلية:</label>
+              <input
+                type="text"
+                value={originalLanguage}
+                onChange={e => setOriginalLanguage(e.target.value)}
+                placeholder="مثال: الإنجليزية / الفرنسية / الألمانية"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-amber-300 text-stone-900 focus:outline-none focus:border-[#4A5D4E]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">المترجم / المحقق:</label>
+              <input
+                type="text"
+                value={translator}
+                onChange={e => setTranslator(e.target.value)}
+                placeholder="أيمن كناني"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-amber-300 text-stone-900 focus:outline-none focus:border-[#4A5D4E]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">المصدر الأصلي / الدورية:</label>
+              <input
+                type="text"
+                value={originalSource}
+                onChange={e => setOriginalSource(e.target.value)}
+                placeholder="مثال: Mind Journal / Cambridge University Press"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-amber-300 text-stone-900 focus:outline-none focus:border-[#4A5D4E]"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-stone-700 mb-1">سنة النشر الأصلية:</label>
+              <input
+                type="text"
+                value={originalYear}
+                onChange={e => setOriginalYear(e.target.value)}
+                placeholder="مثال: 1974"
+                className="w-full px-3 py-2 text-xs rounded-xl bg-white border border-amber-300 text-stone-900 focus:outline-none focus:border-[#4A5D4E]"
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Metadata Inputs Grid */}
       <div className="bg-[#FDFCF8] p-5 sm:p-6 rounded-2xl border border-[#E5E2D9] shadow-xs space-y-4">
@@ -529,7 +628,7 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           </div>
         </div>
 
-        {/* Tags, Dewey Decimal, and Featured */}
+        {/* Tags, Original Link, and Featured */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
           <div>
             <label className="block text-xs font-bold text-[#6E6A64] mb-1.5">
@@ -545,15 +644,16 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-[#6E6A64] mb-1.5">
-              رابط صورة الغلاف (اختياري):
+            <label className="block text-xs font-bold text-[#4A5D4E] mb-1.5 flex items-center gap-1.5">
+              <LinkIcon className="w-3.5 h-3.5 text-[#4A5D4E]" />
+              <span>رابط المقالة الأصلي / المصدر على الإنترنت:</span>
             </label>
             <input
               type="url"
-              value={coverImage}
-              onChange={e => setCoverImage(e.target.value)}
-              placeholder="https://images.unsplash.com/..."
-              className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:border-[#4A5D4E]"
+              value={originalArticleUrl}
+              onChange={e => setOriginalArticleUrl(e.target.value)}
+              placeholder="https://example.com/original-article..."
+              className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:border-[#4A5D4E] font-mono text-[11px]"
             />
           </div>
 
@@ -568,6 +668,18 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
               <span>تثبيت كمقال مميز في الواجهة</span>
             </label>
           </div>
+        </div>
+
+        {/* Cover Image Upload (Computer / Drag & Drop / Direct URL) */}
+        <div className="pt-3 border-t border-[#E5E2D9]">
+          <ImageUploadInput
+            label="صورة غلاف المادة الفكرية / المقال"
+            subLabel="يمكنك رفع صورة من الحاسوب مباشرة أو سحبها وإفلاتها، أو استخدام رابط خارجي"
+            value={coverImage}
+            onChange={setCoverImage}
+            aspectRatio="16/9"
+            placeholder="https://..."
+          />
         </div>
 
         {/* Abstract */}
