@@ -94,36 +94,67 @@ export default function App() {
   // Navigation View State initialized with SSR state or pathname
   const initialRoute = useMemo(() => {
     if (initialSSR?.currentView) {
+      const legalP = (initialSSR.currentView === 'about' || initialSSR.currentView === 'privacy' || initialSSR.currentView === 'terms' || initialSSR.currentView === 'dmca' || initialSSR.currentView === 'licenses' || initialSSR.currentView === 'contact' || initialSSR.currentView === 'support')
+        ? initialSSR.currentView
+        : 'terms';
+
+      const actualView = ['about', 'privacy', 'terms', 'dmca', 'licenses', 'contact', 'support'].includes(initialSSR.currentView)
+        ? 'legal'
+        : initialSSR.currentView;
+
       return {
-        view: initialSSR.currentView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'article_reader',
+        view: actualView as 'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'article_reader',
+        legalPage: legalP as any,
         novelId: (initialSSR.novel?.id || initialSSR.chapter?.novelId || null) as string | null,
         chapterId: (initialSSR.chapter?.id || null) as string | null,
         articleId: null as string | null,
       };
     }
     if (typeof window !== 'undefined') {
-      const p = window.location.pathname;
+      const p = window.location.pathname.toLowerCase();
       const urlParams = new URLSearchParams(window.location.search);
-
       const hash = window.location.hash;
 
       if (p === '/admin' || p === '/admin/' || p.startsWith('/control-panel') || urlParams.has('admin') || hash.includes('admin')) {
         try {
           localStorage.setItem('ayman_admin_auth_v4', JSON.stringify(true));
         } catch {}
-        return { view: 'control_panel' as const, novelId: null, chapterId: null, articleId: null };
+        return { view: 'control_panel' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
       }
 
-      if (urlParams.get('site') === 'true' || p === '/site' || p === '/catalog') {
-        return { view: 'catalog' as const, novelId: null, chapterId: null, articleId: null };
+      // Standalone Static Pages with Dedicated Clean URLs
+      if (p === '/about' || p === '/about/' || p === '/author' || p === '/author/' || p === '/about-us') {
+        return { view: 'legal' as const, legalPage: 'about' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/privacy' || p === '/privacy/' || p === '/privacy-policy') {
+        return { view: 'legal' as const, legalPage: 'privacy' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/terms' || p === '/terms/' || p === '/terms-of-service') {
+        return { view: 'legal' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/dmca' || p === '/dmca/' || p === '/copyright') {
+        return { view: 'legal' as const, legalPage: 'dmca' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/licenses' || p === '/licenses/') {
+        return { view: 'legal' as const, legalPage: 'licenses' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/contact' || p === '/contact/' || p === '/contact-us') {
+        return { view: 'legal' as const, legalPage: 'contact' as const, novelId: null, chapterId: null, articleId: null };
+      }
+      if (p === '/support' || p === '/support/' || p === '/donate' || p === '/donate/') {
+        return { view: 'legal' as const, legalPage: 'support' as const, novelId: null, chapterId: null, articleId: null };
       }
 
-      if (p === '/articles' || p === '/articles/' || p === '/translations' || p === '/translations/') {
-        return { view: 'articles' as const, novelId: null, chapterId: null, articleId: null };
+      if (urlParams.get('site') === 'true' || p === '/site' || p === '/catalog' || p === '/books' || p === '/books/') {
+        return { view: 'catalog' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
+      }
+
+      if (p === '/articles' || p === '/articles/' || p === '/studies' || p === '/studies/' || p === '/translations' || p === '/translations/') {
+        return { view: 'articles' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
       }
       const articleMatch = p.match(/\/article\/([^/]+)/i);
       if (articleMatch) {
-        return { view: 'article_reader' as const, novelId: null, chapterId: null, articleId: decodeURIComponent(articleMatch[1]) };
+        return { view: 'article_reader' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: decodeURIComponent(articleMatch[1]) };
       }
 
       const chapterMatch = p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i) || p.match(/\/chapter\/([^/]+)/i);
@@ -143,30 +174,36 @@ export default function App() {
           (parsedNum !== null && c.chapterNumber === parsedNum)
         );
         if (ch) {
-          return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
+          return { view: 'reader' as const, legalPage: 'terms' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
         }
       }
 
       const chapterParam = urlParams.get('chapter');
       if (chapterParam) {
         const ch = allChapters.find(c => c.id === chapterParam || c.slug === chapterParam);
-        if (ch) return { view: 'reader' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
+        if (ch) return { view: 'reader' as const, legalPage: 'terms' as const, novelId: ch.novelId, chapterId: ch.id, articleId: null };
       }
 
       if (novelMatch && !novelMatch[1].startsWith('chapter-')) {
         const novIdent = decodeURIComponent(novelMatch[1]);
         const nov = allNovels.find(n => n.slug === novIdent || n.id === novIdent);
         if (nov) {
-          return { view: 'novel_detail' as const, novelId: nov.id, chapterId: null, articleId: null };
+          return { view: 'novel_detail' as const, legalPage: 'terms' as const, novelId: nov.id, chapterId: null, articleId: null };
         }
       }
 
       const novelParam = urlParams.get('novel');
       if (novelParam) {
-        return { view: 'novel_detail' as const, novelId: novelParam, chapterId: null, articleId: null };
+        return { view: 'novel_detail' as const, legalPage: 'terms' as const, novelId: novelParam, chapterId: null, articleId: null };
+      }
+
+      const legalParam = urlParams.get('legal');
+      if (legalParam && ['about', 'privacy', 'terms', 'dmca', 'licenses', 'contact', 'support', 'donate', 'ads_txt'].includes(legalParam)) {
+        const norm = (legalParam === 'author' ? 'about' : legalParam === 'donate' ? 'support' : legalParam);
+        return { view: 'legal' as const, legalPage: norm as any, novelId: null, chapterId: null, articleId: null };
       }
     }
-    return { view: 'catalog' as const, novelId: null, chapterId: null, articleId: null };
+    return { view: 'catalog' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
   }, [initialSSR]);
 
   const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader'>(initialRoute.view);
@@ -181,7 +218,7 @@ export default function App() {
     return null;
   });
 
-  const [legalPage, setLegalPage] = useState<'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt'>('terms');
+  const [legalPage, setLegalPage] = useState<'about' | 'author' | 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'support' | 'donate' | 'ads_txt'>(initialRoute.legalPage || 'terms');
   
   // Modals & Drawers
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -381,8 +418,67 @@ export default function App() {
 
     window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
 
+    // Popstate listener for browser forward/back navigation
+    const handlePopState = () => {
+      const p = window.location.pathname.toLowerCase();
+      if (p === '/admin' || p.startsWith('/control-panel')) {
+        setCurrentView('control_panel');
+      } else if (p === '/about' || p === '/author' || p === '/about-us') {
+        setLegalPage('about');
+        setCurrentView('legal');
+      } else if (p === '/privacy' || p === '/privacy-policy') {
+        setLegalPage('privacy');
+        setCurrentView('legal');
+      } else if (p === '/terms' || p === '/terms-of-service') {
+        setLegalPage('terms');
+        setCurrentView('legal');
+      } else if (p === '/dmca' || p === '/copyright') {
+        setLegalPage('dmca');
+        setCurrentView('legal');
+      } else if (p === '/licenses') {
+        setLegalPage('licenses');
+        setCurrentView('legal');
+      } else if (p === '/contact' || p === '/contact-us') {
+        setLegalPage('contact');
+        setCurrentView('legal');
+      } else if (p === '/support' || p === '/donate') {
+        setLegalPage('support');
+        setCurrentView('legal');
+      } else if (p === '/articles' || p === '/studies' || p === '/translations') {
+        setCurrentView('articles');
+      } else if (p.startsWith('/article/')) {
+        const artId = decodeURIComponent(p.replace('/article/', ''));
+        const art = storageService.getArticles().find(a => a.id === artId || a.slug === artId);
+        if (art) {
+          setSelectedArticle(art);
+          setCurrentView('article_reader');
+        }
+      } else if (p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i)) {
+        const m = p.match(/\/(?:novel|book)\/(?:[^/]+\/)?chapter[/-]([^/]+)/i)!;
+        const chIdent = decodeURIComponent(m[1]);
+        const ch = storageService.getChapters().find(c => c.slug === chIdent || c.id === chIdent || `chapter-${c.chapterNumber}` === chIdent || String(c.chapterNumber) === chIdent);
+        if (ch) {
+          setSelectedNovelId(ch.novelId);
+          setSelectedChapterId(ch.id);
+          setCurrentView('reader');
+        }
+      } else if (p.startsWith('/book/')) {
+        const novIdent = decodeURIComponent(p.replace('/book/', ''));
+        const nov = storageService.getNovels().find(n => n.slug === novIdent || n.id === novIdent);
+        if (nov) {
+          setSelectedNovelId(nov.id);
+          setCurrentView('novel_detail');
+        }
+      } else {
+        setCurrentView('catalog');
+      }
+    };
+    window.addEventListener('popstate', handlePopState);
+
     return () => {
       window.removeEventListener('novel-view-incremented', handleViewIncremented);
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('popstate', handlePopState);
       window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
     };
   }, []);
@@ -415,21 +511,18 @@ export default function App() {
       }
     }
 
+    if (currentView === 'article_reader' && selectedArticle) {
+      seoService.updateHeadForArticle(selectedArticle, authorProfile);
+      return;
+    }
+
+    if (currentView === 'articles') {
+      seoService.updateHeadForSection('articles', authorProfile);
+      return;
+    }
+
     if (currentView === 'legal') {
-      const legalTitles: Record<string, string> = {
-        terms: 'شروط الاستخدام وحقوق الملكية الفكرية',
-        privacy: 'سياسة الخصوصية وملفات تعريف الارتباط',
-        dmca: 'سياسة حماية حقوق النشر (DMCA)',
-        licenses: 'التراخيص والاعتماد الأدبي',
-        contact: 'اتصل بنا ورسائل القراء',
-        ads_txt: 'ملف ads.txt والناشرين',
-      };
-      seoService.updateHead({
-        title: legalTitles[legalPage] || 'الوثائق القانونية',
-        description: `الصفحة الرسمية لـ ${legalTitles[legalPage] || 'الوثائق القانونية'} في المنصة الرسمية للكاتب أيمن كناني.`,
-        url: `/?legal=${legalPage}`,
-        robots: 'index, follow',
-      });
+      seoService.updateHeadForSection(legalPage, authorProfile);
       return;
     }
 
@@ -447,7 +540,7 @@ export default function App() {
       url: '/',
       structuredData: homeJsonLd,
     });
-  }, [currentView, selectedNovelId, selectedChapterId, legalPage, novels, chapters, authorProfile, siteBranding]);
+  }, [currentView, selectedNovelId, selectedChapterId, selectedArticle, legalPage, novels, chapters, authorProfile, siteBranding]);
 
   // Adsterra Social Bar & Popunder injection effect
   useEffect(() => {
@@ -571,9 +664,13 @@ export default function App() {
     }
   };
 
-  const handleOpenLegalPage = (page: 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'ads_txt') => {
-    setLegalPage(page);
+  const handleOpenLegalPage = (page: 'about' | 'author' | 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'support' | 'donate' | 'ads_txt') => {
+    const norm = (page === 'author' ? 'about' : page === 'donate' ? 'support' : page);
+    setLegalPage(norm as any);
     setCurrentView('legal');
+    if (typeof window !== 'undefined') {
+      window.history.pushState({}, '', `/${norm}`);
+    }
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -817,7 +914,7 @@ export default function App() {
 
         {/* 4. LEGAL & COMPLIANCE PAGES */}
         {currentView === 'legal' && (
-          <LegalPages page={legalPage} onBack={handleNavigateHome} />
+          <LegalPages page={legalPage} onBack={handleNavigateHome} onNavigateSection={handleOpenLegalPage} />
         )}
 
         {/* 5. ARTICLES & INTELLECTUAL STUDIES VIEW */}

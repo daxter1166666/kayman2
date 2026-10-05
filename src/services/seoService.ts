@@ -557,6 +557,248 @@ class SeoService {
   }
 
   /**
+   * Updates head tags specifically for individual article / intellectual study view
+   */
+  public updateHeadForArticle(article: any, authorProfile?: AuthorProfile): void {
+    const seoSettings = storageService.getSeoSettings();
+    const baseUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+
+    const customTitle = article.seo?.metaTitle?.trim();
+    const pageTitle = customTitle || `${article.title} | الكاتب ${article.author || authorProfile?.name || 'أيمن كناني'}`;
+
+    const customDesc = article.seo?.metaDescription?.trim();
+    const cleanExcerpt = article.synopsis?.slice(0, 160) || article.content?.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 160) || '';
+    const pageDescription = customDesc || `قراءة ${article.title} بقلم ${article.author || 'أيمن كناني'}. ${cleanExcerpt}`;
+
+    const baseKeywords = [
+      article.title,
+      article.category || 'دراسات وأبحاث',
+      article.author || 'أيمن كناني',
+      'مقالات فكرية',
+      'دراسات نقدية',
+      'فلسفة وفكر',
+      ...(article.tags || [])
+    ];
+    let finalKeywords = baseKeywords;
+    if (article.seo?.focusKeywords?.trim()) {
+      const customKws = article.seo.focusKeywords.split(/[,،]/).map((k: string) => k.trim()).filter(Boolean);
+      finalKeywords = [...customKws, ...baseKeywords];
+    }
+
+    const shareImage = article.seo?.ogImage?.trim() || article.coverImage || seoSettings.ogDefaultImage || '';
+    const canonicalUrl = article.seo?.canonicalUrl?.trim() || `${baseUrl}/article/${article.slug || article.id}`;
+    const robots = article.seo?.noIndex ? 'noindex, nofollow' : undefined;
+
+    const jsonLd = [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Article',
+        'headline': article.title,
+        'name': article.title,
+        'url': canonicalUrl,
+        'description': pageDescription,
+        'articleBody': (article.content || '').slice(0, 400),
+        'wordCount': article.wordCount || (article.content ? article.content.split(/\s+/).length : 0),
+        'inLanguage': 'ar',
+        'datePublished': article.publishedAt || article.createdAt,
+        'author': {
+          '@type': 'Person',
+          'name': article.author || authorProfile?.name || 'أيمن كناني',
+          'url': `${baseUrl}/about`
+        },
+        'publisher': {
+          '@type': 'Organization',
+          'name': 'المنصة الرسمية للكاتب أيمن كناني',
+          'url': baseUrl
+        }
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'الرئيسية',
+            'item': baseUrl
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': 'المقالات والدراسات',
+            'item': `${baseUrl}/articles`
+          },
+          {
+            '@type': 'ListItem',
+            'position': 3,
+            'name': article.title,
+            'item': canonicalUrl
+          }
+        ]
+      }
+    ];
+
+    this.updateHead({
+      title: pageTitle,
+      description: pageDescription,
+      keywords: finalKeywords,
+      ogType: 'article',
+      ogImage: shareImage,
+      url: `/article/${article.slug || article.id}`,
+      canonicalUrl,
+      author: article.author || authorProfile?.name || 'أيمن كناني',
+      publishedTime: article.publishedAt || article.createdAt,
+      section: article.category || 'مقالات',
+      robots,
+      structuredData: jsonLd,
+    });
+
+    this.trackEvent('view_article', {
+      article_id: article.id,
+      article_title: article.title,
+      article_author: article.author,
+      has_custom_seo: Boolean(article.seo?.metaTitle || article.seo?.metaDescription),
+    });
+  }
+
+  /**
+   * Updates head tags specifically for standalone pages (About, Privacy, Terms, DMCA, Contact, Support, Books, Articles)
+   */
+  public updateHeadForSection(section: string, authorProfile?: AuthorProfile): void {
+    const seoSettings = storageService.getSeoSettings();
+    const branding = storageService.getSiteBranding();
+    const baseUrl = (seoSettings.canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
+    const authorName = authorProfile?.name || seoSettings.authorName || 'أيمن كناني';
+    const siteName = branding.siteName || 'أيمن كناني (Ayman Kinani)';
+
+    let pageTitle = `${siteName} - المنصة الرسمية لنشر المؤلفات والكتب`;
+    let pageDesc = 'المنصة الرسمية المعتمدة لنشر وقراءة مؤلفات وأبحاث الكاتب أيمن كناني مجاناً.';
+    let keywords = ['أيمن كناني', 'Ayman Kinani', 'كتب', 'مؤلفات'];
+    let canonicalUrl = `${baseUrl}/`;
+    let schemaType = 'WebPage';
+
+    switch (section) {
+      case 'about':
+      case 'author':
+        pageTitle = `عن الكاتب أيمن كناني (Ayman Kinani) - السيرة الذاتية والمؤلفات الفكرية`;
+        pageDesc = `تعرف على الكاتب والباحث أيمن كناني، سيرته الفكرية، مؤلفاته في الفلسفة والفكر الإسلامي والمنهجية العلمية المعاصرة، ورؤيته الثقافية والأدبية.`;
+        keywords = ['أيمن كناني', 'سيرة أيمن كناني', 'من هو أيمن كناني', 'Ayman Kinani', 'مؤلفات أيمن كناني', 'فكر إسلامي', 'منهجية البحث'];
+        canonicalUrl = `${baseUrl}/about`;
+        schemaType = 'ProfilePage';
+        break;
+
+      case 'privacy':
+        pageTitle = `سياسة الخصوصية وحماية البيانات وملفات تعريف الارتباط | ${siteName}`;
+        pageDesc = `سياسة الخصوصية المعتمدة في منصة الكاتب أيمن كناني؛ التزام تام بحماية بيانات القراء وعدم جمع أي معلومات شخصية دون موافقة ومعايير AdSense و GDPR.`;
+        keywords = ['سياسة الخصوصية', 'حماية البيانات', 'ملفات تعريف الارتباط', 'Privacy Policy', 'خصوصية القارئ', 'منصة أيمن كناني'];
+        canonicalUrl = `${baseUrl}/privacy`;
+        break;
+
+      case 'terms':
+        pageTitle = `شروط الاستخدام ورخصة المشاع الإبداعي (CC BY-NC 4.0) | ${siteName}`;
+        pageDesc = `شروط استخدام منصة أيمن كناني وتفاصيل رخصة المشاع الإبداعي (CC BY-NC 4.0) التي تتيح القراءة والمشاركة غير التجارية بحرية.`;
+        keywords = ['شروط الاستخدام', 'شروط الخدمة', 'رخصة المشاع الإبداعي', 'CC BY-NC 4.0', 'حقوق القراءة', 'منصة أيمن كناني'];
+        canonicalUrl = `${baseUrl}/terms`;
+        break;
+
+      case 'dmca':
+        pageTitle = `حقوق الملكية الفكرية والنشر (DMCA) | المنصة الرسمية لأيمن كناني`;
+        pageDesc = `سياسة حقوق الملكية الفكرية وحماية حقوق النشر والتأليف (DMCA) الخاصة بكتب ومؤلفات الكاتب أيمن كناني وإجراءات الإبلاغ.`;
+        keywords = ['حقوق الملكية الفكرية', 'DMCA', 'حقوق النشر', 'حماية حق المؤلف', 'الملكية الأدبية', 'أيمن كناني'];
+        canonicalUrl = `${baseUrl}/dmca`;
+        break;
+
+      case 'licenses':
+        pageTitle = `التراخيص ورخصة المشاع الإبداعي (CC BY-NC 4.0) | ${siteName}`;
+        pageDesc = `تفاصيل رخصة المشاع الإبداعي CC BY-NC 4.0 الخاصة بمؤلفات الكاتب أيمن كناني وبيان حقوق الاقتباس والنشر الأكاديمي ودعم الكاتب.`;
+        keywords = ['التراخيص', 'رخصة المشاع الإبداعي', 'Creative Commons', 'CC BY-NC 4.0', 'حقوق الاستشهاد', 'أيمن كناني'];
+        canonicalUrl = `${baseUrl}/licenses`;
+        break;
+
+      case 'contact':
+        pageTitle = `تواصل مع الكاتب أيمن كناني | المنصة الرسمية والمراسلة المباشرة`;
+        pageDesc = `صفحة التواصل والمراسلة المباشرة مع الكاتب والباحث أيمن كناني للاستفسارات الفكرية، التعاون البحثي، والملاحظات المنهجية.`;
+        keywords = ['تواصل مع الكاتب', 'مراسلة أيمن كناني', 'اتصل بنا', 'إيميل أيمن كناني', 'قنوات التواصل', 'أيمن كناني'];
+        canonicalUrl = `${baseUrl}/contact`;
+        schemaType = 'ContactPage';
+        break;
+
+      case 'support':
+      case 'donate':
+        pageTitle = `دعم الكاتب والمنصة (Support Ayman Kinani) | استمرار النشر المجاني`;
+        pageDesc = `ساهم في رعاية واستمرار منصة الكاتب أيمن كناني لنشر المؤلفات والكتب والأبحاث الرصينة مجاناً لجميع القراء والباحثين بدون قيود.`;
+        keywords = ['دعم أيمن كناني', 'رعاية المحتوى الفكري', 'Support Ayman Kinani', 'تبرع للمنصة', 'النشر الحر'];
+        canonicalUrl = `${baseUrl}/support`;
+        break;
+
+      case 'articles':
+        pageTitle = `المقالات والدراسات الفكرية والنقدية | الكاتب أيمن كناني`;
+        pageDesc = `مجموعة المقالات والدراسات النقدية والفكرية المعاصرة بقلم الكاتب والباحث أيمن كناني، تناقش قضايا المنهج والمعرفة والفلسفة.`;
+        keywords = ['مقالات أيمن كناني', 'دراسات فكرية', 'نقد منهجي', 'مقالات فلسفية', 'فكر معاصر', 'أيمن كناني'];
+        canonicalUrl = `${baseUrl}/articles`;
+        schemaType = 'CollectionPage';
+        break;
+
+      case 'books':
+      case 'catalog':
+        pageTitle = `مكتبة مؤلفات وكتب الكاتب أيمن كناني (Ayman Kinani)`;
+        pageDesc = `تصفح كافة مؤلفات وكتب وروايات الكاتب أيمن كناني؛ قراءة تفاعلية مباشرة وتحميل نسخ PDF عالية الجودة مجاناً.`;
+        keywords = ['كتب أيمن كناني', 'مؤلفات أيمن كناني', 'تحميل كتب PDF', 'قراءة كتب أونلاين', 'مكتبة أيمن كناني'];
+        canonicalUrl = `${baseUrl}/books`;
+        schemaType = 'CollectionPage';
+        break;
+    }
+
+    const structuredData = [
+      {
+        '@context': 'https://schema.org',
+        '@type': schemaType,
+        'name': pageTitle,
+        'headline': pageTitle,
+        'description': pageDesc,
+        'url': canonicalUrl,
+        'inLanguage': 'ar',
+        'mainEntityOfPage': canonicalUrl,
+        'publisher': {
+          '@type': 'Person',
+          'name': authorName,
+          'url': baseUrl,
+        },
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        'itemListElement': [
+          {
+            '@type': 'ListItem',
+            'position': 1,
+            'name': 'الرئيسية',
+            'item': baseUrl,
+          },
+          {
+            '@type': 'ListItem',
+            'position': 2,
+            'name': pageTitle.split('|')[0].split('-')[0].trim(),
+            'item': canonicalUrl,
+          },
+        ],
+      },
+    ];
+
+    this.updateHead({
+      title: pageTitle,
+      description: pageDesc,
+      keywords,
+      ogType: 'website',
+      ogImage: authorProfile?.avatar || authorProfile?.coverImage || seoSettings.ogDefaultImage || '',
+      url: canonicalUrl.replace(baseUrl, ''),
+      canonicalUrl,
+      author: authorName,
+      structuredData,
+    });
+  }
+
+  /**
    * Generates Schema.org Article/Chapter JSON-LD for individual chapters.
    */
   public buildChapterJsonLd(chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile, baseUrl?: string) {
@@ -613,26 +855,27 @@ class SeoService {
   }
 
   /**
-   * Generates a complete dynamic XML sitemap containing all static views, novels, and chapters.
+   * Generates a complete dynamic XML sitemap containing all static pages, books, chapters, and articles.
    */
-  public generateSitemapXml(novels: Novel[], chapters: Chapter[], baseUrl?: string): string {
+  public generateSitemapXml(novels: Novel[], chapters: Chapter[], baseUrl?: string, articles?: any[]): string {
     const rootUrl = (baseUrl || storageService.getSeoSettings().canonicalBaseUrl || window.location.origin).replace(/\/$/, '');
     const today = new Date().toISOString().slice(0, 10);
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
     xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n`;
 
-    // 1. Static Core Pages
+    // 1. Static Core Dedicated Pages with High-Fidelity URLs
     const staticPages = [
       { loc: `${rootUrl}/`, changefreq: 'daily', priority: '1.0', lastmod: today },
-      { loc: `${rootUrl}/?view=novels`, changefreq: 'daily', priority: '0.9', lastmod: today },
-      { loc: `${rootUrl}/articles`, changefreq: 'weekly', priority: '0.8', lastmod: today },
-      { loc: `${rootUrl}/?view=about`, changefreq: 'weekly', priority: '0.8', lastmod: today },
-      { loc: `${rootUrl}/?view=donate`, changefreq: 'monthly', priority: '0.7', lastmod: today },
-      { loc: `${rootUrl}/?view=contact`, changefreq: 'monthly', priority: '0.6', lastmod: today },
-      { loc: `${rootUrl}/?view=terms`, changefreq: 'yearly', priority: '0.4', lastmod: today },
-      { loc: `${rootUrl}/?view=privacy`, changefreq: 'yearly', priority: '0.4', lastmod: today },
-      { loc: `${rootUrl}/?view=dmca`, changefreq: 'yearly', priority: '0.4', lastmod: today },
+      { loc: `${rootUrl}/books`, changefreq: 'daily', priority: '0.9', lastmod: today },
+      { loc: `${rootUrl}/articles`, changefreq: 'daily', priority: '0.9', lastmod: today },
+      { loc: `${rootUrl}/about`, changefreq: 'weekly', priority: '0.8', lastmod: today },
+      { loc: `${rootUrl}/support`, changefreq: 'monthly', priority: '0.7', lastmod: today },
+      { loc: `${rootUrl}/contact`, changefreq: 'monthly', priority: '0.7', lastmod: today },
+      { loc: `${rootUrl}/privacy`, changefreq: 'monthly', priority: '0.6', lastmod: today },
+      { loc: `${rootUrl}/terms`, changefreq: 'monthly', priority: '0.6', lastmod: today },
+      { loc: `${rootUrl}/dmca`, changefreq: 'monthly', priority: '0.5', lastmod: today },
+      { loc: `${rootUrl}/licenses`, changefreq: 'monthly', priority: '0.5', lastmod: today },
     ];
 
     for (const page of staticPages) {
@@ -644,7 +887,28 @@ class SeoService {
       xml += `  </url>\n`;
     }
 
-    // 2. Dynamic Novel/Book Pages
+    // 2. Dynamic Articles & Studies
+    const allArticles = articles || storageService.getArticles();
+    for (const art of allArticles) {
+      if (art.seo?.noIndex) continue;
+      const artLoc = art.seo?.canonicalUrl || `${rootUrl}/article/${art.slug || art.id}`;
+      const artDate = (art.publishedAt || art.createdAt || today).slice(0, 10);
+      xml += `  <url>\n`;
+      xml += `    <loc>${artLoc}</loc>\n`;
+      xml += `    <lastmod>${artDate}</lastmod>\n`;
+      xml += `    <changefreq>weekly</changefreq>\n`;
+      xml += `    <priority>0.8</priority>\n`;
+      const shareImg = art.seo?.ogImage || art.coverImage;
+      if (shareImg) {
+        xml += `    <image:image>\n`;
+        xml += `      <image:loc>${shareImg}</image:loc>\n`;
+        xml += `      <image:title>${(art.seo?.metaTitle || art.title).replace(/&/g, '&amp;')}</image:title>\n`;
+        xml += `    </image:image>\n`;
+      }
+      xml += `  </url>\n`;
+    }
+
+    // 3. Dynamic Novel/Book Pages
     for (const novel of novels) {
       if (novel.seo?.noIndex) continue;
       const novelLoc = novel.seo?.canonicalUrl || `${rootUrl}/book/${novel.slug || novel.id}`;
@@ -664,7 +928,7 @@ class SeoService {
       xml += `  </url>\n`;
     }
 
-    // 3. Dynamic Chapter Pages
+    // 4. Dynamic Chapter Pages
     for (const chapter of chapters) {
       if (chapter.status === 'DRAFT') continue;
       if (chapter.seo?.noIndex) continue;
@@ -696,11 +960,17 @@ class SeoService {
 export const seoService = new SeoService();
 export const updateSeo = (options?: SeoMetaOptions) => seoService.updateHead(options);
 export const updateNovelSeo = (novel: Novel, authorProfile?: AuthorProfile) => seoService.updateHeadForNovel(novel, authorProfile);
+export const updateChapterSeo = (chapter: Chapter, novel: Novel, authorProfile?: AuthorProfile) => seoService.updateHeadForChapter(chapter, novel, authorProfile);
+export const updateArticleSeo = (article: any, authorProfile?: AuthorProfile) => seoService.updateHeadForArticle(article, authorProfile);
+export const updateSectionSeo = (section: string, authorProfile?: AuthorProfile) => seoService.updateHeadForSection(section, authorProfile);
 
 if (typeof window !== 'undefined') {
   (window as any).seoService = seoService;
   (window as any).updateSeo = updateSeo;
   (window as any).updateNovelSeo = updateNovelSeo;
+  (window as any).updateChapterSeo = updateChapterSeo;
+  (window as any).updateArticleSeo = updateArticleSeo;
+  (window as any).updateSectionSeo = updateSectionSeo;
 }
 
 export default seoService;

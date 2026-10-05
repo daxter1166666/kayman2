@@ -550,6 +550,344 @@ export const ServerNovelView: React.FC<NovelSSRProps> = ({ novel, chapters }) =>
   );
 };
 
+export interface SectionSSRProps {
+  section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'licenses' | 'books';
+  novel?: Novel | null;
+  chapters?: Chapter[];
+  articles?: any[];
+  reqUrl: string;
+}
+
+/**
+ * Server-Side Rendered View for Specific Pages (About, Privacy, Terms, DMCA, Licenses, Contact, Support, Articles)
+ */
+export const ServerSectionView: React.FC<SectionSSRProps> = ({
+  section,
+  novel,
+  chapters = [],
+  articles = [],
+  reqUrl,
+}) => {
+  const normSection = (section === 'author' ? 'about' : section === 'donate' ? 'support' : section);
+
+  return (
+    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] font-cairo antialiased flex flex-col" dir="rtl">
+      {/* Header */}
+      <header className="sticky top-0 z-30 bg-[#FDFCF8]/95 backdrop-blur-md border-b border-[#E5E2D9] px-4 py-3 shadow-xs">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <a href="/" className="text-xs font-bold text-[#4A5D4E] hover:underline">
+            ← العودة للمكتبة الرئيسية
+          </a>
+          <nav className="flex items-center gap-3 text-xs font-bold">
+            <a href="/books" className="text-[#6E6A64] hover:text-[#2C2C2C]">الكتب</a>
+            <a href="/articles" className="text-[#6E6A64] hover:text-[#2C2C2C]">المقالات</a>
+            <a href="/about" className="text-[#6E6A64] hover:text-[#2C2C2C]">عن الكاتب</a>
+          </nav>
+        </div>
+      </header>
+
+      {/* Main Content Body for Search Bots and Instant Paint */}
+      <main className="flex-1 max-w-4xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
+        {/* Breadcrumb */}
+        <nav aria-label="مسار الصفحة" className="mb-6 text-xs text-[#6E6A64] flex items-center gap-2">
+          <a href="/" className="hover:text-[#2C2C2C]">الرئيسية</a>
+          <span>›</span>
+          <span className="text-[#2C2C2C] font-bold">
+            {normSection === 'about' && 'عن الكاتب والمنصة (من نحن)'}
+            {normSection === 'privacy' && 'سياسة الخصوصية وملفات الكوكيز'}
+            {normSection === 'terms' && 'الشروط والأحكام العامة'}
+            {normSection === 'dmca' && 'حقوق الملكية الفكرية (DMCA)'}
+            {normSection === 'licenses' && 'رخصة المشاع الإبداعي (CC BY-NC 4.0)'}
+            {normSection === 'contact' && 'تواصل مع الكاتب والناشر'}
+            {normSection === 'support' && 'دعم الكاتب ورعاية النشر الحر'}
+            {normSection === 'articles' && 'المقالات والدراسات الفكرية والنقدية'}
+            {normSection === 'books' && 'مكتبة الكتب والمؤلفات'}
+          </span>
+        </nav>
+
+        {/* 1. ABOUT PAGE */}
+        {normSection === 'about' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">السيرة الذاتية والرؤية الفكرية</span>
+              <h1 className="text-3xl sm:text-4xl font-amiri font-bold text-[#2C2C2C] mt-2">
+                عن الكاتب أيمن كناني والمنصة الرسمية (من نحن)
+              </h1>
+              <p className="text-xs sm:text-sm text-[#6E6A64] mt-1">Ayman Kinani — Official Literature Platform</p>
+            </div>
+
+            <p className="text-sm leading-relaxed text-[#2C2C2C]/90">
+              أيمن كناني (Ayman Kinani) كاتب، باحث، ومؤلف عربي يركز في أطروحاته على ترسيخ قيم التفكير المنهجي والنقدي وأخلاقيات البحث العلمي الرصين في الفكر الإسلامي والعربي المعاصر، مع إتاحة كافة الأعمال والمؤلفات لعموم الباحثين والقراء بصورة حرة ومفتوحة بدون قيود بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0).
+            </p>
+
+            <div className="bg-[#FAF8F2] p-6 rounded-2xl border border-[#E5DFD0] space-y-3">
+              <h3 className="font-bold text-sm text-[#2C2C2C]">الرؤية والرسالة المعرفية:</h3>
+              <p className="text-xs sm:text-sm text-[#6E6A64] leading-relaxed">
+                السعي نحو إثراء المشهد الثقافي والفكري العربي بمؤلفات تجمع بين عمق الفكرة ورشاقة الأسلوب وتأصيل قواعد البحث النزيه المتجرد من الأهواء والعصبيات الفكرية.
+              </p>
+            </div>
+          </article>
+        )}
+
+        {/* 2. PRIVACY POLICY */}
+        {normSection === 'privacy' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">الخصوصية وأمان البيانات</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                سياسة الخصوصية وملفات تعريف الارتباط (Privacy Policy)
+              </h1>
+              <p className="text-xs text-[#6E6A64] mt-1">متوافقة مع Google AdSense و GDPR و CCPA</p>
+            </div>
+
+            <div className="space-y-4 text-sm text-[#2C2C2C] leading-relaxed">
+              <p>
+                نحن في منصة الكاتب أيمن كناني نلتزم التزاماً صارماً باحترام وحماية خصوصية جميع زوارنا وقرائنا. لا نطلب أي معلومات شخصية حساسة للوصول إلى قراءة الكتب والمقالات أو تحميل ملفات PDF.
+              </p>
+              <h3 className="font-bold text-base text-[#2C2C2C]">ملفات تعريف الارتباط وإعلانات الطرف الثالث:</h3>
+              <p>
+                قد تستخدم جهات خارجية مثل Google AdSense ملفات تعريف الارتباط (Cookies) لعرض إعلانات مخصصة للمستخدمين بناءً على زياراتهم السابقة لهذا الموقع أو لمواقع أخرى على شبكة الإنترنت. يمكن للمستخدمين تعطيل ملفات تعريف الارتباط المخصصة عبر إعدادات المتصفح أو زيارة صفحة إعدادات إعلانات Google.
+              </p>
+            </div>
+          </article>
+        )}
+
+        {/* 3. TERMS OF SERVICE */}
+        {normSection === 'terms' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">اتفاقية الاستخدام والناشر</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                الشروط والأحكام العامة للموقع
+              </h1>
+            </div>
+            <p className="text-sm text-[#2C2C2C] leading-relaxed">
+              باستخدامك لمنصة الكاتب أيمن كناني، فإنك توافق على الالتزام بشروط الاستخدام المعمول بها ورخصة المشاع الإبداعي (CC BY-NC 4.0) التي تحكم قراءة ومشاركة المحتوى للأغراض المعرفية وغير التجارية.
+            </p>
+          </article>
+        )}
+
+        {/* 4. DMCA */}
+        {normSection === 'dmca' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">حماية الملكية الفكرية</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                حقوق الملكية الفكرية وقانون DMCA
+              </h1>
+            </div>
+            <p className="text-sm text-[#2C2C2C] leading-relaxed">
+              كافة النصوص والمؤلفات المنشورة هي أعمال أصلية للكاتب أيمن كناني. نرحب بالاقتباس والاستشهاد الأكاديمي والتعليمي مع وجوب عزو العمل لصاحبه الأصلي ورابط المنصة الرسمية.
+            </p>
+          </article>
+        )}
+
+        {/* 5. LICENSES */}
+        {normSection === 'licenses' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">رخصة النشر والاستخدام</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                التراخيص ورخصة المشاع الإبداعي (CC BY-NC 4.0)
+              </h1>
+            </div>
+            <p className="text-sm text-[#2C2C2C] leading-relaxed">
+              هذا العمل مرخّص بموجب رخصة المشاع الإبداعي (نسب المصنف - غير تجاري 4.0 دولي) CC BY-NC 4.0. يُسمح بنسخ وتوزيع وتدريس العمل والاستشهاد به بحرية تامة للأغراض غير التجارية مع ذكر اسم المؤلف.
+            </p>
+          </article>
+        )}
+
+        {/* 6. CONTACT */}
+        {normSection === 'contact' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-[#4A5D4E]">الناشر والتواصل المباشر</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                تواصل مع الكاتب أيمن كناني
+              </h1>
+            </div>
+            <p className="text-sm text-[#2C2C2C] leading-relaxed">
+              لأي استفسارات فكرية، مقترحات بحثية، أو استفسارات حول المؤلفات والتراخيص، يمكنكم مراسلة الكاتب والناشر مباشرة عبر البريد الإلكتروني أو قنوات التواصل الرسمية.
+            </p>
+          </article>
+        )}
+
+        {/* 7. SUPPORT */}
+        {normSection === 'support' && (
+          <article className="space-y-6 bg-white border border-[#E5E2D9] p-6 sm:p-10 rounded-3xl shadow-xs">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <span className="text-xs uppercase font-bold text-rose-700">دعم المحتوى الفكري الحر</span>
+              <h1 className="text-2xl sm:text-3xl font-amiri font-bold text-[#2C2C2C] mt-1">
+                دعم الكاتب والمنصة (Support Ayman Kinani)
+              </h1>
+            </div>
+            <p className="text-sm text-[#2C2C2C] leading-relaxed">
+              نحن نؤمن بأن المعرفة حق إنساني أصيل، لذا نتيح كافة أعمال الكاتب أيمن كناني للقراءة والتحميل مجاناً دون حواجز مادية. دعمكم المباشر يساعد على استمرار النشر والتفرغ التام للبحث والتأليف.
+            </p>
+          </article>
+        )}
+
+        {/* 8. ARTICLES */}
+        {normSection === 'articles' && (
+          <section className="space-y-6">
+            <div className="border-b border-[#E5E2D9] pb-4">
+              <h1 className="text-3xl font-amiri font-bold text-[#2C2C2C]">
+                المقالات والدراسات الفكرية والنقدية
+              </h1>
+              <p className="text-xs sm:text-sm text-[#6E6A64] mt-1">
+                مجموعة مقالات وأبحاث ودراسات نقدية بقلم الكاتب أيمن كناني
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {articles.map((art: any) => (
+                <a
+                  key={art.id}
+                  href={`/article/${art.slug || art.id}`}
+                  className="p-5 rounded-2xl border border-[#E5E2D9] bg-white hover:bg-[#F7F5EE] transition-all block space-y-2"
+                >
+                  <h3 className="font-bold text-base text-[#2C2C2C] hover:text-[#4A5D4E]">{art.title}</h3>
+                  <p className="text-xs text-[#6E6A64] line-clamp-2">{art.synopsis || cleanExcerpt(art.content, 120)}</p>
+                  <span className="text-xs font-bold text-[#4A5D4E] block pt-2">قراءة المقال ←</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+      </main>
+
+      <footer className="mt-16 bg-[#1C1B19] text-[#A8A49E] text-xs font-cairo py-8 px-4 text-center border-t border-white/10">
+        <p>جميع الحقوق محفوظة للمؤلف © {new Date().getFullYear()} - أيمن كناني</p>
+      </footer>
+    </div>
+  );
+};
+
+export interface ArticleSSRProps {
+  article: any;
+  reqUrl: string;
+}
+
+/**
+ * Server-Side Rendered View for Single Article (/article/:slug)
+ */
+export const ServerArticleView: React.FC<ArticleSSRProps> = ({ article }) => {
+  return (
+    <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] font-cairo antialiased flex flex-col" dir="rtl">
+      <header className="sticky top-0 z-30 bg-[#FDFCF8]/95 backdrop-blur-md border-b border-[#E5E2D9] px-4 py-3">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <a href="/articles" className="text-xs font-bold text-[#4A5D4E] hover:underline">
+            ← العودة لجميع المقالات
+          </a>
+          <span className="text-xs font-bold text-[#2C2C2C] truncate max-w-xs">{article.title}</span>
+        </div>
+      </header>
+
+      <main className="flex-1 max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 sm:py-12">
+        <nav aria-label="مسار الصفحة" className="mb-6 text-xs text-[#6E6A64] flex items-center gap-2">
+          <a href="/" className="hover:text-[#2C2C2C]">الرئيسية</a>
+          <span>›</span>
+          <a href="/articles" className="hover:text-[#2C2C2C]">المقالات</a>
+          <span>›</span>
+          <span className="text-[#2C2C2C] font-bold">{article.title}</span>
+        </nav>
+
+        <article className="font-amiri">
+          <header className="text-center mb-8 pb-6 border-b border-[#E5E2D9]">
+            <span className="inline-block px-3 py-1 rounded-full bg-[#4A5D4E]/10 text-[#4A5D4E] text-xs font-cairo font-bold mb-3">
+              {article.category || 'دراسة فكرية'}
+            </span>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-[#2C2C2C] mb-4 leading-tight">
+              {article.title}
+            </h1>
+            <p className="text-xs font-cairo text-[#6E6A64]">
+              بقلم: <strong className="text-[#2C2C2C]">{article.author || 'أيمن كناني'}</strong>
+            </p>
+          </header>
+
+          <div
+            className="space-y-6 text-[#2C2C2C] text-lg leading-relaxed text-justify"
+            dangerouslySetInnerHTML={{ __html: article.content }}
+          />
+        </article>
+      </main>
+
+      <footer className="mt-16 bg-[#1C1B19] text-[#A8A49E] text-xs font-cairo py-8 px-4 text-center border-t border-white/10">
+        <p>جميع الحقوق محفوظة للمؤلف © {new Date().getFullYear()} - أيمن كناني</p>
+      </footer>
+    </div>
+  );
+};
+
+/**
+ * Builds dynamic SEO Tags for Single Article SSR
+ */
+export function generateArticleSeoTags({
+  article,
+  reqUrl,
+  domain,
+}: {
+  article: any;
+  reqUrl: string;
+  domain: string;
+}): {
+  title: string;
+  metaTags: string;
+  jsonLd: string;
+} {
+  const pageTitle = article.seo?.metaTitle?.trim() || `${article.title} | الكاتب ${article.author || 'أيمن كناني'}`;
+  const excerpt = article.seo?.metaDescription?.trim() || cleanExcerpt(article.synopsis || article.content, 180) || `قراءة ${article.title} بقلم ${article.author || 'أيمن كناني'}.`;
+  const rawCanonical = article.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const canonicalUrl = rawCanonical.replace(/https?:\/\/(?:www\.)?aymankinani\.com/g, 'https://www.aymankinani.org');
+  const coverImage = article.seo?.ogImage?.trim() || article.coverImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const authorName = article.author || 'أيمن كناني';
+
+  const metaTags = `
+    <!-- Dynamic SSR Meta Tags for Article -->
+    <meta name="description" content="${escapeHtml(excerpt)}" />
+    <meta name="author" content="${escapeHtml(authorName)}" />
+    <link rel="canonical" href="${escapeHtml(canonicalUrl)}" />
+    <meta name="robots" content="index, follow, max-snippet:-1, max-image-preview:large" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="article" />
+    <meta property="og:title" content="${escapeHtml(pageTitle)}" />
+    <meta property="og:description" content="${escapeHtml(excerpt)}" />
+    <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+    <meta property="og:image" content="${escapeHtml(coverImage)}" />
+    <meta property="og:site_name" content="أيمن كناني - المنصة الرسمية" />
+    <meta property="og:locale" content="ar_AR" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
+    <meta name="twitter:description" content="${escapeHtml(excerpt)}" />
+    <meta name="twitter:image" content="${escapeHtml(coverImage)}" />
+  `;
+
+  const jsonLd = JSON.stringify({
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    '@id': `${canonicalUrl}#article`,
+    headline: article.title,
+    description: excerpt,
+    url: canonicalUrl,
+    inLanguage: 'ar',
+    datePublished: article.publishedAt || article.createdAt,
+    author: {
+      '@type': 'Person',
+      name: authorName,
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'المنصة الرسمية للكاتب أيمن كناني',
+      url: domain,
+    },
+  });
+
+  return { title: pageTitle, metaTags, jsonLd };
+}
+
 /**
  * Builds dynamic Open Graph, Twitter Card, and Schema.org JSON-LD tags for Chapter SSR
  */

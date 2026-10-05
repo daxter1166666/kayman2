@@ -26,10 +26,13 @@ import {
   ServerChapterView,
   ServerNovelView,
   ServerHomeView,
+  ServerSectionView,
+  ServerArticleView,
   generateChapterSeoTags,
   generateNovelSeoTags,
   generateHomeSeoTags,
   generateSectionSeoTags,
+  generateArticleSeoTags,
   generateLlmsTxt,
   generateLlmsFullTxt,
   injectSsrIntoTemplate,
@@ -392,8 +395,10 @@ async function startServer() {
       '',
       `Sitemap: ${domain}/sitemap.xml`,
       `Sitemap: ${domain}/sitemap_index.xml`,
+      `Sitemap: ${domain}/sitemap-pages.xml`,
       `Sitemap: ${domain}/sitemap-books.xml`,
       `Sitemap: ${domain}/sitemap-chapters.xml`,
+      `Sitemap: ${domain}/sitemap-articles.xml`,
       `Sitemap: ${domain}/rss.xml`,
       `Sitemap: ${domain}/atom.xml`,
       `Sitemap: ${domain}/llms.txt`,
@@ -415,6 +420,10 @@ async function startServer() {
     <lastmod>${now}</lastmod>
   </sitemap>
   <sitemap>
+    <loc>${domain}/sitemap-pages.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
+  <sitemap>
     <loc>${domain}/sitemap-books.xml</loc>
     <lastmod>${now}</lastmod>
   </sitemap>
@@ -422,8 +431,40 @@ async function startServer() {
     <loc>${domain}/sitemap-chapters.xml</loc>
     <lastmod>${now}</lastmod>
   </sitemap>
+  <sitemap>
+    <loc>${domain}/sitemap-articles.xml</loc>
+    <lastmod>${now}</lastmod>
+  </sitemap>
 </sitemapindex>`;
     res.type('application/xml; charset=utf-8').send(xml);
+  });
+
+  // Dedicated Pages Sitemap (/sitemap-pages.xml)
+  app.get('/sitemap-pages.xml', (req, res) => {
+    const domain = getRequestDomain(req);
+    const now = new Date().toISOString().split('T')[0];
+    const pages = [
+      { path: '/', priority: '1.0', changefreq: 'daily' },
+      { path: '/books', priority: '0.9', changefreq: 'daily' },
+      { path: '/articles', priority: '0.9', changefreq: 'daily' },
+      { path: '/about', priority: '0.8', changefreq: 'weekly' },
+      { path: '/support', priority: '0.7', changefreq: 'monthly' },
+      { path: '/contact', priority: '0.7', changefreq: 'monthly' },
+      { path: '/privacy', priority: '0.6', changefreq: 'monthly' },
+      { path: '/terms', priority: '0.6', changefreq: 'monthly' },
+      { path: '/dmca', priority: '0.5', changefreq: 'monthly' },
+      { path: '/licenses', priority: '0.5', changefreq: 'monthly' },
+    ];
+    const urlsXml = pages.map(p => `  <url>\n    <loc>${domain}${p.path}</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>${p.changefreq}</changefreq>\n    <priority>${p.priority}</priority>\n  </url>`).join('\n');
+    res.type('application/xml; charset=utf-8').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlsXml}\n</urlset>`);
+  });
+
+  // Dedicated Articles Sitemap (/sitemap-articles.xml)
+  app.get('/sitemap-articles.xml', (req, res) => {
+    const domain = getRequestDomain(req);
+    const now = new Date().toISOString().split('T')[0];
+    const urlsXml = `  <url>\n    <loc>${domain}/articles</loc>\n    <lastmod>${now}</lastmod>\n    <changefreq>daily</changefreq>\n    <priority>0.9</priority>\n  </url>`;
+    res.type('application/xml; charset=utf-8').send(`<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urlsXml}\n</urlset>`);
   });
 
   // Dedicated Books Sitemap (/sitemap-books.xml)
@@ -930,12 +971,12 @@ ${entriesXml.join('\n')}
   }
 
   /**
-   * SSR Section Handler for dedicated subpages (/author, /articles, /support, /privacy, etc.)
+   * SSR Section Handler for dedicated subpages (/author, /about, /articles, /support, /privacy, /terms, /dmca, /licenses, /contact, /books)
    */
   async function handleSectionSSR(
     req: express.Request,
     res: express.Response,
-    section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'books',
+    section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'licenses' | 'books',
     currentView: string
   ) {
     try {
@@ -948,9 +989,11 @@ ${entriesXml.join('\n')}
       const primaryNovel = novels[0] || null;
 
       const renderedComponentHtml = renderToString(
-        React.createElement(ServerHomeView, {
+        React.createElement(ServerSectionView, {
+          section,
           novel: primaryNovel,
           chapters,
+          articles: [],
           reqUrl: req.originalUrl,
         })
       );
@@ -963,6 +1006,7 @@ ${entriesXml.join('\n')}
 
       const initialData = {
         currentView,
+        legalPage: (section === 'author' ? 'about' : section === 'donate' ? 'support' : section),
         novels,
         chapters,
       };
@@ -991,6 +1035,66 @@ ${entriesXml.join('\n')}
     }
   }
 
+  /**
+   * SSR Single Article Handler (/article/:articleId or /article/:slug)
+   */
+  async function handleArticleSSR(req: express.Request, res: express.Response, articleIdent: string) {
+    try {
+      const domain = getRequestDomain(req);
+      const cleanIdent = decodeURIComponent(articleIdent);
+
+      // Fallback article object
+      const article = {
+        id: cleanIdent,
+        title: cleanIdent.replace(/-/g, ' '),
+        slug: cleanIdent,
+        author: 'أيمن كناني',
+        content: '<p>مقال ودراسة فكرية بقلم الكاتب أيمن كناني.</p>',
+        publishedAt: new Date().toISOString(),
+      };
+
+      const renderedComponentHtml = renderToString(
+        React.createElement(ServerArticleView, {
+          article,
+          reqUrl: req.originalUrl,
+        })
+      );
+
+      const { title, metaTags, jsonLd } = generateArticleSeoTags({
+        article,
+        reqUrl: req.originalUrl,
+        domain,
+      });
+
+      const initialData = {
+        currentView: 'article_reader',
+        article,
+      };
+
+      const template = await getBaseTemplate(req.originalUrl);
+      const fullHtml = injectSsrIntoTemplate({
+        template,
+        title,
+        metaTags,
+        jsonLd,
+        renderedHtml: renderedComponentHtml,
+        initialData,
+      });
+
+      return res
+        .status(200)
+        .set({
+          'Content-Type': 'text/html; charset=utf-8',
+          'X-Rendered-By': 'NodeJS-Express-React-SSR',
+        })
+        .send(fullHtml);
+    } catch (err) {
+      console.error('SSR Article Handler Exception:', err);
+      const template = await getBaseTemplate(req.originalUrl);
+      return res.status(200).send(template);
+    }
+  }
+
   // --- Express SSR Route Registrations ---
 
   // PRIMARY: Homepage SSR (/)
@@ -1003,33 +1107,41 @@ ${entriesXml.join('\n')}
     return handleHomeSSR(req, res);
   });
 
-  // Dedicated Section Pages with Unique URLs & SEO
-  app.get(['/about', '/author'], (req, res) => {
-    return handleSectionSSR(req, res, 'author', 'about');
+  // Dedicated Section Pages with Custom Clean URLs & Tailored High-Fidelity SEO
+  app.get(['/about', '/author', '/about-us'], (req, res) => {
+    return handleSectionSSR(req, res, 'about', 'legal');
+  });
+
+  app.get(['/privacy', '/privacy-policy'], (req, res) => {
+    return handleSectionSSR(req, res, 'privacy', 'legal');
+  });
+
+  app.get(['/terms', '/terms-of-service'], (req, res) => {
+    return handleSectionSSR(req, res, 'terms', 'legal');
+  });
+
+  app.get(['/dmca', '/copyright'], (req, res) => {
+    return handleSectionSSR(req, res, 'dmca', 'legal');
+  });
+
+  app.get(['/licenses', '/license'], (req, res) => {
+    return handleSectionSSR(req, res, 'licenses', 'legal');
+  });
+
+  app.get(['/contact', '/contact-us'], (req, res) => {
+    return handleSectionSSR(req, res, 'contact', 'legal');
+  });
+
+  app.get(['/support', '/donate'], (req, res) => {
+    return handleSectionSSR(req, res, 'support', 'legal');
   });
 
   app.get(['/articles', '/studies', '/translations', '/essays'], (req, res) => {
     return handleSectionSSR(req, res, 'articles', 'articles');
   });
 
-  app.get(['/support', '/donate'], (req, res) => {
-    return handleSectionSSR(req, res, 'support', 'donate');
-  });
-
-  app.get('/contact', (req, res) => {
-    return handleSectionSSR(req, res, 'contact', 'contact');
-  });
-
-  app.get('/privacy', (req, res) => {
-    return handleSectionSSR(req, res, 'privacy', 'privacy');
-  });
-
-  app.get('/terms', (req, res) => {
-    return handleSectionSSR(req, res, 'terms', 'terms');
-  });
-
-  app.get('/dmca', (req, res) => {
-    return handleSectionSSR(req, res, 'dmca', 'dmca');
+  app.get('/article/:articleId', (req, res) => {
+    return handleArticleSSR(req, res, req.params.articleId);
   });
 
   app.get(['/books', '/catalog', '/site'], (req, res) => {

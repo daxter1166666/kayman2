@@ -1,10 +1,10 @@
 import React from 'react';
-import { Feather, ShieldCheck, Lock } from 'lucide-react';
+import { Feather, ShieldCheck, Lock, Heart, FileText, BookOpen, User, Mail, Award } from 'lucide-react';
 import { AdSlot } from './AdSlot';
 import { AdSettings, SiteBranding } from '../types';
 
 interface FooterProps {
-  onOpenLegalPage: (page: 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact') => void;
+  onOpenLegalPage: (page: 'about' | 'author' | 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'support' | 'donate') => void;
   adSettings: AdSettings;
   siteBranding?: SiteBranding;
   onOpenAdminLoginModal?: () => void;
@@ -20,8 +20,13 @@ export const Footer: React.FC<FooterProps> = ({
   const brandSubtitle = siteBranding?.siteSubtitle || 'المنصة الرسمية لنشر المؤلفات والكتب';
   const footerText = siteBranding?.footerText || `مرخص بموجب رخصة المشاع الإبداعي (CC BY-NC 4.0) - ${brandName} © ${new Date().getFullYear()}`;
 
+  const handleLinkClick = (page: 'about' | 'author' | 'terms' | 'privacy' | 'dmca' | 'licenses' | 'contact' | 'support' | 'donate', e: React.MouseEvent) => {
+    e.preventDefault();
+    onOpenLegalPage(page);
+  };
+
   return (
-    <footer className="bg-[#F7F5EE] border-t border-[#E5E2D9] text-[#6E6A64] text-xs font-cairo mt-16">
+    <footer className="bg-[#F7F5EE] border-t border-[#E5E2D9] text-[#6E6A64] text-xs font-cairo mt-16" dir="rtl">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-12">
         {/* Global Footer Ad Slot */}
         <AdSlot location="footer" adSettings={adSettings} className="mb-12" />
@@ -29,42 +34,76 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 pb-12 border-b border-[#E5E2D9]">
           {/* Brand Col */}
           <div className="md:col-span-1 space-y-3">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 rounded-lg bg-[#4A5D4E] flex items-center justify-center text-[#FDFCF8] shadow-xs">
+            <a
+              href="/"
+              onClick={(e) => { e.preventDefault(); onOpenLegalPage('about'); }}
+              className="flex items-center gap-2 group text-decoration-none"
+            >
+              <div className="w-8 h-8 rounded-lg bg-[#4A5D4E] flex items-center justify-center text-[#FDFCF8] shadow-xs group-hover:bg-[#3C4C3F] transition-colors">
                 <Feather className="w-4 h-4" />
               </div>
-              <span className="font-amiri font-bold text-[#2C2C2C] text-lg">{brandName}</span>
-            </div>
+              <span className="font-amiri font-bold text-[#2C2C2C] text-lg group-hover:text-[#4A5D4E] transition-colors">
+                {brandName}
+              </span>
+            </a>
             <p className="text-xs text-[#6E6A64] leading-relaxed">
-              {brandSubtitle} - منصة أدبية متكاملة لنشر قراءات، روايات، كتب، وبحوث فكرية وأدبية للكاتب أيمن كناني.
+              {brandSubtitle} — المنصة المعتمدة لنشر وقراءة الكتب والروايات والدراسات الفكرية والنقدية برخصة مفتوحة.
             </p>
+            <div className="pt-2 flex items-center gap-2">
+              <a
+                href="/about"
+                onClick={(e) => handleLinkClick('about', e)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-[#4A5D4E] hover:underline"
+              >
+                <User className="w-3.5 h-3.5" />
+                <span>عن الكاتب والمنصة (من نحن)</span>
+              </a>
+            </div>
           </div>
 
-          {/* Quick Links */}
+          {/* Quick Links / Sections */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C2C2C] mb-3">
-              أقسام وتصنيفات المؤلفات
+            <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C2C2C] mb-3 flex items-center gap-1.5">
+              <BookOpen className="w-3.5 h-3.5 text-[#4A5D4E]" />
+              <span>أقسام المنصة والمؤلفات</span>
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <span className="hover:text-[#4A5D4E] transition-colors cursor-pointer">
-                  الفكر، الفلسفة، وتطوير الذات
-                </span>
+                <a
+                  href="/books"
+                  onClick={(e) => { e.preventDefault(); if (typeof window !== 'undefined') window.location.href = '/books'; }}
+                  className="hover:text-[#4A5D4E] transition-colors"
+                >
+                  مكتبة الكتب والمؤلفات الكاملة
+                </a>
               </li>
               <li>
-                <span className="hover:text-[#4A5D4E] transition-colors cursor-pointer">
-                  التاريخ، الحضارات، والتراث
-                </span>
+                <a
+                  href="/articles"
+                  onClick={(e) => { e.preventDefault(); if (typeof window !== 'undefined') window.location.href = '/articles'; }}
+                  className="hover:text-[#4A5D4E] transition-colors"
+                >
+                  المقالات والدراسات الفكرية والنقدية
+                </a>
               </li>
               <li>
-                <span className="hover:text-[#4A5D4E] transition-colors cursor-pointer">
-                  الأدب، الروايات، والقصص الفلسفية
-                </span>
+                <a
+                  href="/about"
+                  onClick={(e) => handleLinkClick('about', e)}
+                  className="hover:text-[#4A5D4E] transition-colors"
+                >
+                  السيرة الذاتية والرؤية المنهجية للكاتب
+                </a>
               </li>
               <li>
-                <span className="hover:text-[#4A5D4E] transition-colors cursor-pointer">
-                  العلوم، التكنولوجيا، والمستقبليات
-                </span>
+                <a
+                  href="/support"
+                  onClick={(e) => handleLinkClick('support', e)}
+                  className="hover:text-rose-600 transition-colors flex items-center gap-1"
+                >
+                  <Heart className="w-3 h-3 text-rose-500 fill-rose-500" />
+                  <span>دعم واستمرار النشر المجاني</span>
+                </a>
               </li>
             </ul>
           </div>
@@ -77,74 +116,75 @@ export const Footer: React.FC<FooterProps> = ({
             </h4>
             <ul className="space-y-2 text-xs">
               <li>
-                <button
-                  type="button"
-                  id="footer-terms-btn"
-                  onClick={() => onOpenLegalPage('terms')}
-                  className="hover:text-[#4A5D4E] transition-colors cursor-pointer text-right"
+                <a
+                  href="/privacy"
+                  id="footer-privacy-link"
+                  onClick={(e) => handleLinkClick('privacy', e)}
+                  className="hover:text-[#4A5D4E] transition-colors block text-right font-medium"
                 >
-                  الشروط والأحكام العامة
-                </button>
+                  سياسة الخصوصية وملفات الكوكيز (Cookies & AdSense)
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  id="footer-privacy-btn"
-                  onClick={() => onOpenLegalPage('privacy')}
-                  className="hover:text-[#4A5D4E] transition-colors cursor-pointer text-right"
+                <a
+                  href="/terms"
+                  id="footer-terms-link"
+                  onClick={(e) => handleLinkClick('terms', e)}
+                  className="hover:text-[#4A5D4E] transition-colors block text-right font-medium"
                 >
-                  سياسة الخصوصية وملفات الكوكيز (Cookies)
-                </button>
+                  الشروط والأحكام العامة للموقع
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  id="footer-dmca-btn"
-                  onClick={() => onOpenLegalPage('dmca')}
-                  className="hover:text-[#4A5D4E] transition-colors cursor-pointer text-right"
+                <a
+                  href="/licenses"
+                  id="footer-licenses-link"
+                  onClick={(e) => handleLinkClick('licenses', e)}
+                  className="hover:text-[#4A5D4E] font-semibold text-[#4A5D4E] transition-colors block text-right"
+                >
+                  التراخيص ورخصة المشاع الإبداعي (CC BY-NC 4.0)
+                </a>
+              </li>
+              <li>
+                <a
+                  href="/dmca"
+                  id="footer-dmca-link"
+                  onClick={(e) => handleLinkClick('dmca', e)}
+                  className="hover:text-[#4A5D4E] transition-colors block text-right font-medium"
                 >
                   حقوق الملكية الفكرية وقانون DMCA
-                </button>
+                </a>
               </li>
               <li>
-                <button
-                  type="button"
-                  id="footer-licenses-btn"
-                  onClick={() => onOpenLegalPage('licenses')}
-                  className="hover:text-[#4A5D4E] font-semibold text-[#4A5D4E] transition-colors cursor-pointer text-right flex items-center gap-1.5"
+                <a
+                  href="/contact"
+                  id="footer-contact-link"
+                  onClick={(e) => handleLinkClick('contact', e)}
+                  className="hover:text-[#4A5D4E] transition-colors block text-right font-medium"
                 >
-                  <span>التراخيص ورخصة المشاع الإبداعي (CC BY-NC 4.0)</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  type="button"
-                  id="footer-contact-btn"
-                  onClick={() => onOpenLegalPage('contact')}
-                  className="hover:text-[#4A5D4E] transition-colors cursor-pointer text-right"
-                >
-                  معلومات الناشر والتواصل معنا
-                </button>
+                  معلومات الناشر والتواصل المباشر معنا
+                </a>
               </li>
             </ul>
           </div>
 
           {/* Publication & Rights statement */}
           <div>
-            <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C2C2C] mb-3">
-              ترخيص المشاع الإبداعي وحق المؤلف
+            <h4 className="font-bold text-xs uppercase tracking-wider text-[#2C2C2C] mb-3 flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-[#C88A3B]" />
+              <span>رخصة المشاع الإبداعي CC BY-NC 4.0</span>
             </h4>
             <p className="text-[11px] text-[#6E6A64] leading-relaxed mb-3">
               هذا العمل مرخّص بموجب CC BY-NC 4.0 لإعادة النشر والاستخدام غير التجاري من قبل الجمهور. بصفتي المؤلف الأصلي لهذا المحتوى، أعرض إعلانات وخيارات دعم لتأمين دخل يعينني على العيش والاستمرار في الكتابة، وهذا حق أصيل لا يتعارض مع الترخيص الممنوح للقراء.
             </p>
-            <button
-              type="button"
-              onClick={() => onOpenLegalPage('licenses')}
-              className="flex items-center gap-2 text-[11px] text-[#4A5D4E] hover:underline font-medium cursor-pointer"
+            <a
+              href="/licenses"
+              onClick={(e) => handleLinkClick('licenses', e)}
+              className="inline-flex items-center gap-1.5 text-[11px] text-[#4A5D4E] hover:underline font-bold"
             >
               <ShieldCheck className="w-3.5 h-3.5" />
-              <span>عرض تفاصيل ترخيص المشاع الإبداعي (CC BY-NC 4.0)</span>
-            </button>
+              <span>عرض تفاصيل ترخيص المشاع الإبداعي</span>
+            </a>
           </div>
         </div>
 
@@ -152,12 +192,12 @@ export const Footer: React.FC<FooterProps> = ({
         <div className="pt-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] text-[#8E8A83]">
           <p>{footerText}</p>
           <div className="flex items-center gap-3">
-            <span className="text-[#4A5D4E] font-medium">صُنعت بشغف لنشر المعرفة والأدب</span>
+            <span className="text-[#4A5D4E] font-medium">منصة نشر فكرية وأدبية مستقلة ومفتوحة</span>
             {onOpenAdminLoginModal && (
               <button
                 type="button"
                 onClick={onOpenAdminLoginModal}
-                className="text-[#8E8A83] hover:text-[#4A5D4E] p-1 transition-colors opacity-20 hover:opacity-100"
+                className="text-[#8E8A83] hover:text-[#4A5D4E] p-1 transition-colors opacity-20 hover:opacity-100 cursor-pointer"
                 title="بوابة الإدارة"
               >
                 <Lock className="w-3 h-3" />
