@@ -516,31 +516,38 @@ export async function fetchAllForSitemap(): Promise<{
       serverFetchAllChapters(),
     ]);
 
-    const novels = allNovels.map(n => ({
-      id: n.id,
-      title: n.title || 'مؤلفات أيمن كناني',
-      slug: n.slug || n.id,
-      synopsis: n.synopsis || '',
-      author: n.author || 'أيمن كناني',
-      coverImage: n.coverImage || '',
-      updatedAt: n.updatedAt || new Date().toISOString(),
-    }));
+    const novels = allNovels
+      .filter(n => !n.seo?.noIndex)
+      .map(n => ({
+        id: n.id,
+        title: n.title || 'مؤلفات أيمن كناني',
+        slug: n.slug || n.id,
+        synopsis: n.synopsis || '',
+        author: n.author || 'أيمن كناني',
+        coverImage: n.coverImage || '',
+        updatedAt: n.updatedAt || new Date().toISOString(),
+      }));
 
     const novelMap = new Map(allNovels.map(n => [n.id, n]));
 
-    const chapters = allChapters.map(c => {
-      const parentNovel = novelMap.get(c.novelId);
-      return {
-        id: c.id,
-        novelId: c.novelId,
-        novelSlug: parentNovel?.slug || c.novelId,
-        novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
-        title: c.title || `الفصل ${c.chapterNumber}`,
-        slug: c.slug || `chapter-${c.chapterNumber}`,
-        chapterNumber: c.chapterNumber || 1,
-        updatedAt: c.publishedAt || new Date().toISOString(),
-      };
-    });
+    const chapters = allChapters
+      .filter(c => {
+        const parentNovel = novelMap.get(c.novelId);
+        return !c.seo?.noIndex && !parentNovel?.seo?.noIndex;
+      })
+      .map(c => {
+        const parentNovel = novelMap.get(c.novelId);
+        return {
+          id: c.id,
+          novelId: c.novelId,
+          novelSlug: parentNovel?.slug || c.novelId,
+          novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
+          title: c.title || `الفصل ${c.chapterNumber}`,
+          slug: c.slug || `chapter-${c.chapterNumber}`,
+          chapterNumber: c.chapterNumber || 1,
+          updatedAt: c.publishedAt || new Date().toISOString(),
+        };
+      });
 
     return { novels, chapters };
   } catch (err) {
@@ -581,11 +588,20 @@ function mapNovelRow(n: any): Novel {
 }
 
 function mapChapterRow(c: any): Chapter {
+  const num = Number(c.chapter_number || 1);
+  let resolvedSeo = typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined);
+  if (!resolvedSeo) {
+    const localMatch = getPublishedChaptersFromFile().find(ch => ch.id === c.id || ch.chapterNumber === num)
+      || BAKED_CHAPTERS.find(ch => ch.id === c.id || ch.chapterNumber === num);
+    if (localMatch?.seo) {
+      resolvedSeo = localMatch.seo;
+    }
+  }
   return {
     id: c.id,
     novelId: c.novel_id,
-    chapterNumber: Number(c.chapter_number || 1),
-    title: c.title || `فصل ${c.chapter_number || 1}`,
+    chapterNumber: num,
+    title: c.title || `فصل ${num}`,
     slug: c.slug || c.id,
     content: c.content || '',
     authorNote: c.author_note || c.author_notes || undefined,
@@ -594,7 +610,7 @@ function mapChapterRow(c: any): Chapter {
     likes: Number(c.likes || 0),
     wordCount: Number(c.word_count || (c.content ? c.content.trim().split(/\s+/).length : 0)),
     status: c.status || 'PUBLISHED',
-    seo: typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
+    seo: resolvedSeo,
   };
 }
 
