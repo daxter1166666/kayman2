@@ -1042,8 +1042,8 @@ export default function App() {
             {/* Catalog Filter & Sorting Bar */}
             {novels.length > 0 && (
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 font-cairo">
-                {/* Dynamic Category / Genre Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-none">
+                {/* Dynamic Category / Genre Pills (Multi-row wrap support) */}
+                <div className="flex flex-wrap items-center gap-2 max-w-full overflow-x-auto pb-2 md:pb-0">
                   {filterPills.map(genre => (
                     <button
                       key={genre.key}

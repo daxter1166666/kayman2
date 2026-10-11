@@ -412,7 +412,7 @@ export const ServerHomeView: React.FC<HomeSSRProps> = ({
               📘 صفحة الفيسبوك
             </a>
             <span>•</span>
-            <a href="mailto:aymankinani.author@gmail.com" className="hover:underline">
+            <a href="mailto:kayman1457@gmail.com" className="hover:underline">
               ✉️ التواصل المباشر
             </a>
           </div>
@@ -918,7 +918,7 @@ export function generateChapterSeoTags({
     || novel.bannerImage
     || novel.coverImage
     || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
-  const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
+  const isNoIndex = true;
   const keywordsStr = chapter.seo?.focusKeywords?.trim()
     ? chapter.seo.focusKeywords.trim()
     : [chapter.title, `كتاب ${novel.title}`, `فصل ${chapter.chapterNumber}`, novel.author || 'أيمن كناني', ...(novel.genres || [])].join(', ');

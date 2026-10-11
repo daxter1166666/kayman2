@@ -118,7 +118,7 @@ export const TranslationsSection: React.FC<TranslationsSectionProps> = ({
             )}
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+          <div className="flex flex-wrap items-center gap-2">
             <Globe className="w-3.5 h-3.5 text-[#8E8A83] shrink-0 ml-1 hidden sm:block" />
             {languages.map(lang => (
               <button

@@ -524,9 +524,9 @@ class SeoService {
     // 5. Canonical URL
     const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`;
 
-    // 6. Robots / Indexing
-    const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
-    const robots = isNoIndex ? 'noindex, nofollow' : undefined;
+    // 6. Robots / Indexing (NOINDEX enabled on chapters)
+    const isNoIndex = true;
+    const robots = 'noindex, nofollow';
 
     // 7. Schema.org JSON-LD
     const jsonLd = this.buildChapterJsonLd(chapter, novel, authorProfile, baseUrl);

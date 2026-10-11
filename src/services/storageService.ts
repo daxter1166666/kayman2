@@ -7,7 +7,7 @@ const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
     id: 'author-ayman',
     name: 'أيمن كناني',
     penName: 'أيمن كناني',
-    email: 'ayman@aymankinani.com',
+    email: 'kayman1457@gmail.com',
     specialization: 'روايات ودراسات فكرية وفلسفية',
     bio: 'كاتب وروائي ومفكر عربي مهتم بالفلسفة المعاصرة وفلسفة العقل والأدب الروائي السردي.',
     secretPasscode: 'AK-2026-AUTH',
@@ -958,9 +958,11 @@ export const storageService = {
     const resolved = {
       ...INITIAL_AUTHOR_PROFILE,
       ...(profile || {}),
+      contactEmail: 'kayman1457@gmail.com',
       socialLinks: {
         ...INITIAL_AUTHOR_PROFILE.socialLinks,
         ...(profile?.socialLinks || {}),
+        email: 'kayman1457@gmail.com',
       },
     };
     if (!resolved.avatar || resolved.avatar.includes('photo-1507003211169')) {
@@ -980,7 +982,10 @@ export const storageService = {
 
   saveAuthorProfile(profile: Partial<AuthorProfile>): AuthorProfile {
     const current = this.getAuthorProfile();
-    const updated = { ...current, ...profile };
+    const updated = { ...current, ...profile, contactEmail: 'kayman1457@gmail.com' };
+    if (updated.socialLinks) {
+      updated.socialLinks.email = 'kayman1457@gmail.com';
+    }
     setStored(KEYS.AUTHOR_PROFILE, updated);
     this.autoSyncAllToServer();
     return updated;
@@ -1088,6 +1093,23 @@ export const storageService = {
   getLegalDocuments(): LegalDocuments {
     const docs = getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
     let modified = false;
+
+    if (!docs.contactEmail || docs.contactEmail.includes('aymankinani.author@gmail.com') || docs.contactEmail !== 'kayman1457@gmail.com') {
+      docs.contactEmail = 'kayman1457@gmail.com';
+      modified = true;
+    }
+    if (!docs.supportEmail || docs.supportEmail.includes('aymankinani.author@gmail.com') || docs.supportEmail !== 'kayman1457@gmail.com') {
+      docs.supportEmail = 'kayman1457@gmail.com';
+      modified = true;
+    }
+    if (docs.dmcaPolicy && docs.dmcaPolicy.includes('aymankinani.author@gmail.com')) {
+      docs.dmcaPolicy = docs.dmcaPolicy.replace(/aymankinani\.author@gmail\.com/g, 'kayman1457@gmail.com');
+      modified = true;
+    }
+    if (docs.publisherInfo && docs.publisherInfo.includes('aymankinani.author@gmail.com')) {
+      docs.publisherInfo = docs.publisherInfo.replace(/aymankinani\.author@gmail\.com/g, 'kayman1457@gmail.com');
+      modified = true;
+    }
 
     if (docs.licensesPolicy && docs.licensesPolicy.includes('أضع هذا العمل ابتغاء وجه الله، وأسمح')) {
       docs.licensesPolicy = docs.licensesPolicy.replace(
@@ -1466,7 +1488,7 @@ export const storageService = {
     return {
       authorName: 'أيمن كناني',
       secretPasscode: 'AK-2026-AUTH',
-      email: 'ayman@aymankinani.com',
+      email: 'kayman1457@gmail.com',
     };
   },
 

@@ -34,9 +34,9 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Formulate canonical share link
+  // Formulate canonical indexed share link
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
-  const shareUrl = `${origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`;
+  const shareUrl = `${origin}/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`;
 
   const shareText = `أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني 📖✨`;
   

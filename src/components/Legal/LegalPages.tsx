@@ -109,7 +109,7 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onBack, onNavigate
       </div>
 
       {/* Navigation Pills Bar for Fast Switching */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-3 mb-8 border-b border-[#E5E2D9] scrollbar-none">
+      <div className="flex flex-wrap items-center gap-2 pb-3 mb-8 border-b border-[#E5E2D9]">
         {tabs.map(tab => (
           <a
             key={tab.key}
