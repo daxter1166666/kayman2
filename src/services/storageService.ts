@@ -330,7 +330,22 @@ export const storageService = {
   },
 
   getChapters(novelId?: string): Chapter[] {
-    const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    let chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    
+    // Ensure all chapters from INITIAL_CHAPTERS (like chapter 37) are always present
+    const existingIds = new Set(chapters.map(c => c.id));
+    const existingNums = new Set(chapters.map(c => c.chapterNumber));
+    let added = false;
+    for (const b of INITIAL_CHAPTERS) {
+      if (!existingIds.has(b.id) && !existingNums.has(b.chapterNumber)) {
+        chapters.push(b);
+        added = true;
+      }
+    }
+    if (added) {
+      setStored(KEYS.CHAPTERS, chapters);
+    }
+
     const deletedChapterIds = new Set(this.getDeletedChapterIds());
     const deletedNovelIds = new Set(this.getDeletedNovelIds());
     

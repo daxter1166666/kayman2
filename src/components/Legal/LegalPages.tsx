@@ -531,22 +531,28 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onBack, onNavigate
           <div className="bg-[#FAF8F2] p-6 rounded-2xl border border-[#E5DFD0] space-y-4">
             <h3 className="font-amiri font-bold text-xl text-[#2C2C2C]">لماذا ندعو لدعم المنصة؟</h3>
             <p className="text-sm leading-relaxed text-[#2C2C2C]/90">
-              {donationSettings?.customMessage || 'نحن نؤمن بأن المعرفة حق إنساني أصيل، لذا نتيح كافة أعمال الكاتب أيمن كناني للقراءة والتحميل مجاناً دون حواجز مادية. دعمكم المباشر يساعد الكاتب على التفرغ التام للبحث والتأليف وإصدار كتب ودراسات فكرية جديدة.'}
+              {donationSettings?.description || 'نحن نؤمن بأن المعرفة حق إنساني أصيل، لذا نتيح كافة أعمال الكاتب أيمن كناني للقراءة والتحميل مجاناً دون حواجز مادية. دعمكم المباشر يساعد الكاتب على التفرغ التام للبحث والتأليف وإصدار كتب ودراسات فكرية جديدة.'}
             </p>
           </div>
 
           {/* Direct Support Options */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {donationSettings?.paypalUrl && (
+            {donationSettings?.paypalEmailOrLink && (
               <a
-                href={donationSettings.paypalUrl}
+                href={
+                  donationSettings.paypalEmailOrLink.startsWith('http')
+                    ? donationSettings.paypalEmailOrLink
+                    : donationSettings.paypalEmailOrLink.includes('@')
+                    ? `https://www.paypal.com/ncp/payment?hosted_button_id=&cmd=_donations&business=${encodeURIComponent(donationSettings.paypalEmailOrLink)}&item_name=${encodeURIComponent('دعم منصة الكاتب أيمن كناني')}&currency_code=USD`
+                    : `https://paypal.me/${donationSettings.paypalEmailOrLink}`
+                }
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-5 rounded-2xl border border-[#E5E2D9] bg-white hover:border-[#4A5D4E] hover:shadow-md transition-all flex items-center justify-between group"
               >
                 <div>
                   <h4 className="font-bold text-sm text-[#2C2C2C] group-hover:text-[#4A5D4E]">الدعم عبر PayPal</h4>
-                  <p className="text-xs text-[#6E6A64] mt-1">دفع آمن بالبطاقات الائتمانية أو حساب PayPal</p>
+                  <p className="text-xs text-[#6E6A64] mt-1">حساب: {donationSettings.paypalEmailOrLink}</p>
                 </div>
                 <ExternalLink className="w-4 h-4 text-[#4A5D4E]" />
               </a>
@@ -567,9 +573,9 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onBack, onNavigate
               </a>
             )}
 
-            {donationSettings?.buyMeCoffeeUrl && (
+            {donationSettings?.buyMeACoffeeUrl && (
               <a
-                href={donationSettings.buyMeCoffeeUrl}
+                href={donationSettings.buyMeACoffeeUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-5 rounded-2xl border border-[#E5E2D9] bg-white hover:border-[#FFDD00] hover:shadow-md transition-all flex items-center justify-between group"
@@ -584,26 +590,26 @@ export const LegalPages: React.FC<LegalPagesProps> = ({ page, onBack, onNavigate
           </div>
 
           {/* Crypto Wallets if present */}
-          {donationSettings?.cryptoAddresses && Object.keys(donationSettings.cryptoAddresses).length > 0 && (
+          {donationSettings?.cryptoWallet && (
             <div className="space-y-3 pt-4 border-t border-[#E5E2D9]">
-              <h4 className="font-bold text-sm text-[#2C2C2C]">محافظ العملات الرقمية (Crypto Support)</h4>
-              <div className="space-y-2">
-                {Object.entries(donationSettings.cryptoAddresses).map(([coin, addr]) => (
-                  <div key={coin} className="p-3.5 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-between gap-3 text-xs">
-                    <div className="min-w-0">
-                      <span className="font-bold text-[#4A5D4E] uppercase ml-2">{coin}:</span>
-                      <span className="font-mono text-[#6E6A64] truncate" dir="ltr">{addr}</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleCopy(addr, coin)}
-                      className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E2D9] hover:bg-[#FAF8F2] text-[#2C2C2C] font-semibold text-[11px] shrink-0 cursor-pointer flex items-center gap-1"
-                    >
-                      {copiedCrypto === coin ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
-                      <span>{copiedCrypto === coin ? 'تم النسخ' : 'نسخ'}</span>
-                    </button>
-                  </div>
-                ))}
+              <h4 className="font-bold text-sm text-[#2C2C2C]">محفظة العملات الرقمية (Crypto Support)</h4>
+              <div className="p-3.5 rounded-xl bg-[#F7F5EE] border border-[#E5E2D9] flex items-center justify-between gap-3 text-xs">
+                <div className="min-w-0">
+                  <span className="font-bold text-[#4A5D4E] uppercase ml-2">USDT / Crypto:</span>
+                  <span className="font-mono text-[#6E6A64] truncate" dir="ltr">{donationSettings.cryptoWallet}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(donationSettings.cryptoWallet);
+                    setCopiedCrypto('crypto');
+                    setTimeout(() => setCopiedCrypto(null), 3000);
+                  }}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#E5E2D9] hover:bg-[#FAF8F2] text-[#2C2C2C] font-semibold text-[11px] shrink-0 cursor-pointer flex items-center gap-1"
+                >
+                  {copiedCrypto === 'crypto' ? <Check className="w-3 h-3 text-emerald-600" /> : <Copy className="w-3 h-3" />}
+                  <span>{copiedCrypto === 'crypto' ? 'تم النسخ' : 'نسخ'}</span>
+                </button>
               </div>
             </div>
           )}
