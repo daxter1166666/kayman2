@@ -381,7 +381,9 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
               </h2>
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold truncate font-amiri text-[#4A5D4E]">
-                  الفصل {chapter.chapterNumber}: {chapter.title}
+                  {chapter.title.startsWith('الفصل') || chapter.title.startsWith('الباب') || chapter.title.startsWith('مقدمة')
+                    ? chapter.title
+                    : `الفصل ${chapter.chapterNumber}: ${chapter.title}`}
                 </span>
               </div>
             </div>
@@ -775,7 +777,9 @@ export const ChapterReader: React.FC<ChapterReaderProps> = ({
           </div>
 
           <h1 className="text-2xl sm:text-4xl font-amiri font-bold tracking-tight mb-3">
-            الفصل {chapter.chapterNumber}: {chapter.title}
+            {chapter.title.startsWith('الفصل') || chapter.title.startsWith('الباب') || chapter.title.startsWith('مقدمة')
+              ? chapter.title
+              : `الفصل ${chapter.chapterNumber}: ${chapter.title}`}
           </h1>
 
           <div className="flex flex-wrap items-center justify-center gap-4 text-xs opacity-75">

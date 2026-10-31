@@ -279,7 +279,7 @@ class SupabaseService {
             let mergedChapters: Chapter[] = [];
             if (remoteChapters.length > 0) {
               mergedChapters = remoteChapters
-                .filter(rc => !deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId))
+                .filter(rc => rc.chapterNumber === 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
                 .map(rc => ({
                   ...rc,
                   content: rc.content || localChapterContentMap.get(rc.id) || '',

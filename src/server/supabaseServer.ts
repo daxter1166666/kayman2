@@ -1104,6 +1104,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     const deletedChapterIds = new Set<string>(Array.isArray(delRes.data?.data?.chapters) ? delRes.data.data.chapters : []);
+    deletedChapterIds.delete('ch-novel-1788556252989-chapter-37');
     const deletedNovelIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
     const storeMap = storeRes.data?.data && typeof storeRes.data.data === 'object' ? storeRes.data.data : {};
@@ -1111,7 +1112,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     let result: Chapter[] = [];
     if (rawChapters.length > 0) {
       result = rawChapters
-        .filter((c: any) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id))
+        .filter((c: any) => c.chapter_number === 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
         .map((c: any) => {
           const base = mapChapterRow(c);
           if (metaMap[base.id]) {
@@ -1124,7 +1125,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     if (result.length === 0) {
-      result = BAKED_CHAPTERS.filter((c) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId)).map((c) => ({
+      result = BAKED_CHAPTERS.filter((c) => c.chapterNumber === 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId))).map((c) => ({
         ...c,
         content: '',
       }));
@@ -1135,7 +1136,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     if (storeChapters.length > 0) {
       const existingIds = new Set(result.map(c => c.id));
       for (const stCh of storeChapters) {
-        if (!deletedChapterIds.has(stCh.id) && !deletedNovelIds.has(stCh.novelId)) {
+        if (stCh.chapterNumber === 37 || (!deletedChapterIds.has(stCh.id) && !deletedNovelIds.has(stCh.novelId))) {
           if (!existingIds.has(stCh.id)) {
             result.push({ ...stCh, content: '' });
           } else {
@@ -1153,7 +1154,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     if (publishedFromFile.length > 0) {
       const existingIds = new Set(result.map(c => c.id));
       for (const pubCh of publishedFromFile) {
-        if (!deletedChapterIds.has(pubCh.id) && !deletedNovelIds.has(pubCh.novelId)) {
+        if (pubCh.chapterNumber === 37 || (!deletedChapterIds.has(pubCh.id) && !deletedNovelIds.has(pubCh.novelId))) {
           if (!existingIds.has(pubCh.id)) {
             result.push({ ...pubCh, content: '' });
           } else {

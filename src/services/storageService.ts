@@ -332,40 +332,71 @@ export const storageService = {
   getChapters(novelId?: string): Chapter[] {
     let chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
     
-    // Ensure all chapters from INITIAL_CHAPTERS (like chapter 37) are always present
-    const existingIds = new Set(chapters.map(c => c.id));
+    // Ensure all chapters from INITIAL_CHAPTERS (like chapter 37) are always present and up to date
+    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
     const existingNums = new Set(chapters.map(c => c.chapterNumber));
-    let added = false;
+    let updated = false;
+
     for (const b of INITIAL_CHAPTERS) {
-      if (!existingIds.has(b.id) && !existingNums.has(b.chapterNumber)) {
+      if (!existingNums.has(b.chapterNumber)) {
         chapters.push(b);
-        added = true;
+        updated = true;
       }
     }
-    if (added) {
+
+    // Explicitly synchronize Chapter 37 so any old cached version is replaced with the authentic one
+    chapters = chapters.map(c => {
+      const b = bakedByNum.get(c.chapterNumber);
+      if (b && (c.chapterNumber === 37 || !c.content || c.content.trim().length === 0)) {
+        updated = true;
+        return {
+          ...c,
+          title: b.title,
+          slug: b.slug,
+          content: b.content,
+          partName: b.partName,
+          wordCount: b.wordCount,
+          seo: b.seo,
+        };
+      }
+      return c;
+    });
+
+    if (updated) {
       setStored(KEYS.CHAPTERS, chapters);
     }
 
     const deletedChapterIds = new Set(this.getDeletedChapterIds());
+    deletedChapterIds.delete('ch-novel-1788556252989-chapter-37');
     const deletedNovelIds = new Set(this.getDeletedNovelIds());
     
     // Fast baked map
     const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
-    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
 
     const valid = chapters
-      .filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId))
+      .filter(c => {
+        if (c.chapterNumber === 37 || bakedByNum.has(c.chapterNumber)) {
+          return true;
+        }
+        return !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId);
+      })
       .map(c => {
         const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
-        const resolvedContent = (c.content && c.content.length > (baked?.content?.length || 0))
+        const resolvedContent = (c.chapterNumber === 37 && baked?.content)
+          ? baked.content
+          : (c.content && c.content.trim().length > 0)
           ? c.content
-          : (baked?.content || c.content || '');
+          : (baked?.content || '');
         
         const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
 
         return {
           ...c,
+          title: (c.chapterNumber === 37 && baked) ? baked.title : c.title,
+          slug: (c.chapterNumber === 37 && baked) ? baked.slug : c.slug,
+          partName: (c.chapterNumber === 37 && baked) ? baked.partName : c.partName,
+          seo: (c.chapterNumber === 37 && baked) ? baked.seo : c.seo,
           content: resolvedContent,
           wordCount: computedWords,
         };
@@ -528,7 +559,13 @@ export const storageService = {
   },
 
   getDeletedChapterIds(): string[] {
-    return getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
+    const raw = getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
+    if (raw.some(id => id.includes('chapter-37') || id === 'ch-novel-1788556252989-chapter-37')) {
+      const cleaned = raw.filter(id => !id.includes('chapter-37') && id !== 'ch-novel-1788556252989-chapter-37');
+      setStored(KEYS.DELETED_CHAPTER_IDS, cleaned);
+      return cleaned;
+    }
+    return raw;
   },
 
   markChapterDeleted(id: string): void {
