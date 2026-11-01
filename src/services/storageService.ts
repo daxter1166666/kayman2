@@ -564,12 +564,12 @@ export const storageService = {
 
   getDeletedChapterIds(): string[] {
     const raw = getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
-    if (raw.some(id => id.includes('chapter-37') || id === 'ch-novel-1788556252989-chapter-37')) {
-      const cleaned = raw.filter(id => !id.includes('chapter-37') && id !== 'ch-novel-1788556252989-chapter-37');
+    const bakedIds = new Set(INITIAL_CHAPTERS.map(b => b.id));
+    const cleaned = raw.filter(id => !bakedIds.has(id) && !id.includes('ch-novel-1788556252989'));
+    if (cleaned.length !== raw.length) {
       setStored(KEYS.DELETED_CHAPTER_IDS, cleaned);
-      return cleaned;
     }
-    return raw;
+    return cleaned;
   },
 
   markChapterDeleted(id: string): void {
