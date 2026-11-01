@@ -14,6 +14,7 @@ import {
   IntellectualItem
 } from '../types';
 import { storageService } from './storageService';
+import { INITIAL_CHAPTERS } from '../data/initialData';
 
 class SupabaseService {
   private client: SupabaseClient | null = null;
@@ -269,22 +270,36 @@ class SupabaseService {
               mergedNovels = localNovels;
             }
 
-            // Chapters merge (adopts server chapters list as single source of truth, preserving cached local text)
+            // Chapters merge (adopts server chapters list, preserving cached local text and baked chapters)
             const localChapters = storageService.getChapters();
             const localChapterContentMap = new Map(localChapters.map(lc => [lc.id, lc.content || '']));
+            const bakedByNum = new Map<number, Chapter>(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
             const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
             const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
             const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
 
             let mergedChapters: Chapter[] = [];
             if (remoteChapters.length > 0) {
+              const remoteNums = new Set(remoteChapters.map(rc => rc.chapterNumber));
               mergedChapters = remoteChapters
-                .filter(rc => rc.chapterNumber === 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
-                .map(rc => ({
-                  ...rc,
-                  content: rc.content || localChapterContentMap.get(rc.id) || '',
-                  views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
-                }));
+                .filter(rc => rc.chapterNumber >= 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
+                .map(rc => {
+                  const baked = bakedByNum.get(rc.chapterNumber);
+                  const resolvedContent = rc.content || localChapterContentMap.get(rc.id) || baked?.content || '';
+                  return {
+                    ...rc,
+                    content: resolvedContent,
+                    views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
+                  };
+                });
+
+              // Ensure all 40 baked chapters are present
+              for (const b of INITIAL_CHAPTERS) {
+                if (!remoteNums.has(b.chapterNumber)) {
+                  mergedChapters.push(b);
+                }
+              }
+              mergedChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
               storageService.setRawChapters(mergedChapters);
             } else {
               mergedChapters = localChapters;
@@ -411,6 +426,14 @@ class SupabaseService {
           seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
         };
       });
+
+      const fetchedNums = new Set(chapters.map(c => c.chapterNumber));
+      for (const b of INITIAL_CHAPTERS) {
+        if (!fetchedNums.has(b.chapterNumber)) {
+          chapters.push(b);
+        }
+      }
+      chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
 
       // 3. Fetch Comments
       const { data: rawComments } = await client

@@ -751,7 +751,9 @@ export default function App() {
   // Active novel and chapter objects
   const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
-  const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);
+  const currentNovelChapters = currentNovel
+    ? chapters.filter(c => c.novelId === currentNovel.id || !c.novelId || c.novelId === 'novel-1788556252989')
+    : chapters;
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">

@@ -80,7 +80,7 @@ try {
 
   // Temporarily reset / flush cached local books and chapters once on session startup
   // to force fresh real stats and new chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v13';
+  const sessionFlushKey = 'ayman_startup_synced_session_v15';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
@@ -331,8 +331,11 @@ export const storageService = {
 
   getChapters(novelId?: string): Chapter[] {
     let chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
+    if (!Array.isArray(chapters) || chapters.length === 0) {
+      chapters = INITIAL_CHAPTERS;
+    }
     
-    // Ensure all chapters from INITIAL_CHAPTERS (like chapter 37) are always present and up to date
+    // Ensure all 40 chapters from INITIAL_CHAPTERS are always present and up to date
     const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
     const existingNums = new Set(chapters.map(c => c.chapterNumber));
     let updated = false;
@@ -344,13 +347,14 @@ export const storageService = {
       }
     }
 
-    // Explicitly synchronize Chapter 37 so any old cached version is replaced with the authentic one
+    // Explicitly synchronize chapters so any old cached/empty version is replaced with authentic baked text
     chapters = chapters.map(c => {
       const b = bakedByNum.get(c.chapterNumber);
-      if (b && (c.chapterNumber === 37 || !c.content || c.content.trim().length === 0)) {
+      if (b && (!c.content || c.content.trim().length === 0 || c.chapterNumber >= 37)) {
         updated = true;
         return {
           ...c,
+          novelId: b.novelId || 'novel-1788556252989',
           title: b.title,
           slug: b.slug,
           content: b.content,
