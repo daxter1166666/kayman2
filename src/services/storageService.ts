@@ -78,30 +78,17 @@ try {
     }
   });
 
-  // Temporarily reset / flush cached local books and chapters once on session startup
-  // to force fresh real stats and new chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v15';
+  // Reset / flush cached local books and chapters once on session startup
+  // to force fresh real stats and 40 chapters across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v16';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
       localStorage.removeItem(KEYS.CHAPTERS);
+      localStorage.removeItem(KEYS.NOVELS);
+      localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
-      
-      // Reset fake 1250 views and fake likes from old stored novel
-      try {
-        const storedNovels = JSON.parse(localStorage.getItem(KEYS.NOVELS) || '[]');
-        if (Array.isArray(storedNovels)) {
-          const cleaned = storedNovels.map((n: any) => ({
-            ...n,
-            totalViews: (n.totalViews === 1250 || n.totalViews > 500) ? 0 : (n.totalViews || 0),
-            totalLikes: (n.totalLikes === 340 || n.totalLikes > 200) ? 0 : (n.totalLikes || 0),
-            ratingCount: (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0),
-          }));
-          localStorage.setItem(KEYS.NOVELS, JSON.stringify(cleaned));
-        }
-      } catch {}
-
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
   }
@@ -165,6 +152,7 @@ export const storageService = {
 
       return {
         ...n,
+        tableOfContents: undefined,
         coverImage,
         totalViews: realViews,
         totalLikes: realLikes,
