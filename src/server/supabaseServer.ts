@@ -1104,7 +1104,8 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     const deletedChapterIds = new Set<string>(Array.isArray(delRes.data?.data?.chapters) ? delRes.data.data.chapters : []);
-    deletedChapterIds.delete('ch-novel-1788556252989-chapter-37');
+    // Protect all 40 main book chapters from deletion filters
+    BAKED_CHAPTERS.forEach(b => deletedChapterIds.delete(b.id));
     const deletedNovelIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
     const storeMap = storeRes.data?.data && typeof storeRes.data.data === 'object' ? storeRes.data.data : {};
@@ -1112,7 +1113,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     let result: Chapter[] = [];
     if (rawChapters.length > 0) {
       result = rawChapters
-        .filter((c: any) => c.chapter_number === 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
+        .filter((c: any) => c.chapter_number >= 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
         .map((c: any) => {
           const base = mapChapterRow(c);
           if (metaMap[base.id]) {
@@ -1124,11 +1125,18 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
         });
     }
 
-    if (result.length === 0) {
-      result = BAKED_CHAPTERS.filter((c) => c.chapterNumber === 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId))).map((c) => ({
-        ...c,
-        content: '',
-      }));
+    // Always merge BAKED_CHAPTERS (all 40 chapters) to ensure no missing chapters
+    const publishedFromFile = getPublishedChaptersFromFile();
+    const fallbackSource = publishedFromFile.length > 0 ? publishedFromFile : BAKED_CHAPTERS;
+    const existingNums = new Set(result.map(c => c.chapterNumber));
+
+    for (const bakedCh of fallbackSource) {
+      if (!existingNums.has(bakedCh.chapterNumber)) {
+        result.push({
+          ...bakedCh,
+          content: '',
+        });
+      }
     }
 
     // Merge published chapters from site_settings store
@@ -1150,7 +1158,6 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     // Merge published chapters from file store
-    const publishedFromFile = getPublishedChaptersFromFile();
     if (publishedFromFile.length > 0) {
       const existingIds = new Set(result.map(c => c.id));
       for (const pubCh of publishedFromFile) {

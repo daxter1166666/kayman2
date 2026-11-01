@@ -379,28 +379,28 @@ export const storageService = {
 
     const valid = chapters
       .filter(c => {
-        if (c.chapterNumber === 37 || bakedByNum.has(c.chapterNumber)) {
+        if (bakedByNum.has(c.chapterNumber)) {
           return true;
         }
         return !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId);
       })
       .map(c => {
         const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
-        const resolvedContent = (c.chapterNumber === 37 && baked?.content)
+        const resolvedContent = (baked && baked.content && baked.content.trim().length > 0)
           ? baked.content
           : (c.content && c.content.trim().length > 0)
           ? c.content
-          : (baked?.content || '');
+          : '';
         
         const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
         const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
 
         return {
           ...c,
-          title: (c.chapterNumber === 37 && baked) ? baked.title : c.title,
-          slug: (c.chapterNumber === 37 && baked) ? baked.slug : c.slug,
-          partName: (c.chapterNumber === 37 && baked) ? baked.partName : c.partName,
-          seo: (c.chapterNumber === 37 && baked) ? baked.seo : c.seo,
+          title: baked ? baked.title : c.title,
+          slug: baked ? baked.slug : c.slug,
+          partName: baked ? baked.partName : c.partName,
+          seo: baked ? baked.seo : c.seo,
           content: resolvedContent,
           wordCount: computedWords,
         };

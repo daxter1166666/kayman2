@@ -285,9 +285,13 @@ class SupabaseService {
                 .filter(rc => rc.chapterNumber >= 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
                 .map(rc => {
                   const baked = bakedByNum.get(rc.chapterNumber);
-                  const resolvedContent = rc.content || localChapterContentMap.get(rc.id) || baked?.content || '';
+                  const resolvedContent = (baked && baked.content) ? baked.content : (rc.content || localChapterContentMap.get(rc.id) || '');
                   return {
                     ...rc,
+                    title: baked ? baked.title : rc.title,
+                    slug: baked ? baked.slug : rc.slug,
+                    partName: baked ? baked.partName : rc.partName,
+                    seo: baked ? baked.seo : rc.seo,
                     content: resolvedContent,
                     views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
                   };
