@@ -507,6 +507,14 @@ class SupabaseService {
       const cloudDeletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
       const cloudDeletedArticleIds = new Set<string>(Array.isArray(delRow?.data?.articles) ? delRow.data.articles : []);
 
+      // Core book chapters (1 to 40) can NEVER be marked as deleted
+      INITIAL_CHAPTERS.forEach(b => {
+        cloudDeletedChapterIds.delete(b.id);
+        cloudDeletedChapterIds.delete(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
+        storageService.unmarkChapterDeleted(b.id);
+        storageService.unmarkChapterDeleted(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
+      });
+
       // Also merge with locally deleted IDs
       storageService.getDeletedNovelIds().forEach(id => cloudDeletedNovelIds.add(id));
       storageService.getDeletedChapterIds().forEach(id => cloudDeletedChapterIds.add(id));
@@ -598,7 +606,22 @@ class SupabaseService {
         }
       });
 
-      const mergedChapters = Array.from(remoteChaptersMap.values());
+      // Guarantee all 40 baked chapters are always present in mergedChapters
+      INITIAL_CHAPTERS.forEach(b => {
+        const existingByNum = Array.from(remoteChaptersMap.values()).find(c => c.chapterNumber === b.chapterNumber);
+        if (!existingByNum) {
+          remoteChaptersMap.set(b.id, b);
+        } else if (!existingByNum.content || existingByNum.content.length < b.content.length) {
+          remoteChaptersMap.set(existingByNum.id, {
+            ...existingByNum,
+            content: b.content,
+            title: b.title,
+            partName: b.partName,
+          });
+        }
+      });
+
+      const mergedChapters = Array.from(remoteChaptersMap.values()).sort((a, b) => a.chapterNumber - b.chapterNumber);
       storageService.saveChapters(mergedChapters);
 
       // 3. Comments merge
@@ -760,7 +783,22 @@ class SupabaseService {
         };
         cleanChaptersMap.set(mappedChapter.id, mappedChapter);
       }
-      const freshChapters = Array.from(cleanChaptersMap.values());
+      // Guarantee all 40 baked chapters are always present in cleanChaptersMap
+      INITIAL_CHAPTERS.forEach(b => {
+        const existingByNum = Array.from(cleanChaptersMap.values()).find(c => c.chapterNumber === b.chapterNumber);
+        if (!existingByNum) {
+          cleanChaptersMap.set(b.id, b);
+        } else if (!existingByNum.content || existingByNum.content.length < b.content.length) {
+          cleanChaptersMap.set(existingByNum.id, {
+            ...existingByNum,
+            content: b.content,
+            title: b.title,
+            partName: b.partName,
+          });
+        }
+      });
+
+      const freshChapters = Array.from(cleanChaptersMap.values()).sort((a, b) => a.chapterNumber - b.chapterNumber);
       storageService.saveChapters(freshChapters);
 
       // 6. Map comments

@@ -78,9 +78,9 @@ try {
     }
   });
 
-  // Reset / flush cached local books and chapters once on session startup
-  // to force fresh real stats and 40 chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v16';
+  // Reset / flush cached local books and chapters on session startup
+  // to force fresh real stats and all 40 chapters across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v40';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
@@ -361,15 +361,19 @@ export const storageService = {
     }
 
     const deletedChapterIds = new Set(this.getDeletedChapterIds());
-    deletedChapterIds.delete('ch-novel-1788556252989-chapter-37');
+    INITIAL_CHAPTERS.forEach(b => {
+      deletedChapterIds.delete(b.id);
+      deletedChapterIds.delete(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
+    });
     const deletedNovelIds = new Set(this.getDeletedNovelIds());
+    deletedNovelIds.delete('novel-1788556252989');
     
     // Fast baked map
     const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
 
     const valid = chapters
       .filter(c => {
-        if (bakedByNum.has(c.chapterNumber)) {
+        if (bakedByNum.has(c.chapterNumber) || c.novelId === 'novel-1788556252989') {
           return true;
         }
         return !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId);
