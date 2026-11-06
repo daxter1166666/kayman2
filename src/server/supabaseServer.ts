@@ -1204,9 +1204,31 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
  */
 export async function serverFetchSingleChapterContent(chapterId: string): Promise<string | null> {
   try {
-    const cached = singleChapterCache.get(chapterId);
+    const cleanIdent = decodeURIComponent(chapterId).trim();
+    const numMatch = cleanIdent.match(/\d+/);
+    const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
+
+    const cached = singleChapterCache.get(cleanIdent);
     if (cached && cached.data.content && Date.now() - cached.timestamp < CHAPTER_CONTENT_TTL_MS) {
       return cached.data.content;
+    }
+
+    // 1. Prioritize local publishedChapters.json & BAKED_CHAPTERS for authentic text
+    const localChapters = getPublishedChaptersFromFile().length > 0 ? getPublishedChaptersFromFile() : BAKED_CHAPTERS;
+    const foundLocal = localChapters.find(c => 
+      c.id === cleanIdent || 
+      c.slug === cleanIdent || 
+      `chapter-${c.chapterNumber}` === cleanIdent ||
+      String(c.chapterNumber) === cleanIdent ||
+      (parsedNum !== null && c.chapterNumber === parsedNum)
+    );
+
+    if (foundLocal && foundLocal.content && foundLocal.content.trim().length > 0) {
+      singleChapterCache.set(cleanIdent, {
+        data: { id: foundLocal.id, content: foundLocal.content } as any,
+        timestamp: Date.now(),
+      });
+      return foundLocal.content;
     }
 
     const client = getServerSupabase();
@@ -1216,7 +1238,7 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
       const { data, error } = await client
         .from('chapters')
         .select('id, content')
-        .eq('id', chapterId)
+        .eq('id', cleanIdent)
         .maybeSingle();
 
       if (!error && data && data.content) {
@@ -1232,7 +1254,7 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
         const { data } = await client
           .from('chapters')
           .select('id, content')
-          .eq('slug', chapterId)
+          .eq('slug', cleanIdent)
           .maybeSingle();
         if (data && data.content) {
           content = data.content;
@@ -1242,51 +1264,11 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
       }
     }
 
-    // Fallback to site_settings published_chapters_store
-    if (!content) {
-      try {
-        const { data } = await client
-          .from('site_settings')
-          .select('data')
-          .eq('id', 'published_chapters_store')
-          .maybeSingle();
-        const storeMap = data?.data && typeof data.data === 'object' ? data.data : {};
-        const foundStoreCh = Object.values(storeMap).find((c: any) => c.id === chapterId || c.slug === chapterId);
-        if (foundStoreCh && (foundStoreCh as any).content) {
-          content = (foundStoreCh as any).content;
-        }
-      } catch {
-        // ignore
-      }
-    }
-
-    // Fallback to publishedChapters.json file
-    if (!content) {
-      const pubChapters = getPublishedChaptersFromFile();
-      const found = pubChapters.find((c) => c.id === chapterId || c.slug === chapterId);
-      if (found && found.content) {
-        content = found.content;
-      }
-    }
-
-    // Fallback to baked content
-    if (!content) {
-      const baked = BAKED_CHAPTERS.find((c) => c.id === chapterId || c.slug === chapterId);
-      if (baked && baked.content) {
-        content = baked.content;
-      }
-    }
-
     if (content) {
-      if (cached) {
-        cached.data.content = content;
-        cached.timestamp = Date.now();
-      } else {
-        singleChapterCache.set(chapterId, {
-          data: { id: chapterId, content } as any,
-          timestamp: Date.now(),
-        });
-      }
+      singleChapterCache.set(cleanIdent, {
+        data: { id: cleanIdent, content } as any,
+        timestamp: Date.now(),
+      });
     }
 
     return content;
