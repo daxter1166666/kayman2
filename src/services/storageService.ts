@@ -194,6 +194,8 @@ export const storageService = {
 
   syncNovelsToServer(novels: Novel[]): void {
     if (typeof window === 'undefined') return;
+    // Skip endpoint push on static SPA deployments like Vercel to prevent HTTP 405 console noise
+    if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.hostname.includes('netlify.app')) return;
     try {
       fetch('/api/sync/push', {
         method: 'POST',
@@ -207,6 +209,8 @@ export const storageService = {
 
   syncChaptersToServer(chapters: Chapter[]): void {
     if (typeof window === 'undefined') return;
+    // Skip endpoint push on static SPA deployments like Vercel to prevent HTTP 405 console noise
+    if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.hostname.includes('netlify.app')) return;
     try {
       fetch('/api/sync/push', {
         method: 'POST',

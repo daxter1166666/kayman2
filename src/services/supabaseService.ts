@@ -114,7 +114,13 @@ class SupabaseService {
         this.currentConfig = null;
         return null;
       }
-      this.client = createClient(sanitizedUrl, sanitizedKey);
+      this.client = createClient(sanitizedUrl, sanitizedKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
       this.currentConfig = { ...config, enabled: true, url: sanitizedUrl, anonKey: sanitizedKey };
       return this.client;
     } catch (e) {
