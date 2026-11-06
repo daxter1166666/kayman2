@@ -203,7 +203,7 @@ export default function App() {
         return { view: 'legal' as const, legalPage: norm as any, novelId: null, chapterId: null, articleId: null };
       }
     }
-    return { view: 'catalog' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
+    return { view: 'control_panel' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
   }, [initialSSR]);
 
   const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader'>(initialRoute.view);

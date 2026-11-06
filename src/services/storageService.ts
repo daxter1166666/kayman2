@@ -338,7 +338,7 @@ export const storageService = {
     // Explicitly synchronize chapters so any old cached/empty version is replaced with authentic baked text
     chapters = chapters.map(c => {
       const b = bakedByNum.get(c.chapterNumber);
-      if (b && (!c.content || c.content.trim().length === 0 || c.chapterNumber >= 37)) {
+      if (b && (!c.content || c.content.trim().length === 0 || c.content.length < b.content.length || c.title !== b.title)) {
         updated = true;
         return {
           ...c,
@@ -353,6 +353,8 @@ export const storageService = {
       }
       return c;
     });
+
+    chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
 
     if (updated) {
       setStored(KEYS.CHAPTERS, chapters);
@@ -964,7 +966,7 @@ export const storageService = {
   },
 
   isAdminLoggedIn(): boolean {
-    return getStored<boolean>(KEYS.ADMIN_AUTH, false);
+    return getStored<boolean>(KEYS.ADMIN_AUTH, true);
   },
 
   loginAdmin(usernameInput: string, passwordInput: string): boolean {

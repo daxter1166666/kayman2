@@ -171,6 +171,38 @@ for (const ch of chapters) {
 
 fs.writeFileSync(filePath, JSON.stringify(deduped, null, 2), 'utf8');
 console.log('Saved', deduped.length, 'chapters to', filePath);
+
+const bakedTsPath = path.resolve(process.cwd(), 'src/data/bakedContent.ts');
+const bakedTsCode = `import { Chapter, Novel } from '../types';
+
+export const BAKED_NOVELS: Novel[] = [
+  {
+    id: 'novel-1788556252989',
+    title: 'أخلاق الباحث المسلم المعاصر',
+    slug: 'أخلاق-الباحث-المسلم-المعاصر',
+    author: 'أيمن كناني',
+    authorBio: 'كاتب وباحث في الفكر الإسلامي والمنهجية العلمية المعاصرة',
+    synopsis: 'دراسة منهجية وأخلاقية شاملة تؤصل لقواعد البحث والتفكير النقدي للباحث المسلم في العصر الرقمي، مع استعراض ضوابط التعامل مع النص الشرعي والمنهج العلمي.',
+    coverImage: '/book-cover.jpg',
+    bannerImage: '/author-cover.jpg',
+    genres: ['فكر إسلامي', 'منهجية البحث', 'فلسفة وأخلاق'],
+    tags: ['أخلاق البحث', 'المنهج العلمي', 'الفكر المعاصر', 'أيمن كناني'],
+    status: 'ONGOING',
+    totalViews: 0,
+    totalLikes: 0,
+    rating: 5.0,
+    ratingCount: 0,
+    isFeatured: true,
+    createdAt: '2026-03-01T00:00:00.000Z',
+    updatedAt: '${new Date().toISOString()}',
+  },
+];
+
+export const BAKED_CHAPTERS: Chapter[] = ${JSON.stringify(deduped, null, 2)};
+`;
+fs.writeFileSync(bakedTsPath, bakedTsCode, 'utf8');
+console.log('Successfully saved', deduped.length, 'chapters into TS file:', bakedTsPath);
+
 deduped.forEach(c => {
   console.log(`#${c.chapterNumber} - ${c.title} (words: ${c.wordCount}, contentLen: ${c.content.length})`);
 });
