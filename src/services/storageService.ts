@@ -17,8 +17,8 @@ const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
 ];
 
 const KEYS = {
-  NOVELS: 'ayman_novels_v4',
-  CHAPTERS: 'ayman_chapters_v4',
+  NOVELS: 'ayman_novels_v5',
+  CHAPTERS: 'ayman_chapters_v5',
   COMMENTS: 'ayman_comments_v2',
   AD_SETTINGS: 'ayman_ads_v2',
   READER_SETTINGS: 'ayman_reader_settings_v2',
@@ -52,6 +52,10 @@ const KEYS = {
 // Clean legacy mock keys if present in browser storage across all user devices
 try {
   const legacyKeys = [
+    'ayman_novels_v4',
+    'ayman_chapters_v4',
+    'ayman_deleted_chapter_ids_v1',
+    'ayman_deleted_novel_ids_v1',
     'novelia_novels_v1',
     'novelia_chapters_v1',
     'novelia_comments_v1',
