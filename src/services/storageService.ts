@@ -322,94 +322,29 @@ export const storageService = {
   },
 
   getChapters(novelId?: string): Chapter[] {
-    let chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-    if (!Array.isArray(chapters) || chapters.length === 0) {
-      chapters = INITIAL_CHAPTERS;
-    }
-    
-    // Ensure all 40 chapters from INITIAL_CHAPTERS are always present and up to date
-    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
-    const existingNums = new Set(chapters.map(c => c.chapterNumber));
-    let updated = false;
+    const stored = getStored<Chapter[]>(KEYS.CHAPTERS, []);
+    const storedByNum = new Map((stored || []).map(c => [c.chapterNumber, c]));
 
-    for (const b of INITIAL_CHAPTERS) {
-      if (!existingNums.has(b.chapterNumber)) {
-        chapters.push(b);
-        updated = true;
-      }
-    }
-
-    // Explicitly synchronize chapters so any old cached/empty version is replaced with authentic baked text
-    chapters = chapters.map(c => {
-      const b = bakedByNum.get(c.chapterNumber);
-      if (b && (!c.content || c.content.trim().length === 0 || c.content.length < b.content.length || c.title !== b.title)) {
-        updated = true;
-        return {
-          ...c,
-          novelId: b.novelId || 'novel-1788556252989',
-          title: b.title,
-          slug: b.slug,
-          content: b.content,
-          partName: b.partName,
-          wordCount: b.wordCount,
-          seo: b.seo,
-        };
-      }
-      return c;
+    // Guaranteed 40 chapters directly from compiled local code
+    const guaranteedChapters = INITIAL_CHAPTERS.map(baked => {
+      const storedCh = storedByNum.get(baked.chapterNumber);
+      return {
+        ...baked,
+        views: storedCh ? Math.max(baked.views || 0, storedCh.views || 0) : (baked.views || 0),
+        likes: storedCh ? Math.max(baked.likes || 0, storedCh.likes || 0) : (baked.likes || 0),
+        rating: storedCh?.rating || baked.rating,
+      };
     });
 
-    chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
+    // Include custom non-core chapters if any exist
+    const customChapters = (stored || []).filter(c => c && c.chapterNumber > 40 && c.novelId !== 'novel-1788556252989');
 
-    if (updated) {
-      setStored(KEYS.CHAPTERS, chapters);
-    }
-
-    const deletedChapterIds = new Set(this.getDeletedChapterIds());
-    INITIAL_CHAPTERS.forEach(b => {
-      deletedChapterIds.delete(b.id);
-      deletedChapterIds.delete(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
-    });
-    const deletedNovelIds = new Set(this.getDeletedNovelIds());
-    deletedNovelIds.delete('novel-1788556252989');
-    
-    // Fast baked map
-    const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
-
-    const valid = chapters
-      .filter(c => {
-        if (bakedByNum.has(c.chapterNumber) || c.novelId === 'novel-1788556252989') {
-          return true;
-        }
-        return !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId);
-      })
-      .map(c => {
-        const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
-        const resolvedContent = (baked && baked.content && baked.content.trim().length > 0)
-          ? baked.content
-          : (c.content && c.content.trim().length > 0)
-          ? c.content
-          : '';
-        
-        const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
-
-        return {
-          ...c,
-          title: baked ? baked.title : c.title,
-          slug: baked ? baked.slug : c.slug,
-          partName: baked ? baked.partName : c.partName,
-          seo: baked ? baked.seo : c.seo,
-          content: resolvedContent,
-          wordCount: computedWords,
-        };
-      });
+    const all = [...guaranteedChapters, ...customChapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
 
     if (novelId) {
-      return valid
-        .filter(c => c.novelId === novelId)
-        .sort((a, b) => a.chapterNumber - b.chapterNumber);
+      return all.filter(c => c.novelId === novelId);
     }
-    return valid;
+    return all;
   },
 
   saveChapters(chapters: Chapter[]): void {
