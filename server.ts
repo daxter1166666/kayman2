@@ -507,7 +507,8 @@ ${urlsXml.join('\n')}
       const { chapters } = await fetchAllForSitemap();
       const urlsXml: string[] = [];
       for (const ch of chapters) {
-        const chapterUrl = `${domain}/chapter/${encodeURIComponent(ch.chapterNumber)}`;
+        const novelSlugPart = ch.novelSlug || ch.novelId;
+        const chapterUrl = `${domain}/book/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
         urlsXml.push(
           `  <url>`,
           `    <loc>${chapterUrl}</loc>`,
@@ -602,7 +603,8 @@ ${urlsXml.join('\n')}
 
       // Add chapters (clean single canonical URL per chapter to avoid duplicates)
       for (const ch of chapters) {
-        const chapterUrl = `${domain}/chapter/${encodeURIComponent(ch.chapterNumber)}`;
+        const novelSlugPart = ch.novelSlug || ch.novelId;
+        const chapterUrl = `${domain}/book/${encodeURIComponent(novelSlugPart)}/chapter/${encodeURIComponent(ch.slug)}`;
         urlsXml.push(
           `  <url>`,
           `    <loc>${chapterUrl}</loc>`,
@@ -648,7 +650,7 @@ ${urlsXml.join('\n')}
       // Add recent chapters (sorted latest first)
       const sortedChapters = [...chapters].reverse();
       for (const ch of sortedChapters) {
-        const chUrl = `${domain}/chapter/${encodeURIComponent(ch.chapterNumber)}`;
+        const chUrl = `${domain}/book/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
         itemsXml.push(`    <item>
       <title>كتاب ${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
       <link>${chUrl}</link>
@@ -706,7 +708,7 @@ ${itemsXml.join('\n')}
 
       const sortedChapters = [...chapters].reverse();
       for (const ch of sortedChapters) {
-        const chUrl = `${domain}/chapter/${encodeURIComponent(ch.chapterNumber)}`;
+        const chUrl = `${domain}/book/${encodeURIComponent(ch.novelSlug)}/chapter/${encodeURIComponent(ch.slug)}`;
         entriesXml.push(`  <entry>
     <title>كتاب ${escapeXml(ch.novelTitle)} - ${escapeXml(ch.title)}</title>
     <link href="${chUrl}" />
