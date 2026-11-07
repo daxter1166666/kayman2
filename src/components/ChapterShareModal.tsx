@@ -11,11 +11,8 @@ import {
   Sparkles,
   Smartphone,
   Quote,
-  Globe,
-  Image as ImageIcon,
 } from 'lucide-react';
 import { Chapter, Novel } from '../types';
-import { storageService } from '../services/storageService';
 
 interface ChapterShareModalProps {
   isOpen: boolean;
@@ -34,27 +31,16 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
 }) => {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedQuote, setCopiedQuote] = useState(false);
-  const [useCurrentOrigin, setUseCurrentOrigin] = useState(false);
 
   if (!isOpen) return null;
 
-  // Base canonical official domain (e.g. https://www.aymankinani.org)
-  const officialDomain = (storageService.getSeoSettings()?.canonicalBaseUrl || 'https://www.aymankinani.org').replace(/\/$/, '');
-  const officialShareUrl = `${officialDomain}/chapter/${chapter.chapterNumber}`;
+  // Formulate canonical share link
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const shareUrl = `${origin}/book/${novel.slug || novel.id}/chapter-${chapter.chapterNumber}?chapter=${chapter.id}`;
 
-  // Current dev/preview origin
-  const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
-  const currentShareUrl = `${currentOrigin}/chapter/${chapter.chapterNumber}`;
-
-  // Active share URL according to user selection (default is official canonical indexed link)
-  const shareUrl = useCurrentOrigin ? currentShareUrl : officialShareUrl;
-
-  const shareText = `أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني 📖✨\n${shareUrl}`;
+  const shareText = `أرشح لك قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني 📖✨`;
   
-  const quoteText = `📖 «${chapter.title}» — الفصل ${chapter.chapterNumber}\nمن كتاب: ${novel.title}\nالمؤلف: أيمن كناني\n\nتفضل بقراءة هذا الفصل كاملاً وبجودة عالية عبر الرابط الرسمي:\n${shareUrl}`;
-
-  // Share card image (High-res book cover or banner)
-  const shareImage = chapter.seo?.ogImage || novel.coverImage || novel.bannerImage || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
+  const quoteText = `📖 «${chapter.title}» — الفصل ${chapter.chapterNumber}\nمن كتاب: ${novel.title}\nالمؤلف: أيمن كناني\n\nتفضل بقراءة هذا الفصل كاملاً وبجودة عالية عبر الرابط:\n${shareUrl}`;
 
   const handleCopyLink = async () => {
     try {
@@ -117,9 +103,9 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
   };
 
   // Social share URLs
-  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText}`)}`;
-  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(`📖 الفصل ${chapter.chapterNumber}: ${chapter.title} | كتاب ${novel.title} للمؤلف أيمن كناني`)}`;
-  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(`قراءة الفصل ${chapter.chapterNumber} «${chapter.title}» من كتاب «${novel.title}» للكاتب أيمن كناني 📖`)}&url=${encodeURIComponent(shareUrl)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب,روايات')}`;
+  const whatsappUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(`${shareText}\n${shareUrl}`)}`;
+  const telegramUrl = `https://t.me/share/url?url=${encodeURIComponent(shareUrl)}&text=${encodeURIComponent(shareText)}`;
+  const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(shareUrl)}&hashtags=${encodeURIComponent('أيمن_كناني,كتب,روايات')}`;
   const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`;
 
   const isDark = themeMode === 'slate' || themeMode === 'obsidian' || themeMode === 'emerald';
@@ -148,10 +134,10 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
             </div>
             <div>
               <h3 className="font-amiri font-bold text-lg leading-none">
-                مشاركة الفصل
+                مشاركة الفصل مع الأصدقاء
               </h3>
               <p className={`text-[11px] mt-0.5 ${isDark ? 'text-[#8892B0]' : 'text-[#8E8A83]'}`}>
-                الرابط النظيف المفهرس ومعاينة بطاقة المشاركة للشبكات الاجتماعية
+                اختر المنصة المناسبة لنشر هذا الفصل وقراءته مباشرة
               </p>
             </div>
           </div>
@@ -171,62 +157,39 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
         </div>
 
         {/* Modal Body */}
-        <div className="p-5 sm:p-6 space-y-5 max-h-[80vh] overflow-y-auto">
-          {/* Social Share Live Preview Card (What Facebook/Twitter/WhatsApp shows) */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-xs font-bold text-[#6E6A64] dark:text-[#A0AEC0]">
-              <span className="flex items-center gap-1.5">
-                <ImageIcon className="w-3.5 h-3.5 text-[#C88A3B]" />
-                معاينة بطاقة المشاركة (Facebook / WhatsApp / X):
-              </span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full font-sans">
-                OpenGraph 1200x630
-              </span>
-            </div>
-
-            <div
-              className={`rounded-2xl border overflow-hidden transition-all shadow-sm ${
-                isDark
-                  ? 'bg-[#151921] border-[#2E3440]'
-                  : 'bg-[#FAF8F5] border-[#E5E2D9]'
-              }`}
-            >
-              {/* Preview Image Header */}
-              <div className="relative h-36 sm:h-40 w-full overflow-hidden bg-black/5">
-                <img
-                  src={shareImage}
-                  alt={chapter.title}
-                  className="w-full h-full object-cover object-center filter brightness-95"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent flex flex-col justify-end p-3.5 text-white">
-                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-white/20 backdrop-blur-md text-[10px] font-sans font-bold w-fit mb-1">
-                    <Globe className="w-3 h-3" />
-                    <span>AYMANKINANI.ORG</span>
-                  </div>
-                  <h4 className="font-amiri font-bold text-base sm:text-lg leading-tight line-clamp-1 drop-shadow-sm">
-                    الفصل {chapter.chapterNumber}: {chapter.title}
-                  </h4>
-                  <p className="text-[11px] text-white/90 line-clamp-1 drop-shadow-xs">
-                    كتاب: {novel.title} · بقلم الكاتب أيمن كناني
-                  </p>
-                </div>
+        <div className="p-5 sm:p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+          {/* Chapter Summary Card */}
+          <div
+            className={`p-4 rounded-xl border flex items-center gap-4 ${
+              isDark
+                ? 'bg-[#202530]/60 border-[#2E3440]'
+                : 'bg-[#F7F5EE]/80 border-[#E5E2D9]'
+            }`}
+          >
+            {novel.coverImage ? (
+              <img
+                src={novel.coverImage}
+                alt={novel.title}
+                className="w-14 h-20 rounded-lg object-cover shadow-xs shrink-0 border border-[#E5E2D9]"
+              />
+            ) : (
+              <div className="w-14 h-20 rounded-lg bg-[#4A5D4E]/15 text-[#4A5D4E] flex items-center justify-center shrink-0">
+                <BookOpen className="w-6 h-6" />
               </div>
+            )}
 
-              {/* Preview Body Info */}
-              <div className="p-3.5 flex items-center justify-between gap-3">
-                <div className="min-w-0 flex-1">
-                  <div className="text-[11px] font-bold text-[#4A5D4E] dark:text-emerald-400">
-                    قراءة مباشرة بجودة عالية · المنصة المعتمدة
-                  </div>
-                  <div className="text-[10px] text-[#6E6A64] dark:text-[#8892B0] font-mono truncate mt-0.5">
-                    {shareUrl}
-                  </div>
-                </div>
-                <div className="shrink-0 px-3 py-1.5 rounded-lg bg-[#4A5D4E] text-white font-bold text-xs flex items-center gap-1 shadow-xs">
-                  <BookOpen className="w-3.5 h-3.5" />
-                  <span>قراءة الفصل</span>
-                </div>
+            <div className="min-w-0 flex-1 space-y-1">
+              <div className="text-[11px] font-bold text-[#4A5D4E] flex items-center gap-1.5">
+                <span>الفصل {chapter.chapterNumber}</span>
+                <span>·</span>
+                <span>{chapter.wordCount || 0} كلمة</span>
               </div>
+              <h4 className="font-amiri font-bold text-base sm:text-lg leading-tight truncate">
+                {chapter.title}
+              </h4>
+              <p className={`text-xs truncate ${isDark ? 'text-[#A0AEC0]' : 'text-[#6E6A64]'}`}>
+                من كتاب: {novel.title} · بقلم الكاتب أيمن كناني
+              </p>
             </div>
           </div>
 
@@ -234,7 +197,7 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
           <div>
             <div className="text-xs font-bold mb-3 flex items-center gap-1.5">
               <Sparkles className="w-3.5 h-3.5 text-[#C88A3B]" />
-              <span>نشر ومشاركة سريعة:</span>
+              <span>مشاركة سريعة بنقرة واحدة:</span>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -296,40 +259,11 @@ export const ChapterShareModal: React.FC<ChapterShareModalProps> = ({
             )}
           </div>
 
-          {/* Copy Direct Clean URL Section */}
+          {/* Copy Direct URL Section */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold block">
-                رابط الفصل المفهرس:
-              </label>
-              {currentOrigin && currentOrigin !== officialDomain && (
-                <div className="flex items-center gap-2 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => setUseCurrentOrigin(false)}
-                    className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
-                      !useCurrentOrigin
-                        ? 'bg-[#4A5D4E] text-white shadow-xs'
-                        : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-                    }`}
-                  >
-                    الرسمي المعتمد
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setUseCurrentOrigin(true)}
-                    className={`px-2 py-0.5 rounded-md font-bold transition-all cursor-pointer ${
-                      useCurrentOrigin
-                        ? 'bg-[#4A5D4E] text-white shadow-xs'
-                        : 'text-[#6E6A64] hover:text-[#2C2C2C]'
-                    }`}
-                  >
-                    المعاينة الحالية
-                  </button>
-                </div>
-              )}
-            </div>
-
+            <label className="text-xs font-bold block">
+              رابط الفصل المباشر:
+            </label>
             <div className="flex items-center gap-2">
               <input
                 type="text"

@@ -83,7 +83,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
   const [abstract, setAbstract] = useState<string>('');
   const [content, setContent] = useState<string>('');
   const [referencesInput, setReferencesInput] = useState<string>('');
-  const [tocInput, setTocInput] = useState<string>('');
   const [deweyDecimal, setDeweyDecimal] = useState<string>('');
   const [isFeatured, setIsFeatured] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -135,7 +134,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       setAbstract('');
       setContent('');
       setReferencesInput('');
-      setTocInput('');
       setDeweyDecimal('');
       setIsFeatured(false);
       setSeoMetaTitle('');
@@ -174,7 +172,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
         setAbstract(item.abstract || '');
         setContent(item.content || '');
         setReferencesInput(item.references ? item.references.join('\n') : '');
-        setTocInput(item.tableOfContents ? item.tableOfContents.map(t => t.title).join('\n') : '');
         setDeweyDecimal(item.deweyDecimal || '');
         setIsFeatured(Boolean(item.isFeatured));
         setSeoMetaTitle(item.seo?.metaTitle || '');
@@ -216,11 +213,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
       .split('\n')
       .map(r => r.trim())
       .filter(Boolean);
-    const tableOfContents = tocInput
-      .split('\n')
-      .map(t => t.trim())
-      .filter(Boolean)
-      .map(title => ({ title }));
 
     const seoMeta = {
       metaTitle: seoMetaTitle.trim() || undefined,
@@ -254,7 +246,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           abstract: abstract.trim() || undefined,
           content: content.trim(),
           references,
-          tableOfContents,
           deweyDecimal: deweyDecimal.trim() || undefined,
           isFeatured,
           seo: seoMeta,
@@ -292,7 +283,6 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
           abstract: abstract.trim() || undefined,
           content: content.trim(),
           references,
-          tableOfContents,
           deweyDecimal: deweyDecimal.trim() || undefined,
           isFeatured,
           seo: seoMeta,
@@ -732,25 +722,10 @@ export const ArticlesEditorStudioTab: React.FC<ArticlesEditorStudioTabProps> = (
         </div>
       </div>
 
-      {/* Manual Table of Contents Section */}
-      <div className="bg-[#FDFCF8] p-5 rounded-2xl border border-[#E5E2D9] shadow-xs">
-        <label className="block text-xs font-bold text-[#4A5D4E] mb-1.5 flex items-center gap-1.5">
-          <BookOpenCheck className="w-4 h-4" />
-          <span>فهرس ومحتويات المقال اليدوي (عنوان كل قسم في سطر منفصل):</span>
-        </label>
-        <textarea
-          value={tocInput}
-          onChange={e => setTocInput(e.target.value)}
-          rows={3}
-          placeholder="مقدمة المقال&#10;المنظومة الفكرية الحاكمة&#10;التطبيقات العملية والنتائج&#10;خاتمة الدراسة"
-          className="w-full px-3.5 py-2 text-xs rounded-xl bg-white border border-[#E5E2D9] text-[#2C2C2C] focus:outline-none focus:border-[#4A5D4E] font-mono text-[11px] leading-relaxed"
-        />
-      </div>
-
       {/* References Section */}
       <div className="bg-[#FDFCF8] p-5 rounded-2xl border border-[#E5E2D9] shadow-xs">
         <label className="block text-xs font-bold text-[#4A5D4E] mb-1.5">
-          المراجع والمصادر الأكاديمية التي استعنت بها لكتابة المقال (كل مرجع في سطر منفصل):
+          المراجع والمصادر الأكاديمية (كل مرجع في سطر منفصل):
         </label>
         <textarea
           value={referencesInput}

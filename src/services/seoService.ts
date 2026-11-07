@@ -522,11 +522,11 @@ class SeoService {
     const shareImage = chapter.seo?.ogImage?.trim() || novel.bannerImage || novel.coverImage || seoSettings.ogDefaultImage || '';
 
     // 5. Canonical URL
-    const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/chapter/${chapter.chapterNumber}`;
+    const canonicalUrl = chapter.seo?.canonicalUrl?.trim() || `${baseUrl}/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`;
 
-    // 6. Robots / Indexing (Allow indexing unless chapter explicitly marked noIndex)
-    const isNoIndex = Boolean(chapter.seo?.noIndex);
-    const robots = isNoIndex ? 'noindex, nofollow' : 'index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1';
+    // 6. Robots / Indexing
+    const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
+    const robots = isNoIndex ? 'noindex, nofollow' : undefined;
 
     // 7. Schema.org JSON-LD
     const jsonLd = this.buildChapterJsonLd(chapter, novel, authorProfile, baseUrl);
@@ -537,7 +537,7 @@ class SeoService {
       keywords: finalKeywords,
       ogType: 'article',
       ogImage: shareImage,
-      url: `/chapter/${chapter.chapterNumber}`,
+      url: `/book/${novel.slug || novel.id}/chapter/${chapter.slug || chapter.chapterNumber}`,
       canonicalUrl,
       author: novel.author || authorProfile?.name || 'أيمن كناني',
       publishedTime: chapter.publishedAt,
@@ -934,7 +934,8 @@ class SeoService {
       if (chapter.seo?.noIndex) continue;
       const parentNovel = novels.find(n => n.id === chapter.novelId);
       if (parentNovel?.seo?.noIndex) continue;
-      const chLoc = chapter.seo?.canonicalUrl || `${rootUrl}/chapter/${chapter.chapterNumber}`;
+      const novelSlugPart = parentNovel ? (parentNovel.slug || parentNovel.id) : chapter.novelId;
+      const chLoc = chapter.seo?.canonicalUrl || `${rootUrl}/book/${novelSlugPart}/chapter/${chapter.slug || chapter.chapterNumber}`;
       const chDate = (chapter.publishedAt || today).slice(0, 10);
       xml += `  <url>\n`;
       xml += `    <loc>${chLoc}</loc>\n`;

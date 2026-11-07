@@ -351,7 +351,6 @@ export interface IntellectualItem {
   abstract?: string;
   multilingualAbstract?: MultilingualAbstract;
   references?: string[];
-  tableOfContents?: { title: string; anchor?: string }[];
   footnotes?: Footnote[];
   parallelSegments?: ParallelSegment[];
   originalContent?: string;

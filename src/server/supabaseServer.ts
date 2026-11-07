@@ -516,38 +516,31 @@ export async function fetchAllForSitemap(): Promise<{
       serverFetchAllChapters(),
     ]);
 
-    const novels = allNovels
-      .filter(n => !n.seo?.noIndex)
-      .map(n => ({
-        id: n.id,
-        title: n.title || 'مؤلفات أيمن كناني',
-        slug: n.slug || n.id,
-        synopsis: n.synopsis || '',
-        author: n.author || 'أيمن كناني',
-        coverImage: n.coverImage || '',
-        updatedAt: n.updatedAt || new Date().toISOString(),
-      }));
+    const novels = allNovels.map(n => ({
+      id: n.id,
+      title: n.title || 'مؤلفات أيمن كناني',
+      slug: n.slug || n.id,
+      synopsis: n.synopsis || '',
+      author: n.author || 'أيمن كناني',
+      coverImage: n.coverImage || '',
+      updatedAt: n.updatedAt || new Date().toISOString(),
+    }));
 
     const novelMap = new Map(allNovels.map(n => [n.id, n]));
 
-    const chapters = allChapters
-      .filter(c => {
-        const parentNovel = novelMap.get(c.novelId);
-        return !c.seo?.noIndex && !parentNovel?.seo?.noIndex;
-      })
-      .map(c => {
-        const parentNovel = novelMap.get(c.novelId);
-        return {
-          id: c.id,
-          novelId: c.novelId,
-          novelSlug: parentNovel?.slug || c.novelId,
-          novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
-          title: c.title || `الفصل ${c.chapterNumber}`,
-          slug: c.slug || `chapter-${c.chapterNumber}`,
-          chapterNumber: c.chapterNumber || 1,
-          updatedAt: c.publishedAt || new Date().toISOString(),
-        };
-      });
+    const chapters = allChapters.map(c => {
+      const parentNovel = novelMap.get(c.novelId);
+      return {
+        id: c.id,
+        novelId: c.novelId,
+        novelSlug: parentNovel?.slug || c.novelId,
+        novelTitle: parentNovel?.title || 'أخلاق الباحث المسلم المعاصر',
+        title: c.title || `الفصل ${c.chapterNumber}`,
+        slug: c.slug || `chapter-${c.chapterNumber}`,
+        chapterNumber: c.chapterNumber || 1,
+        updatedAt: c.publishedAt || new Date().toISOString(),
+      };
+    });
 
     return { novels, chapters };
   } catch (err) {
@@ -588,20 +581,11 @@ function mapNovelRow(n: any): Novel {
 }
 
 function mapChapterRow(c: any): Chapter {
-  const num = Number(c.chapter_number || 1);
-  let resolvedSeo = typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined);
-  if (!resolvedSeo) {
-    const localMatch = getPublishedChaptersFromFile().find(ch => ch.id === c.id || ch.chapterNumber === num)
-      || BAKED_CHAPTERS.find(ch => ch.id === c.id || ch.chapterNumber === num);
-    if (localMatch?.seo) {
-      resolvedSeo = localMatch.seo;
-    }
-  }
   return {
     id: c.id,
     novelId: c.novel_id,
-    chapterNumber: num,
-    title: c.title || `فصل ${num}`,
+    chapterNumber: Number(c.chapter_number || 1),
+    title: c.title || `فصل ${c.chapter_number || 1}`,
     slug: c.slug || c.id,
     content: c.content || '',
     authorNote: c.author_note || c.author_notes || undefined,
@@ -610,7 +594,7 @@ function mapChapterRow(c: any): Chapter {
     likes: Number(c.likes || 0),
     wordCount: Number(c.word_count || (c.content ? c.content.trim().split(/\s+/).length : 0)),
     status: c.status || 'PUBLISHED',
-    seo: resolvedSeo,
+    seo: typeof c.seo === 'object' && c.seo !== null ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
   };
 }
 
@@ -1104,8 +1088,6 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     const deletedChapterIds = new Set<string>(Array.isArray(delRes.data?.data?.chapters) ? delRes.data.data.chapters : []);
-    // Protect all 40 main book chapters from deletion filters
-    BAKED_CHAPTERS.forEach(b => deletedChapterIds.delete(b.id));
     const deletedNovelIds = new Set<string>(Array.isArray(delRes.data?.data?.novels) ? delRes.data.data.novels : []);
     const metaMap = metaRes.data?.data && typeof metaRes.data.data === 'object' ? metaRes.data.data : {};
     const storeMap = storeRes.data?.data && typeof storeRes.data.data === 'object' ? storeRes.data.data : {};
@@ -1113,7 +1095,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     let result: Chapter[] = [];
     if (rawChapters.length > 0) {
       result = rawChapters
-        .filter((c: any) => c.chapter_number >= 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
+        .filter((c: any) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id))
         .map((c: any) => {
           const base = mapChapterRow(c);
           if (metaMap[base.id]) {
@@ -1125,18 +1107,11 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
         });
     }
 
-    // Always merge BAKED_CHAPTERS (all 40 chapters) to ensure no missing chapters
-    const publishedFromFile = getPublishedChaptersFromFile();
-    const fallbackSource = publishedFromFile.length > 0 ? publishedFromFile : BAKED_CHAPTERS;
-    const existingNums = new Set(result.map(c => c.chapterNumber));
-
-    for (const bakedCh of fallbackSource) {
-      if (!existingNums.has(bakedCh.chapterNumber)) {
-        result.push({
-          ...bakedCh,
-          content: '',
-        });
-      }
+    if (result.length === 0) {
+      result = BAKED_CHAPTERS.filter((c) => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId)).map((c) => ({
+        ...c,
+        content: '',
+      }));
     }
 
     // Merge published chapters from site_settings store
@@ -1144,7 +1119,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     if (storeChapters.length > 0) {
       const existingIds = new Set(result.map(c => c.id));
       for (const stCh of storeChapters) {
-        if (stCh.chapterNumber >= 1 || (!deletedChapterIds.has(stCh.id) && !deletedNovelIds.has(stCh.novelId))) {
+        if (!deletedChapterIds.has(stCh.id) && !deletedNovelIds.has(stCh.novelId)) {
           if (!existingIds.has(stCh.id)) {
             result.push({ ...stCh, content: '' });
           } else {
@@ -1158,10 +1133,11 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     }
 
     // Merge published chapters from file store
+    const publishedFromFile = getPublishedChaptersFromFile();
     if (publishedFromFile.length > 0) {
       const existingIds = new Set(result.map(c => c.id));
       for (const pubCh of publishedFromFile) {
-        if (pubCh.chapterNumber >= 1 || (!deletedChapterIds.has(pubCh.id) && !deletedNovelIds.has(pubCh.novelId))) {
+        if (!deletedChapterIds.has(pubCh.id) && !deletedNovelIds.has(pubCh.novelId)) {
           if (!existingIds.has(pubCh.id)) {
             result.push({ ...pubCh, content: '' });
           } else {
@@ -1204,31 +1180,9 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
  */
 export async function serverFetchSingleChapterContent(chapterId: string): Promise<string | null> {
   try {
-    const cleanIdent = decodeURIComponent(chapterId).trim();
-    const numMatch = cleanIdent.match(/\d+/);
-    const parsedNum = numMatch ? parseInt(numMatch[0], 10) : null;
-
-    const cached = singleChapterCache.get(cleanIdent);
+    const cached = singleChapterCache.get(chapterId);
     if (cached && cached.data.content && Date.now() - cached.timestamp < CHAPTER_CONTENT_TTL_MS) {
       return cached.data.content;
-    }
-
-    // 1. Prioritize local publishedChapters.json & BAKED_CHAPTERS for authentic text
-    const localChapters = getPublishedChaptersFromFile().length > 0 ? getPublishedChaptersFromFile() : BAKED_CHAPTERS;
-    const foundLocal = localChapters.find(c => 
-      c.id === cleanIdent || 
-      c.slug === cleanIdent || 
-      `chapter-${c.chapterNumber}` === cleanIdent ||
-      String(c.chapterNumber) === cleanIdent ||
-      (parsedNum !== null && c.chapterNumber === parsedNum)
-    );
-
-    if (foundLocal && foundLocal.content && foundLocal.content.trim().length > 0) {
-      singleChapterCache.set(cleanIdent, {
-        data: { id: foundLocal.id, content: foundLocal.content } as any,
-        timestamp: Date.now(),
-      });
-      return foundLocal.content;
     }
 
     const client = getServerSupabase();
@@ -1238,7 +1192,7 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
       const { data, error } = await client
         .from('chapters')
         .select('id, content')
-        .eq('id', cleanIdent)
+        .eq('id', chapterId)
         .maybeSingle();
 
       if (!error && data && data.content) {
@@ -1254,7 +1208,7 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
         const { data } = await client
           .from('chapters')
           .select('id, content')
-          .eq('slug', cleanIdent)
+          .eq('slug', chapterId)
           .maybeSingle();
         if (data && data.content) {
           content = data.content;
@@ -1264,11 +1218,51 @@ export async function serverFetchSingleChapterContent(chapterId: string): Promis
       }
     }
 
+    // Fallback to site_settings published_chapters_store
+    if (!content) {
+      try {
+        const { data } = await client
+          .from('site_settings')
+          .select('data')
+          .eq('id', 'published_chapters_store')
+          .maybeSingle();
+        const storeMap = data?.data && typeof data.data === 'object' ? data.data : {};
+        const foundStoreCh = Object.values(storeMap).find((c: any) => c.id === chapterId || c.slug === chapterId);
+        if (foundStoreCh && (foundStoreCh as any).content) {
+          content = (foundStoreCh as any).content;
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    // Fallback to publishedChapters.json file
+    if (!content) {
+      const pubChapters = getPublishedChaptersFromFile();
+      const found = pubChapters.find((c) => c.id === chapterId || c.slug === chapterId);
+      if (found && found.content) {
+        content = found.content;
+      }
+    }
+
+    // Fallback to baked content
+    if (!content) {
+      const baked = BAKED_CHAPTERS.find((c) => c.id === chapterId || c.slug === chapterId);
+      if (baked && baked.content) {
+        content = baked.content;
+      }
+    }
+
     if (content) {
-      singleChapterCache.set(cleanIdent, {
-        data: { id: cleanIdent, content } as any,
-        timestamp: Date.now(),
-      });
+      if (cached) {
+        cached.data.content = content;
+        cached.timestamp = Date.now();
+      } else {
+        singleChapterCache.set(chapterId, {
+          data: { id: chapterId, content } as any,
+          timestamp: Date.now(),
+        });
+      }
     }
 
     return content;

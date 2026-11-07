@@ -288,26 +288,6 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
 
       {/* Main Reading Surface */}
       <div className={`p-6 sm:p-10 rounded-3xl border border-[#E5E2D9] shadow-xs transition-colors ${themeClasses}`}>
-        {/* Manual Table of Contents */}
-        {article.tableOfContents && article.tableOfContents.length > 0 && (
-          <div className="mb-8 p-5 rounded-2xl bg-[#FAF8F2] border border-[#E5DFD0] shadow-2xs">
-            <h3 className="font-amiri font-bold text-base text-[#4A5D4E] mb-3 flex items-center gap-2">
-              <BookOpenCheck className="w-4 h-4" />
-              <span>فهرس ومحتويات المقال (جدول الموضوعات اليدوي)</span>
-            </h3>
-            <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-semibold text-[#2C2C2C]">
-              {article.tableOfContents.map((item, idx) => (
-                <li key={idx} className="flex items-center gap-2 p-2.5 rounded-xl bg-white border border-[#E5E2D9]/80 shadow-2xs">
-                  <span className="w-5 h-5 rounded-full bg-[#4A5D4E]/10 text-[#4A5D4E] flex items-center justify-center font-mono text-[10px]">
-                    {idx + 1}
-                  </span>
-                  <span className="truncate">{item.title}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
         {isBilingualCapable && activeTab === 'bilingual' ? (
           <BilingualReaderView
             article={article}
@@ -362,12 +342,12 @@ export const ArticleDetailView: React.FC<ArticleDetailViewProps> = ({ article, o
           </div>
         )}
 
-        {/* References & Sources */}
+        {/* References & Footnotes */}
         {article.references && article.references.length > 0 && (
           <div className="mt-10 pt-8 border-t border-[#E5E2D9]">
             <h4 className="font-amiri font-bold text-lg text-[#2C2C2C] mb-3 flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-[#4A5D4E]" />
-              <span>المصادر والمراجع التي استعنت بها لكتابة المقال</span>
+              <span>المراجع والمصادر التوثيقية</span>
             </h4>
             <ol className="list-decimal list-inside space-y-2 text-xs sm:text-sm text-[#6E6A64]">
               {article.references.map((ref, idx) => (

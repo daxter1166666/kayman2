@@ -14,7 +14,7 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
   fullBio: 'أيمن كناني (Ayman Kinani) كاتب وباحث عربي يركز في أعماله على سبر أغوار الفكر الإنساني وتجسيد الأسئلة الوجودية في قوالب روائية وأدبية بديعة. تضم مؤلفاته أعمالاً في الفلسفة، الرواية المعاصرة، الخيال العلمي، والتراث الفكري. تهدف هذه المنصة الرسمية إلى تقديم جميع مؤلفاته وكتبه ومقالاته بتجربة قراءة تفاعلية مفتوحة ومباشرة للقراء في كل مكان.',
   location: 'الوطن العربي',
   vision: 'السعي نحو إثراء المشهد الثقافي العربي بمؤلفات تجمع بين عمق الفكرة ورشاقة الأسلوب وسهولة الوصول لكافة القراء.',
-  contactEmail: 'kayman1457@gmail.com',
+  contactEmail: 'aymankinani.author@gmail.com',
   socialLinks: {
     twitter: '',
     facebook: 'https://web.facebook.com/profile.php?id=61590131123276&locale=ar_AR',
@@ -25,7 +25,7 @@ export const INITIAL_AUTHOR_PROFILE: AuthorProfile = {
     tiktok: '',
     goodreads: '',
     whatsapp: '',
-    email: 'kayman1457@gmail.com',
+    email: 'aymankinani.author@gmail.com',
     website: 'https://www.aymankinani.org'
   }
 };
@@ -57,24 +57,24 @@ export const INITIAL_SEO_SETTINGS: SeoSettings = {
 
 export const INITIAL_DONATION_SETTINGS: DonationSettings = {
   enabled: true,
-  title: 'دعم الكاتب والمؤلف أيمن كناني عبر PayPal',
-  description: 'مساهمتك الطيبة تسهم في استمرارية وتطوير المشروع الأدبي والفكري لجميع القراء. الدعم متاح حصرياً عبر PayPal:',
-  paypalEmailOrLink: 'kayman4578@gmail.com',
-  buyMeACoffeeUrl: '',
-  patreonUrl: '',
-  kofiUrl: '',
-  bankAccountDetails: '',
-  cryptoWallet: '',
+  title: 'دعم الكاتب والمنصة (Support Ayman Kinani)',
+  description: 'إذا كنت تستمتع بقراءة هذه المؤلفات والكتب وترغب في دعم استمرارية وتطوير هذا المشروع الأدبي والفكري، يمكنك المساهمة عبر وسائل الدعم المباشرة أدناه:',
+  paypalEmailOrLink: 'https://paypal.me/aymankinani',
+  buyMeACoffeeUrl: 'https://buymeacoffee.com/aymankinani',
+  patreonUrl: 'https://patreon.com/aymankinani',
+  kofiUrl: 'https://ko-fi.com/aymankinani',
+  bankAccountDetails: 'IBAN: SA0380000000608010167519 - الحساب الرسمي',
+  cryptoWallet: 'USDT (TRC20): TXYz1234567890aymankinanicryptoaddr',
   customPaymentLink: '',
-  customPaymentTitle: '',
+  customPaymentTitle: 'وسيلة دعم أخرى',
 };
 
 export const INITIAL_SUPABASE_CONFIG: SupabaseConfig = {
-  enabled: false,
+  enabled: true,
   url: 'https://ddotnksrmwpsfxmgduji.supabase.co',
   anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRkb3Rua3NybXdwc2Z4bWdkdWppIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk4ODc0ODAsImV4cCI6MjEwNTQ2MzQ4MH0.AlKIT-493mepn41UF3JpocS5xgDLeqnafxEyLww31JE',
-  autoSync: false,
-  connected: false,
+  autoSync: true,
+  connected: true,
 };
 
 export const INITIAL_READER_SETTINGS: ReaderSettings = {
@@ -105,7 +105,7 @@ export const INITIAL_LEGAL_DOCUMENTS: LegalDocuments = {
 - إعلانات Google AdSense: يعرض الموقع إعلانات عبر شبكة جوجل أدسنس وشركائها وفق المعايير والسياسات الرسمية.
 - لا نقوم ببيع أو مشاركة بياناتك الشخصية مع أي أطراف ثالثة.`,
   dmcaPolicy: `تحترم المنصة حقوق الملكية الفكرية وتلتزم بقانون الألفية الجديدة لحقوق طبع ونشر المواد الرقمية (DMCA).
-إذا كانت لديك أي استفسارات أو ملاحظات حول الملكية الأدبية، يرجى التواصل مع الكاتب عبر البريد الرسمي kayman1457@gmail.com وسيتم الرد فوراً وبشكل حاسم.`,
+إذا كانت لديك أي استفسارات أو ملاحظات حول الملكية الأدبية، يرجى التواصل مع الكاتب عبر البريد الرسمي aymankinani.author@gmail.com وسيتم الرد فوراً وبشكل حاسم.`,
   licensesPolicy: `عن هذا العمل:
 أسمح بتدريسه والاستشهاد به ونشره للفائدة، شريطة نسبته لصاحبه الأصلي وعدم استغلاله تجاريًا.
 
@@ -129,9 +129,9 @@ CC BY-NC 4.0
 © 2026 أيمن كناني — جميع الاستخدامات وفق شروط الرخصة أعلاه.`,
   publisherInfo: `المنصة الرسمية لنشر المؤلفات والكتب والروايات والدراسات الفكرية للكاتب والباحث أيمن كناني (Ayman Kinani).
 تهدف المنصة إلى إثراء المحتوى الفكري والأدبي العربي وتقديم تجربة قراءة تفاعلية مفتوحة ومباشرة لكافة القراء.
-البريد الإلكتروني للكاتب والإدارة: kayman1457@gmail.com`,
-  contactEmail: 'kayman1457@gmail.com',
-  supportEmail: 'kayman1457@gmail.com',
+البريد الإلكتروني للكاتب والإدارة: aymankinani.author@gmail.com`,
+  contactEmail: 'aymankinani.author@gmail.com',
+  supportEmail: 'aymankinani.author@gmail.com',
   lastUpdated: new Date().toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' }),
 };
 
