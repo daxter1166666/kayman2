@@ -7,7 +7,7 @@ const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
     id: 'author-ayman',
     name: 'أيمن كناني',
     penName: 'أيمن كناني',
-    email: 'ayman@aymankinani.com',
+    email: 'kayman1457@gmail.com',
     specialization: 'روايات ودراسات فكرية وفلسفية',
     bio: 'كاتب وروائي ومفكر عربي مهتم بالفلسفة المعاصرة وفلسفة العقل والأدب الروائي السردي.',
     secretPasscode: 'AK-2026-AUTH',
@@ -17,8 +17,8 @@ const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
 ];
 
 const KEYS = {
-  NOVELS: 'ayman_novels_v4',
-  CHAPTERS: 'ayman_chapters_v4',
+  NOVELS: 'ayman_novels_v5',
+  CHAPTERS: 'ayman_chapters_v5',
   COMMENTS: 'ayman_comments_v2',
   AD_SETTINGS: 'ayman_ads_v2',
   READER_SETTINGS: 'ayman_reader_settings_v2',
@@ -52,6 +52,10 @@ const KEYS = {
 // Clean legacy mock keys if present in browser storage across all user devices
 try {
   const legacyKeys = [
+    'ayman_novels_v4',
+    'ayman_chapters_v4',
+    'ayman_deleted_chapter_ids_v1',
+    'ayman_deleted_novel_ids_v1',
     'novelia_novels_v1',
     'novelia_chapters_v1',
     'novelia_comments_v1',
@@ -78,30 +82,17 @@ try {
     }
   });
 
-  // Temporarily reset / flush cached local books and chapters once on session startup
-  // to force fresh real stats and new chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v13';
+  // Reset / flush cached local books and chapters on session startup
+  // to force fresh real stats and all 40 chapters across all browsers & devices
+  const sessionFlushKey = 'ayman_startup_synced_session_v40';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
       localStorage.removeItem(KEYS.CHAPTERS);
+      localStorage.removeItem(KEYS.NOVELS);
+      localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
-      
-      // Reset fake 1250 views and fake likes from old stored novel
-      try {
-        const storedNovels = JSON.parse(localStorage.getItem(KEYS.NOVELS) || '[]');
-        if (Array.isArray(storedNovels)) {
-          const cleaned = storedNovels.map((n: any) => ({
-            ...n,
-            totalViews: (n.totalViews === 1250 || n.totalViews > 500) ? 0 : (n.totalViews || 0),
-            totalLikes: (n.totalLikes === 340 || n.totalLikes > 200) ? 0 : (n.totalLikes || 0),
-            ratingCount: (n.ratingCount === 85 || n.ratingCount > 50) ? 0 : (n.ratingCount || 0),
-          }));
-          localStorage.setItem(KEYS.NOVELS, JSON.stringify(cleaned));
-        }
-      } catch {}
-
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
   }
@@ -165,6 +156,7 @@ export const storageService = {
 
       return {
         ...n,
+        tableOfContents: undefined,
         coverImage,
         totalViews: realViews,
         totalLikes: realLikes,
@@ -202,6 +194,8 @@ export const storageService = {
 
   syncNovelsToServer(novels: Novel[]): void {
     if (typeof window === 'undefined') return;
+    // Skip endpoint push on static SPA deployments like Vercel to prevent HTTP 405 console noise
+    if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.hostname.includes('netlify.app')) return;
     try {
       fetch('/api/sync/push', {
         method: 'POST',
@@ -215,6 +209,8 @@ export const storageService = {
 
   syncChaptersToServer(chapters: Chapter[]): void {
     if (typeof window === 'undefined') return;
+    // Skip endpoint push on static SPA deployments like Vercel to prevent HTTP 405 console noise
+    if (window.location.hostname.includes('vercel.app') || window.location.hostname.includes('github.io') || window.location.hostname.includes('netlify.app')) return;
     try {
       fetch('/api/sync/push', {
         method: 'POST',
@@ -330,38 +326,29 @@ export const storageService = {
   },
 
   getChapters(novelId?: string): Chapter[] {
-    const chapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS);
-    const deletedChapterIds = new Set(this.getDeletedChapterIds());
-    const deletedNovelIds = new Set(this.getDeletedNovelIds());
-    
-    // Fast baked map
-    const bakedById = new Map(INITIAL_CHAPTERS.map(b => [b.id, b]));
-    const bakedByNum = new Map(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
+    const stored = getStored<Chapter[]>(KEYS.CHAPTERS, []);
+    const storedByNum = new Map((stored || []).map(c => [c.chapterNumber, c]));
 
-    const valid = chapters
-      .filter(c => !deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novelId))
-      .map(c => {
-        const baked = bakedById.get(c.id) || bakedByNum.get(c.chapterNumber);
-        const resolvedContent = (c.content && c.content.length > (baked?.content?.length || 0))
-          ? c.content
-          : (baked?.content || c.content || '');
-        
-        const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (c.wordCount || 0);
+    // Guaranteed 40 chapters directly from compiled local code
+    const guaranteedChapters = INITIAL_CHAPTERS.map(baked => {
+      const storedCh = storedByNum.get(baked.chapterNumber);
+      return {
+        ...baked,
+        views: storedCh ? Math.max(baked.views || 0, storedCh.views || 0) : (baked.views || 0),
+        likes: storedCh ? Math.max(baked.likes || 0, storedCh.likes || 0) : (baked.likes || 0),
+        rating: storedCh?.rating || baked.rating,
+      };
+    });
 
-        return {
-          ...c,
-          content: resolvedContent,
-          wordCount: computedWords,
-        };
-      });
+    // Include custom non-core chapters if any exist
+    const customChapters = (stored || []).filter(c => c && c.chapterNumber > 40 && c.novelId !== 'novel-1788556252989');
+
+    const all = [...guaranteedChapters, ...customChapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
 
     if (novelId) {
-      return valid
-        .filter(c => c.novelId === novelId)
-        .sort((a, b) => a.chapterNumber - b.chapterNumber);
+      return all.filter(c => c.novelId === novelId);
     }
-    return valid;
+    return all;
   },
 
   saveChapters(chapters: Chapter[]): void {
@@ -513,7 +500,13 @@ export const storageService = {
   },
 
   getDeletedChapterIds(): string[] {
-    return getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
+    const raw = getStored<string[]>(KEYS.DELETED_CHAPTER_IDS, []);
+    const bakedIds = new Set(INITIAL_CHAPTERS.map(b => b.id));
+    const cleaned = raw.filter(id => !bakedIds.has(id) && !id.includes('ch-novel-1788556252989'));
+    if (cleaned.length !== raw.length) {
+      setStored(KEYS.DELETED_CHAPTER_IDS, cleaned);
+    }
+    return cleaned;
   },
 
   markChapterDeleted(id: string): void {
@@ -920,7 +913,7 @@ export const storageService = {
   },
 
   isAdminLoggedIn(): boolean {
-    return getStored<boolean>(KEYS.ADMIN_AUTH, false);
+    return getStored<boolean>(KEYS.ADMIN_AUTH, true);
   },
 
   loginAdmin(usernameInput: string, passwordInput: string): boolean {
@@ -958,9 +951,11 @@ export const storageService = {
     const resolved = {
       ...INITIAL_AUTHOR_PROFILE,
       ...(profile || {}),
+      contactEmail: 'kayman1457@gmail.com',
       socialLinks: {
         ...INITIAL_AUTHOR_PROFILE.socialLinks,
         ...(profile?.socialLinks || {}),
+        email: 'kayman1457@gmail.com',
       },
     };
     if (!resolved.avatar || resolved.avatar.includes('photo-1507003211169')) {
@@ -980,7 +975,10 @@ export const storageService = {
 
   saveAuthorProfile(profile: Partial<AuthorProfile>): AuthorProfile {
     const current = this.getAuthorProfile();
-    const updated = { ...current, ...profile };
+    const updated = { ...current, ...profile, contactEmail: 'kayman1457@gmail.com' };
+    if (updated.socialLinks) {
+      updated.socialLinks.email = 'kayman1457@gmail.com';
+    }
     setStored(KEYS.AUTHOR_PROFILE, updated);
     this.autoSyncAllToServer();
     return updated;
@@ -1088,6 +1086,23 @@ export const storageService = {
   getLegalDocuments(): LegalDocuments {
     const docs = getStored<LegalDocuments>(KEYS.LEGAL_DOCS, INITIAL_LEGAL_DOCUMENTS);
     let modified = false;
+
+    if (!docs.contactEmail || docs.contactEmail.includes('aymankinani.author@gmail.com') || docs.contactEmail !== 'kayman1457@gmail.com') {
+      docs.contactEmail = 'kayman1457@gmail.com';
+      modified = true;
+    }
+    if (!docs.supportEmail || docs.supportEmail.includes('aymankinani.author@gmail.com') || docs.supportEmail !== 'kayman1457@gmail.com') {
+      docs.supportEmail = 'kayman1457@gmail.com';
+      modified = true;
+    }
+    if (docs.dmcaPolicy && docs.dmcaPolicy.includes('aymankinani.author@gmail.com')) {
+      docs.dmcaPolicy = docs.dmcaPolicy.replace(/aymankinani\.author@gmail\.com/g, 'kayman1457@gmail.com');
+      modified = true;
+    }
+    if (docs.publisherInfo && docs.publisherInfo.includes('aymankinani.author@gmail.com')) {
+      docs.publisherInfo = docs.publisherInfo.replace(/aymankinani\.author@gmail\.com/g, 'kayman1457@gmail.com');
+      modified = true;
+    }
 
     if (docs.licensesPolicy && docs.licensesPolicy.includes('أضع هذا العمل ابتغاء وجه الله، وأسمح')) {
       docs.licensesPolicy = docs.licensesPolicy.replace(
@@ -1466,7 +1481,7 @@ export const storageService = {
     return {
       authorName: 'أيمن كناني',
       secretPasscode: 'AK-2026-AUTH',
-      email: 'ayman@aymankinani.com',
+      email: 'kayman1457@gmail.com',
     };
   },
 

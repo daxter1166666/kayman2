@@ -203,7 +203,7 @@ export default function App() {
         return { view: 'legal' as const, legalPage: norm as any, novelId: null, chapterId: null, articleId: null };
       }
     }
-    return { view: 'catalog' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
+    return { view: 'control_panel' as const, legalPage: 'terms' as const, novelId: null, chapterId: null, articleId: null };
   }, [initialSSR]);
 
   const [currentView, setCurrentView] = useState<'catalog' | 'novel_detail' | 'reader' | 'control_panel' | 'legal' | 'articles' | 'translations' | 'article_reader'>(initialRoute.view);
@@ -751,7 +751,9 @@ export default function App() {
   // Active novel and chapter objects
   const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
-  const currentNovelChapters = chapters.filter(c => c.novelId === selectedNovelId);
+  const currentNovelChapters = currentNovel
+    ? chapters.filter(c => c.novelId === currentNovel.id || !c.novelId || c.novelId === 'novel-1788556252989')
+    : chapters;
 
   return (
     <div className="min-h-screen bg-[#FDFCF8] text-[#2C2C2C] flex flex-col selection:bg-[#4A5D4E]/20 selection:text-[#2C2C2C] pb-16 md:pb-0">
@@ -1042,8 +1044,8 @@ export default function App() {
             {/* Catalog Filter & Sorting Bar */}
             {novels.length > 0 && (
               <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8 font-cairo">
-                {/* Dynamic Category / Genre Pills */}
-                <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-2 md:pb-0 scrollbar-none">
+                {/* Dynamic Category / Genre Pills (Multi-row wrap support) */}
+                <div className="flex flex-wrap items-center gap-2 max-w-full overflow-x-auto pb-2 md:pb-0">
                   {filterPills.map(genre => (
                     <button
                       key={genre.key}

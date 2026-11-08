@@ -412,7 +412,7 @@ export const ServerHomeView: React.FC<HomeSSRProps> = ({
               📘 صفحة الفيسبوك
             </a>
             <span>•</span>
-            <a href="mailto:aymankinani.author@gmail.com" className="hover:underline">
+            <a href="mailto:kayman1457@gmail.com" className="hover:underline">
               ✉️ التواصل المباشر
             </a>
           </div>
@@ -912,13 +912,16 @@ export function generateChapterSeoTags({
   const excerpt = chapter.seo?.metaDescription?.trim()
     || cleanExcerpt(chapter.content, 180)
     || `${chapter.title} من كتاب ${novel.title} بقلم ${novel.author}. قراءة مباشرة كاملة مجاناً.`;
-  const rawCanonical = chapter.seo?.canonicalUrl?.trim() || `${domain}${reqUrl}`;
+  const rawCanonical = chapter.seo?.canonicalUrl?.trim() || `${domain}/chapter/${chapter.chapterNumber}`;
   const canonicalUrl = rawCanonical.replace(/https?:\/\/(?:www\.)?aymankinani\.com/g, 'https://www.aymankinani.org');
-  const coverImage = chapter.seo?.ogImage?.trim()
+  const rawCoverImage = chapter.seo?.ogImage?.trim()
     || novel.bannerImage
     || novel.coverImage
     || 'https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1200&auto=format&fit=crop&q=80';
-  const isNoIndex = Boolean(chapter.seo?.noIndex || novel.seo?.noIndex);
+  const coverImage = rawCoverImage.startsWith('http')
+    ? rawCoverImage
+    : `${domain}${rawCoverImage.startsWith('/') ? '' : '/'}${rawCoverImage}`;
+  const isNoIndex = Boolean(chapter.seo?.noIndex);
   const keywordsStr = chapter.seo?.focusKeywords?.trim()
     ? chapter.seo.focusKeywords.trim()
     : [chapter.title, `كتاب ${novel.title}`, `فصل ${chapter.chapterNumber}`, novel.author || 'أيمن كناني', ...(novel.genres || [])].join(', ');
@@ -937,6 +940,10 @@ export function generateChapterSeoTags({
     <meta property="og:description" content="${escapeHtml(excerpt)}" />
     <meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
     <meta property="og:image" content="${escapeHtml(coverImage)}" />
+    <meta property="og:image:secure_url" content="${escapeHtml(coverImage)}" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="${escapeHtml(pageTitle)}" />
     <meta property="og:site_name" content="أيمن كناني - المنصة الرسمية" />
     <meta property="article:published_time" content="${escapeHtml(chapter.publishedAt)}" />
     <meta property="article:author" content="${escapeHtml(novel.author || 'أيمن كناني')}" />
@@ -947,6 +954,7 @@ export function generateChapterSeoTags({
     <meta name="twitter:title" content="${escapeHtml(pageTitle)}" />
     <meta name="twitter:description" content="${escapeHtml(excerpt)}" />
     <meta name="twitter:image" content="${escapeHtml(coverImage)}" />
+    <meta name="twitter:image:alt" content="${escapeHtml(pageTitle)}" />
   `;
 
   const jsonLd = JSON.stringify({
@@ -1240,7 +1248,7 @@ export function generateSectionSeoTags({
   domain,
   reqUrl,
 }: {
-  section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'books';
+  section: 'about' | 'author' | 'articles' | 'support' | 'donate' | 'contact' | 'privacy' | 'terms' | 'dmca' | 'licenses' | 'books';
   domain: string;
   reqUrl: string;
 }): {
@@ -1294,6 +1302,7 @@ export function generateSectionSeoTags({
       break;
 
     case 'terms':
+    case 'licenses':
       pageTitle = 'شروط الاستخدام ورخصة المشاع الإبداعي (CC BY-NC 4.0) | منصة أيمن كناني';
       excerpt = 'شروط استخدام منصة أيمن كناني وتفاصيل رخصة المشاع الإبداعي (CC BY-NC 4.0) التي تتيح القراءة والمشاركة غير التجارية بحرية.';
       keywords = 'شروط الاستخدام, رخصة المشاع الإبداعي, CC BY-NC 4.0, شروط النشر, حقوق القراءة';

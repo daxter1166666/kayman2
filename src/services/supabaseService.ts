@@ -14,6 +14,7 @@ import {
   IntellectualItem
 } from '../types';
 import { storageService } from './storageService';
+import { INITIAL_CHAPTERS } from '../data/initialData';
 
 class SupabaseService {
   private client: SupabaseClient | null = null;
@@ -113,7 +114,13 @@ class SupabaseService {
         this.currentConfig = null;
         return null;
       }
-      this.client = createClient(sanitizedUrl, sanitizedKey);
+      this.client = createClient(sanitizedUrl, sanitizedKey, {
+        auth: {
+          persistSession: false,
+          autoRefreshToken: false,
+          detectSessionInUrl: false,
+        },
+      });
       this.currentConfig = { ...config, enabled: true, url: sanitizedUrl, anonKey: sanitizedKey };
       return this.client;
     } catch (e) {
@@ -269,22 +276,40 @@ class SupabaseService {
               mergedNovels = localNovels;
             }
 
-            // Chapters merge (adopts server chapters list as single source of truth, preserving cached local text)
+            // Chapters merge (adopts server chapters list, preserving cached local text and baked chapters)
             const localChapters = storageService.getChapters();
             const localChapterContentMap = new Map(localChapters.map(lc => [lc.id, lc.content || '']));
+            const bakedByNum = new Map<number, Chapter>(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
             const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
             const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
             const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
 
             let mergedChapters: Chapter[] = [];
             if (remoteChapters.length > 0) {
+              const remoteNums = new Set(remoteChapters.map(rc => rc.chapterNumber));
               mergedChapters = remoteChapters
-                .filter(rc => !deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId))
-                .map(rc => ({
-                  ...rc,
-                  content: rc.content || localChapterContentMap.get(rc.id) || '',
-                  views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
-                }));
+                .filter(rc => rc.chapterNumber >= 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
+                .map(rc => {
+                  const baked = bakedByNum.get(rc.chapterNumber);
+                  const resolvedContent = (baked && baked.content) ? baked.content : (rc.content || localChapterContentMap.get(rc.id) || '');
+                  return {
+                    ...rc,
+                    title: baked ? baked.title : rc.title,
+                    slug: baked ? baked.slug : rc.slug,
+                    partName: baked ? baked.partName : rc.partName,
+                    seo: baked ? baked.seo : rc.seo,
+                    content: resolvedContent,
+                    views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
+                  };
+                });
+
+              // Ensure all 40 baked chapters are present
+              for (const b of INITIAL_CHAPTERS) {
+                if (!remoteNums.has(b.chapterNumber)) {
+                  mergedChapters.push(b);
+                }
+              }
+              mergedChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
               storageService.setRawChapters(mergedChapters);
             } else {
               mergedChapters = localChapters;
@@ -412,6 +437,14 @@ class SupabaseService {
         };
       });
 
+      const fetchedNums = new Set(chapters.map(c => c.chapterNumber));
+      for (const b of INITIAL_CHAPTERS) {
+        if (!fetchedNums.has(b.chapterNumber)) {
+          chapters.push(b);
+        }
+      }
+      chapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
+
       // 3. Fetch Comments
       const { data: rawComments } = await client
         .from('comments')
@@ -479,6 +512,14 @@ class SupabaseService {
       const cloudDeletedNovelIds = new Set<string>(Array.isArray(delRow?.data?.novels) ? delRow.data.novels : []);
       const cloudDeletedChapterIds = new Set<string>(Array.isArray(delRow?.data?.chapters) ? delRow.data.chapters : []);
       const cloudDeletedArticleIds = new Set<string>(Array.isArray(delRow?.data?.articles) ? delRow.data.articles : []);
+
+      // Core book chapters (1 to 40) can NEVER be marked as deleted
+      INITIAL_CHAPTERS.forEach(b => {
+        cloudDeletedChapterIds.delete(b.id);
+        cloudDeletedChapterIds.delete(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
+        storageService.unmarkChapterDeleted(b.id);
+        storageService.unmarkChapterDeleted(`ch-novel-1788556252989-chapter-${b.chapterNumber}`);
+      });
 
       // Also merge with locally deleted IDs
       storageService.getDeletedNovelIds().forEach(id => cloudDeletedNovelIds.add(id));
@@ -571,7 +612,22 @@ class SupabaseService {
         }
       });
 
-      const mergedChapters = Array.from(remoteChaptersMap.values());
+      // Guarantee all 40 baked chapters are always present in mergedChapters
+      INITIAL_CHAPTERS.forEach(b => {
+        const existingByNum = Array.from(remoteChaptersMap.values()).find(c => c.chapterNumber === b.chapterNumber);
+        if (!existingByNum) {
+          remoteChaptersMap.set(b.id, b);
+        } else if (!existingByNum.content || existingByNum.content.length < b.content.length) {
+          remoteChaptersMap.set(existingByNum.id, {
+            ...existingByNum,
+            content: b.content,
+            title: b.title,
+            partName: b.partName,
+          });
+        }
+      });
+
+      const mergedChapters = Array.from(remoteChaptersMap.values()).sort((a, b) => a.chapterNumber - b.chapterNumber);
       storageService.saveChapters(mergedChapters);
 
       // 3. Comments merge
@@ -733,7 +789,22 @@ class SupabaseService {
         };
         cleanChaptersMap.set(mappedChapter.id, mappedChapter);
       }
-      const freshChapters = Array.from(cleanChaptersMap.values());
+      // Guarantee all 40 baked chapters are always present in cleanChaptersMap
+      INITIAL_CHAPTERS.forEach(b => {
+        const existingByNum = Array.from(cleanChaptersMap.values()).find(c => c.chapterNumber === b.chapterNumber);
+        if (!existingByNum) {
+          cleanChaptersMap.set(b.id, b);
+        } else if (!existingByNum.content || existingByNum.content.length < b.content.length) {
+          cleanChaptersMap.set(existingByNum.id, {
+            ...existingByNum,
+            content: b.content,
+            title: b.title,
+            partName: b.partName,
+          });
+        }
+      });
+
+      const freshChapters = Array.from(cleanChaptersMap.values()).sort((a, b) => a.chapterNumber - b.chapterNumber);
       storageService.saveChapters(freshChapters);
 
       // 6. Map comments

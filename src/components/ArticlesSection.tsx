@@ -231,7 +231,7 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
             <Layers className="w-4 h-4 text-[#4A5D4E]" />
             <span>نوع المادة الفكرية:</span>
           </div>
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+          <div className="flex flex-wrap items-center gap-2">
             {typeFilterOptions.map(tOpt => {
               const isSelected = selectedType === tOpt.id;
               const typeMeta = tOpt.id !== 'all' ? getIntellectualTypeInfo(tOpt.id as any) : null;
@@ -313,7 +313,7 @@ export const ArticlesSection: React.FC<ArticlesSectionProps> = ({
           </div>
 
           {/* Bottom Row: Categories Horizontal Pills with Badges & Counts */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-none">
+          <div className="flex flex-wrap items-center gap-2 pt-1">
             <div className="flex items-center gap-1 text-xs font-bold text-[#4A5D4E] shrink-0 ml-1">
               <Filter className="w-3.5 h-3.5 text-[#4A5D4E]" />
               <span>المجال:</span>

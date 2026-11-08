@@ -536,7 +536,9 @@ export const NovelDetailView: React.FC<NovelDetailViewProps> = ({
                             </span>
                             <div className="min-w-0 flex-1">
                               <h4 className="font-amiri font-bold text-base sm:text-lg text-[#2C2C2C] group-hover:text-[#4A5D4E] transition-colors line-clamp-1 sm:truncate">
-                                الفصل {ch.chapterNumber}: {ch.title}
+                                {ch.title.startsWith('الفصل') || ch.title.startsWith('الباب') || ch.title.startsWith('مقدمة')
+                                  ? ch.title
+                                  : `الفصل ${ch.chapterNumber}: ${ch.title}`}
                               </h4>
                               <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[11px] text-[#6E6A64] mt-1">
                                 <span>{ch.wordCount.toLocaleString()} كلمة</span>
