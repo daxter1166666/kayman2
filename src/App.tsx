@@ -752,7 +752,9 @@ export default function App() {
   const currentNovel = novels.find(n => n.id === selectedNovelId) || novels[0];
   const currentChapter = chapters.find(c => c.id === selectedChapterId);
   const currentNovelChapters = currentNovel
-    ? chapters.filter(c => c.novelId === currentNovel.id || !c.novelId || c.novelId === 'novel-1788556252989')
+    ? (currentNovel.id === 'novel-1788556252989'
+        ? storageService.getChapters('novel-1788556252989')
+        : chapters.filter(c => c.novelId === currentNovel.id))
     : chapters;
 
   return (
@@ -1117,7 +1119,7 @@ export default function App() {
                 ) : (
                   <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
                     {filteredNovels.map(novel => {
-                      const count = chapters.filter(c => c.novelId === novel.id).length;
+                      const count = storageService.getChapters(novel.id).length;
                       return (
                         <NovelCard
                           key={novel.id}

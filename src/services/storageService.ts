@@ -336,6 +336,8 @@ export const storageService = {
       const storedCh = storedByNum.get(baked.chapterNumber);
       return {
         ...baked,
+        novelId: 'novel-1788556252989',
+        status: 'PUBLISHED' as const,
         views: storedCh ? Math.max(baked.views || 0, storedCh.views || 0) : (baked.views || 0),
         likes: storedCh ? Math.max(baked.likes || 0, storedCh.likes || 0) : (baked.likes || 0),
         rating: storedCh?.rating || baked.rating,
@@ -348,7 +350,7 @@ export const storageService = {
     const all = [...guaranteedChapters, ...customChapters].sort((a, b) => a.chapterNumber - b.chapterNumber);
 
     if (novelId) {
-      return all.filter(c => c.novelId === novelId);
+      return all.filter(c => c.novelId === novelId || (novelId === 'novel-1788556252989' && c.chapterNumber >= 1 && c.chapterNumber <= 40));
     }
     return all;
   },
