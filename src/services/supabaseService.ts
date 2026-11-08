@@ -288,7 +288,7 @@ class SupabaseService {
             if (remoteChapters.length > 0) {
               const remoteNums = new Set(remoteChapters.map(rc => rc.chapterNumber));
               mergedChapters = remoteChapters
-                .filter(rc => rc.chapterNumber >= 37 || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
+                .filter(rc => (rc.chapterNumber >= 1 && rc.chapterNumber <= 40) || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
                 .map(rc => {
                   const baked = bakedByNum.get(rc.chapterNumber);
                   const resolvedContent = (baked && baked.content) ? baked.content : (rc.content || localChapterContentMap.get(rc.id) || '');

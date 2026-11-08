@@ -17,8 +17,8 @@ const DEFAULT_AUTHOR_ACCOUNTS: AuthorAccount[] = [
 ];
 
 const KEYS = {
-  NOVELS: 'ayman_novels_v5',
-  CHAPTERS: 'ayman_chapters_v5',
+  NOVELS: 'ayman_novels_v6',
+  CHAPTERS: 'ayman_chapters_v6',
   COMMENTS: 'ayman_comments_v2',
   AD_SETTINGS: 'ayman_ads_v2',
   READER_SETTINGS: 'ayman_reader_settings_v2',
@@ -52,6 +52,8 @@ const KEYS = {
 // Clean legacy mock keys if present in browser storage across all user devices
 try {
   const legacyKeys = [
+    'ayman_novels_v5',
+    'ayman_chapters_v5',
     'ayman_novels_v4',
     'ayman_chapters_v4',
     'ayman_deleted_chapter_ids_v1',
@@ -84,7 +86,7 @@ try {
 
   // Reset / flush cached local books and chapters on session startup
   // to force fresh real stats and all 40 chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v40';
+  const sessionFlushKey = 'ayman_startup_synced_session_v41';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
@@ -143,7 +145,7 @@ export const storageService = {
 
     // Compute real views and likes from actual chapter reads
     return baseNovels.map(n => {
-      const allChapters = getStored<Chapter[]>(KEYS.CHAPTERS, INITIAL_CHAPTERS).filter(c => c.novelId === n.id);
+      const allChapters = this.getChapters(n.id);
       const chapterViewsSum = allChapters.reduce((sum, c) => sum + (c.views || 0), 0);
       const chapterLikesSum = allChapters.reduce((sum, c) => sum + (c.likes || 0), 0);
       

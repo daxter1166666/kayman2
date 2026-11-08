@@ -1113,7 +1113,7 @@ export async function serverFetchAllChapters(): Promise<Chapter[]> {
     let result: Chapter[] = [];
     if (rawChapters.length > 0) {
       result = rawChapters
-        .filter((c: any) => c.chapter_number >= 37 || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
+        .filter((c: any) => (c.chapter_number >= 1 && c.chapter_number <= 40) || (!deletedChapterIds.has(c.id) && !deletedNovelIds.has(c.novel_id)))
         .map((c: any) => {
           const base = mapChapterRow(c);
           if (metaMap[base.id]) {
