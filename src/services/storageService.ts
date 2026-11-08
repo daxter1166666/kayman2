@@ -331,16 +331,36 @@ export const storageService = {
     const stored = getStored<Chapter[]>(KEYS.CHAPTERS, []);
     const storedByNum = new Map((stored || []).map(c => [c.chapterNumber, c]));
 
-    // Guaranteed 40 chapters directly from compiled local code
+    // Guaranteed 40 chapters directly from compiled local code, with user edits preserved
     const guaranteedChapters = INITIAL_CHAPTERS.map(baked => {
-      const storedCh = storedByNum.get(baked.chapterNumber);
+      const storedChByNum = storedByNum.get(baked.chapterNumber);
+      const storedChById = (stored || []).find(c => c && c.id === baked.id);
+      const storedCh = storedChById || storedChByNum;
+
+      if (!storedCh) {
+        return {
+          ...baked,
+          novelId: 'novel-1788556252989',
+          status: 'PUBLISHED' as const,
+        };
+      }
+
+      const hasUserContent = typeof storedCh.content === 'string' && storedCh.content.trim().length > 0;
+      const hasUserTitle = typeof storedCh.title === 'string' && storedCh.title.trim().length > 0;
+
       return {
         ...baked,
+        ...storedCh,
+        title: hasUserTitle ? storedCh.title : baked.title,
+        content: hasUserContent ? storedCh.content : baked.content,
+        authorNote: storedCh.authorNote !== undefined ? storedCh.authorNote : baked.authorNote,
+        partName: storedCh.partName || baked.partName,
+        seo: storedCh.seo || baked.seo,
         novelId: 'novel-1788556252989',
-        status: 'PUBLISHED' as const,
-        views: storedCh ? Math.max(baked.views || 0, storedCh.views || 0) : (baked.views || 0),
-        likes: storedCh ? Math.max(baked.likes || 0, storedCh.likes || 0) : (baked.likes || 0),
-        rating: storedCh?.rating || baked.rating,
+        status: (storedCh.status || 'PUBLISHED') as any,
+        views: Math.max(baked.views || 0, storedCh.views || 0),
+        likes: Math.max(baked.likes || 0, storedCh.likes || 0),
+        rating: storedCh.rating || baked.rating,
       };
     });
 
@@ -382,7 +402,7 @@ export const storageService = {
 
   getChapterById(id: string): Chapter | undefined {
     const chapters = this.getChapters();
-    const found = chapters.find(c => c.id === id);
+    const found = chapters.find(c => c.id === id || String(c.chapterNumber) === String(id));
     if (found) {
       if (!found.content || found.content.trim().length === 0) {
         const bakedContent = this.getBakedChapterContent(found.id) || this.getBakedChapterContent(found.chapterNumber);
@@ -394,7 +414,7 @@ export const storageService = {
       }
       return found;
     }
-    const baked = INITIAL_CHAPTERS.find(b => b.id === id);
+    const baked = INITIAL_CHAPTERS.find(b => b.id === id || String(b.chapterNumber) === String(id));
     return baked ? { ...baked } : undefined;
   },
 
@@ -480,7 +500,7 @@ export const storageService = {
 
   updateChapter(id: string, updates: Partial<Chapter>): Chapter | undefined {
     const chapters = this.getChapters();
-    const index = chapters.findIndex(c => c.id === id);
+    const index = chapters.findIndex(c => c.id === id || String(c.chapterNumber) === String(id) || c.slug === id);
     if (index === -1) return undefined;
     
     if (updates.content) {
