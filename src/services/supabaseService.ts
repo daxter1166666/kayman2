@@ -276,13 +276,13 @@ class SupabaseService {
               mergedNovels = localNovels;
             }
 
-            // Chapters merge (adopts server chapters list, preserving cached local text and baked chapters)
+            // Chapters merge (adopts server chapters list, preserving local user edits and baked chapters)
             const localChapters = storageService.getChapters();
-            const localChapterContentMap = new Map(localChapters.map(lc => [lc.id, lc.content || '']));
+            const localChapterMap = new Map(localChapters.map(lc => [lc.id, lc]));
+            const localChapterByNum = new Map(localChapters.map(lc => [lc.chapterNumber, lc]));
             const bakedByNum = new Map<number, Chapter>(INITIAL_CHAPTERS.map(b => [b.chapterNumber, b]));
             const remoteChapters: Chapter[] = Array.isArray(syncData.chapters) ? syncData.chapters : [];
             const deletedChapterIds = new Set(storageService.getDeletedChapterIds());
-            const localChapterViewsMap = new Map(localChapters.map(lc => [lc.id, lc.views || 0]));
 
             let mergedChapters: Chapter[] = [];
             if (remoteChapters.length > 0) {
@@ -290,23 +290,29 @@ class SupabaseService {
               mergedChapters = remoteChapters
                 .filter(rc => (rc.chapterNumber >= 1 && rc.chapterNumber <= 40) || (!deletedChapterIds.has(rc.id) && !deletedNovelIds.has(rc.novelId)))
                 .map(rc => {
+                  const localCh = localChapterMap.get(rc.id) || localChapterByNum.get(rc.chapterNumber);
                   const baked = bakedByNum.get(rc.chapterNumber);
-                  const resolvedContent = (baked && baked.content) ? baked.content : (rc.content || localChapterContentMap.get(rc.id) || '');
+                  
+                  // Priority: local user edit > remote rc > baked default
+                  const resolvedContent = (localCh?.content && localCh.content.trim().length > 0) ? localCh.content : (rc.content || baked?.content || '');
+                  const resolvedTitle = (localCh?.title && localCh.title.trim().length > 0) ? localCh.title : (rc.title || baked?.title || '');
+                  
                   return {
+                    ...baked,
                     ...rc,
-                    title: baked ? baked.title : rc.title,
-                    slug: baked ? baked.slug : rc.slug,
-                    partName: baked ? baked.partName : rc.partName,
-                    seo: baked ? baked.seo : rc.seo,
+                    ...localCh,
+                    title: resolvedTitle,
                     content: resolvedContent,
-                    views: Math.max(rc.views || 0, localChapterViewsMap.get(rc.id) || 0),
+                    views: Math.max(rc.views || 0, localCh?.views || 0),
+                    likes: Math.max(rc.likes || 0, localCh?.likes || 0),
                   };
                 });
 
               // Ensure all 40 baked chapters are present
               for (const b of INITIAL_CHAPTERS) {
                 if (!remoteNums.has(b.chapterNumber)) {
-                  mergedChapters.push(b);
+                  const localCh = localChapterMap.get(b.id) || localChapterByNum.get(b.chapterNumber);
+                  mergedChapters.push(localCh || b);
                 }
               }
               mergedChapters.sort((a, b) => a.chapterNumber - b.chapterNumber);
@@ -402,38 +408,37 @@ class SupabaseService {
         .select('id, novel_id, chapter_number, title, slug, content, author_note, published_at, views, likes, rating, rating_count, word_count, status')
         .order('chapter_number', { ascending: true });
 
-      const existingLocalChaptersForViews = storageService.getChapters();
-      const localChapterViewsMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.views || 0]));
-      const localChapterContentMap = new Map(existingLocalChaptersForViews.map(lc => [lc.id, lc.content || '']));
+      const existingLocalChapters = storageService.getChapters();
+      const localChapterMap = new Map(existingLocalChapters.map(lc => [lc.id, lc]));
+      const localChapterByNum = new Map(existingLocalChapters.map(lc => [lc.chapterNumber, lc]));
 
       const chapters: Chapter[] = (rawChapters || []).map((c: any) => {
         const chapterNum = Number(c.chapter_number) || 1;
+        const localCh = localChapterMap.get(c.id) || localChapterByNum.get(chapterNum);
         const bakedContent = storageService.getBakedChapterContent(c.id) || storageService.getBakedChapterContent(chapterNum);
         
-        let resolvedContent = c.content || localChapterContentMap.get(c.id) || '';
-        if ((!resolvedContent || resolvedContent.trim().length === 0) && bakedContent) {
-          resolvedContent = bakedContent;
-        }
+        let resolvedContent = (localCh?.content && localCh.content.trim().length > 0) ? localCh.content : (c.content || bakedContent || '');
+        let resolvedTitle = (localCh?.title && localCh.title.trim().length > 0) ? localCh.title : (c.title || '');
 
         const plainText = resolvedContent.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (Number(c.word_count) || 0);
+        const computedWords = plainText ? plainText.split(/\s+/).filter(Boolean).length : (localCh?.wordCount || Number(c.word_count) || 0);
 
         return {
           id: c.id,
           novelId: c.novel_id,
           chapterNumber: chapterNum,
-          title: c.title,
+          title: resolvedTitle,
           slug: c.slug || c.id,
           content: resolvedContent,
-          authorNote: c.author_note || undefined,
+          authorNote: localCh?.authorNote !== undefined ? localCh.authorNote : (c.author_note || undefined),
           publishedAt: c.published_at || new Date().toISOString(),
-          views: Math.max(Number(c.views) || 0, localChapterViewsMap.get(c.id) || 0),
-          likes: Number(c.likes) || 0,
+          views: Math.max(Number(c.views) || 0, localCh?.views || 0),
+          likes: Math.max(Number(c.likes) || 0, localCh?.likes || 0),
           rating: typeof c.rating === 'number' ? Number(c.rating) : 5.0,
           ratingCount: typeof c.rating_count === 'number' ? Number(c.rating_count) : 0,
           wordCount: computedWords,
           status: c.status || 'PUBLISHED',
-          seo: c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined),
+          seo: localCh?.seo || (c.seo && typeof c.seo === 'object' ? c.seo : (typeof c.seo === 'string' ? JSON.parse(c.seo) : undefined)),
         };
       });
 

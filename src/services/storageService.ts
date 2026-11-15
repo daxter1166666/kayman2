@@ -84,16 +84,12 @@ try {
     }
   });
 
-  // Reset / flush cached local books and chapters on session startup
-  // to force fresh real stats and all 40 chapters across all browsers & devices
-  const sessionFlushKey = 'ayman_startup_synced_session_v41';
+  // Reset / flush articles on session startup without wiping user chapter or novel edits
+  const sessionFlushKey = 'ayman_startup_synced_session_v42';
   if (typeof window !== 'undefined' && typeof sessionStorage !== 'undefined') {
     if (!sessionStorage.getItem(sessionFlushKey)) {
       localStorage.removeItem(KEYS.ARTICLES);
       localStorage.removeItem(KEYS.ARTICLE_LIKES);
-      localStorage.removeItem(KEYS.CHAPTERS);
-      localStorage.removeItem(KEYS.NOVELS);
-      localStorage.removeItem(KEYS.DELETED_CHAPTER_IDS);
       localStorage.setItem(KEYS.ARTICLES, JSON.stringify([]));
       sessionStorage.setItem(sessionFlushKey, 'true');
     }
